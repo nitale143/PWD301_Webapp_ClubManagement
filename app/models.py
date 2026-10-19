@@ -28,7 +28,7 @@ class Permission:
     ASSIGN_ROLES = 16      # Phân vai trò cho thành viên khác (giới hạn theo cấp bậc)
     HANDOFF_ROLE = 32      # Nhường chức vụ của chính mình cho một thành viên
     BOARD = 64             # Thuộc Ban điều hành: báo cáo tổng hợp, nháp email, khu vực quản trị
-    MANAGE_TEMPLATES = 128 # Quản lý mail mẫu dùng chung
+    MANAGE_TEMPLATES = 128 # Quản lý kho mẫu email dùng chung
 
     LABELS = {
         APPROVE_MEMBERS: "Xem/duyệt đăng ký thành viên",
@@ -38,13 +38,21 @@ class Permission:
         ASSIGN_ROLES: "Phân vai trò",
         HANDOFF_ROLE: "Nhường chức vụ của bản thân",
         BOARD: "Khu vực Ban điều hành",
-        MANAGE_TEMPLATES: "Quản lý mail mẫu",
+        MANAGE_TEMPLATES: "Quản lý kho mẫu email",
     }
 
 
 # Bảng quyền mặc định theo chức vụ. Thứ tự rank: số nhỏ = cấp cao hơn.
 # Muốn đổi chính sách: sửa bảng này rồi chạy `flask --app run.py sync-roles`.
+# Tài khoản quản trị hệ thống: tạo đầu tiên bằng `flask create-admin`, không phải thành viên CLB,
+# dùng để duyệt/gán những thành viên và BĐH đầu tiên (kể cả Chủ nhiệm).
+SYSTEM_ADMIN_ROLE = "ADMIN"
+
 DEFAULT_ROLES = {
+    SYSTEM_ADMIN_ROLE: {"label": "Quản trị hệ thống", "rank": -1, "permissions": (
+        Permission.APPROVE_MEMBERS | Permission.MANAGE_MEMBERS | Permission.MANAGE_EVENTS
+        | Permission.MANAGE_FUNDS | Permission.ASSIGN_ROLES | Permission.BOARD
+        | Permission.MANAGE_TEMPLATES)},
     "CN": {"label": "Chủ nhiệm", "rank": 0, "permissions": (
         Permission.APPROVE_MEMBERS | Permission.MANAGE_MEMBERS | Permission.MANAGE_EVENTS
         | Permission.MANAGE_FUNDS | Permission.ASSIGN_ROLES | Permission.HANDOFF_ROLE
@@ -300,6 +308,11 @@ class User(UserMixin, db.Model):
         """Thuộc Ban điều hành (có quyền BOARD)."""
         return self.can(Permission.BOARD)
 
+    @property
+    def is_system_admin(self):
+        """Tài khoản quản trị hệ thống (không phải thành viên CLB)."""
+        return self.chuc_vu == SYSTEM_ADMIN_ROLE
+
     def quan_ly_ban_ids(self):
         """Các ban_id mà Trưởng ban này quản lý (rỗng nếu không phải TB)."""
         if self.chuc_vu != "TB":
@@ -328,6 +341,8 @@ class AnonymousUser(AnonymousUserMixin):
     def is_administrator(self):
         """Người chưa đăng nhập không phải quản trị."""
         return False
+
+    is_system_admin = False
 
 
 login_manager.anonymous_user = AnonymousUser
@@ -795,18 +810,53 @@ class EmailProposal(db.Model):
 
 
 class EmailTemplate(db.Model):
-    """Shared, reviewable mail content managed by the club leadership."""
+    """Mẫu email trong kho mẫu.
+
+    - `system_key` có giá trị: mẫu của email tự động (xác minh email, giao task…)
+      và mẫu chung `general`; chỉ sửa nội dung, không xóa/đổi tên.
+    - `system_key` rỗng: mẫu do BĐH tạo, AI tìm theo tên/từ khóa khi soạn nháp.
+    """
 
     __tablename__ = "email_template"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     name_key = db.Column(db.String(100), unique=True, nullable=False)
+    system_key = db.Column(db.String(40), unique=True)
+    keywords = db.Column(db.String(300), nullable=False, default="")
+    description = db.Column(db.String(300), nullable=False, default="")
     subject = db.Column(db.String(180), nullable=False)
     body = db.Column(db.Text, nullable=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
-    created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     updated_at = db.Column(db.DateTime, nullable=False, default=utcnow,
                            onupdate=utcnow)
+
+
+class ProposalTemplate(db.Model):
+    """Mẫu sự kiện / mẫu chia task trong kho mẫu, AI dùng khi lập đề xuất.
+
+    `content` (JSON):
+      - kind="event": {"name", "content", "type", "location", "duration_hours"}
+      - kind="task":  {"tasks": [{"name", "description", "days_before"}]}
+    `is_default=True`: mẫu chung, dùng khi không tìm thấy mẫu phù hợp hơn.
+    """
+
+    __tablename__ = "proposal_template"
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(10), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    name_key = db.Column(db.String(100), nullable=False)
+    keywords = db.Column(db.String(300), nullable=False, default="")
+    event_type = db.Column(db.String(100), nullable=False, default="")
+    content = db.Column(db.JSON, nullable=False)
+    is_default = db.Column(db.Boolean, nullable=False, default=False)
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+    __table_args__ = (
+        db.UniqueConstraint("kind", "name_key", name="uq_proposal_template_name"),
+        db.CheckConstraint("kind IN ('event','task')", name="ck_proposal_template_kind"),
+    )
 
 
 class AssistantPending(db.Model):

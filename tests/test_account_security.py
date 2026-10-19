@@ -81,26 +81,26 @@ class AccountSecurityTests(unittest.TestCase):
         client = self.app.test_client()
         with patch("app.routes.auth.send_email", return_value=True) as mail:
             response = self.post(client, "/register", {
-                "mssv": "NEW0001", "ho_ten": "New Member", "ngay_sinh": "2004-05-06",
+                "mssv": "SE240001", "ho_ten": "New Member", "ngay_sinh": "2004-05-06",
                 "sdt": "0912345678", "email": "New.Member@Example.com",
                 "facebook_link": "https://facebook.com/new", "ban_hoat_dong": [],
                 "password": PASSWORD, "confirm_password": PASSWORD})
         # chưa có ban nào trong DB → form báo lỗi, không tạo tài khoản
         self.assertEqual(response.status_code, 200)
-        self.assertIsNone(User.query.filter_by(mssv="NEW0001").first())
+        self.assertIsNone(User.query.filter_by(mssv="SE240001").first())
         mail.assert_not_called()
 
         from app.models import Ban
         db.session.add(Ban(id=1, ten_ban="Kỹ thuật"))
         db.session.commit()
         mismatch = self.post(client, "/register", {
-            "mssv": "NEW0001", "ho_ten": "New Member", "ngay_sinh": "2004-05-06",
+            "mssv": "SE240001", "ho_ten": "New Member", "ngay_sinh": "2004-05-06",
             "sdt": "0912345678", "email": "new.member@example.com",
             "facebook_link": "https://facebook.com/new", "ban_hoat_dong": ["1"],
             "password": PASSWORD, "confirm_password": PASSWORD + "x"})
         self.assertIn("Mật khẩu nhập lại không khớp.".encode(), mismatch.data)
         duplicate_email = self.post(client, "/register", {
-            "mssv": "NEW0002", "ho_ten": "Dup", "ngay_sinh": "2004-05-06",
+            "mssv": "SE240002", "ho_ten": "Dup", "ngay_sinh": "2004-05-06",
             "sdt": "0912345678", "email": "USER1@example.com",
             "facebook_link": "https://facebook.com/dup", "ban_hoat_dong": ["1"],
             "password": PASSWORD, "confirm_password": PASSWORD})
@@ -108,12 +108,12 @@ class AccountSecurityTests(unittest.TestCase):
 
         with patch("app.routes.auth.send_email", return_value=True) as mail:
             created = self.post(client, "/register", {
-                "mssv": "NEW0001", "ho_ten": "New Member", "ngay_sinh": "2004-05-06",
+                "mssv": "SE240001", "ho_ten": "New Member", "ngay_sinh": "2004-05-06",
                 "sdt": "0912345678", "email": "New.Member@Example.com",
                 "facebook_link": "https://facebook.com/new", "ban_hoat_dong": ["1"],
                 "password": PASSWORD, "confirm_password": PASSWORD})
         self.assertEqual(created.status_code, 302)
-        user = User.query.filter_by(mssv="NEW0001").one()
+        user = User.query.filter_by(mssv="SE240001").one()
         self.assertEqual(user.email, "new.member@example.com")
         self.assertFalse(user.email_confirmed)
         link = self.link_from(mail, "confirm")
@@ -295,7 +295,10 @@ class MigrationTests(unittest.TestCase):
                 upgrade(directory=str(Path(__file__).resolve().parents[1] / "migrations"))
                 tables = set(inspect(db.engine).get_table_names())
                 self.assertTrue(set(db.metadata.tables) <= tables)
-                self.assertEqual({role.name for role in Role.query}, {"CN", "PCN", "TB", "THUKY_THUQUY", "THANH_VIEN"})
+                self.assertEqual({role.name for role in Role.query},
+                                 {"ADMIN", "CN", "PCN", "TB", "THUKY_THUQUY", "THANH_VIEN"})
+                email_columns = {column["name"] for column in inspect(db.engine).get_columns("email_template")}
+                self.assertTrue({"system_key", "keywords", "description"} <= email_columns)
                 user_columns = {column["name"] for column in inspect(db.engine).get_columns("user")}
                 self.assertTrue({"email_confirmed", "must_change_password", "password_changed_at"} <= user_columns)
                 downgrade(directory=str(Path(__file__).resolve().parents[1] / "migrations"), revision="base")

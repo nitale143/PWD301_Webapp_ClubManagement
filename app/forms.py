@@ -14,8 +14,8 @@ from datetime import date
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileAllowed, FileField, FileRequired
 from wtforms import (
-    BooleanField, DateField, DateTimeLocalField, HiddenField, PasswordField,
-    SelectMultipleField, StringField, SubmitField, TextAreaField,
+    BooleanField, DateField, DateTimeLocalField, HiddenField, PasswordField, RadioField,
+    StringField, SubmitField, TextAreaField,
 )
 from wtforms.validators import (
     DataRequired, Email, EqualTo, InputRequired, Length, Optional, Regexp,
@@ -23,8 +23,13 @@ from wtforms.validators import (
 )
 
 from app.validators import (
-    FACEBOOK_RE, MSSV_RE, PHONE_RE, PASSWORD_MAX, NoControlChars, StrongPassword,
+    FACEBOOK_RE, MSSV_EXAMPLE, MSSV_RE, PHONE_RE, NoControlChars, StrongPassword,
+    normalize_facebook, normalize_mssv, normalize_phone,
 )
+
+# Ô mật khẩu khi ĐĂNG NHẬP / xác nhận lại nhận tới 128 ký tự để tài khoản cũ (đặt trước khi
+# giới hạn 64 ký tự) vẫn đăng nhập được; mật khẩu MỚI bị giới hạn 8–64 bởi StrongPassword.
+LOGIN_PASSWORD_MAX = 128
 
 # --------------------------------------------------------------------------
 # Bản dịch thông báo lỗi WTForms sang tiếng Việt
@@ -93,18 +98,19 @@ def _lower_strip(value):
     return value.strip().lower() if isinstance(value, str) else value
 
 
-class IntMultiSelectField(SelectMultipleField):
-    """SelectMultipleField trả về list[int]; giá trị không phải số → lỗi tiếng Việt."""
+def _phone_filter(value):
+    """Filter: chuẩn hóa SĐT về +84xxxxxxxxx; sai định dạng thì giữ nguyên để Regexp báo lỗi."""
+    return (normalize_phone(value) or value.strip()) if isinstance(value, str) else value
 
-    def process_formdata(self, valuelist):
-        """Chuyển danh sách giá trị gửi lên thành list[int] không trùng lặp; giá trị không phải số
-        → lỗi validate.
-        """
-        try:
-            self.data = list(dict.fromkeys(int(value) for value in valuelist))
-        except (TypeError, ValueError):
-            self.data = None
-            raise ValueError("Ban hoạt động không hợp lệ.") from None
+
+def _facebook_filter(value):
+    """Filter: chuẩn hóa userID / link về https://facebook.com/<userID>; sai thì giữ nguyên."""
+    return (normalize_facebook(value) or value.strip()) if isinstance(value, str) else value
+
+
+def _mssv_filter(value):
+    """Filter: bỏ khoảng trắng và viết hoa MSSV."""
+    return normalize_mssv(value) if isinstance(value, str) else value
 
 
 # --------------------------------------------------------------------------
@@ -114,30 +120,34 @@ class LoginForm(BaseForm):
     """Form đăng nhập: MSSV, mật khẩu, ghi nhớ đăng nhập, `next` (trang quay lại sau khi đăng
     nhập).
     """
-    mssv = StringField("MSSV", filters=[_strip], validators=[DataRequired(), Length(max=20)])
-    password = PasswordField("Mật khẩu", validators=[DataRequired(), Length(max=PASSWORD_MAX)])
+    mssv = StringField("MSSV / tên đăng nhập", filters=[_strip], validators=[DataRequired(), Length(max=20)])
+    password = PasswordField("Mật khẩu", validators=[DataRequired(), Length(max=LOGIN_PASSWORD_MAX)])
     remember = BooleanField("Ghi nhớ đăng nhập trên thiết bị này")
     next = HiddenField()
     submit = SubmitField("Đăng nhập")
 
 
 class RegistrationForm(BaseForm):
-    """Đơn đăng ký thành viên. Danh sách ban (`ban_hoat_dong.choices`) được gán trong view."""
+    """Đơn đăng ký thành viên. Danh sách ban (`ban_hoat_dong.choices`) được gán trong view;
+    mỗi người chỉ chọn MỘT ban. SĐT lưu dạng +84xxxxxxxxx, Facebook dạng https://facebook.com/userID.
+    """
 
     ho_ten = StringField("Họ và tên", filters=[_strip],
                          validators=[DataRequired(), Length(min=2, max=100), NoControlChars()])
-    mssv = StringField("MSSV", filters=[_strip], validators=[
-        DataRequired(), Regexp(MSSV_RE, message="MSSV phải gồm 6-15 ký tự chữ/số.")])
+    mssv = StringField("MSSV", filters=[_mssv_filter], validators=[
+        DataRequired(), Regexp(MSSV_RE, message=f"MSSV không đúng định dạng (vd: {MSSV_EXAMPLE}).")])
     ngay_sinh = DateField("Ngày sinh", validators=[DataRequired(message="Ngày sinh không hợp lệ.")])
-    sdt = StringField("Số điện thoại", filters=[_strip], validators=[
-        DataRequired(), Length(max=15),
-        Regexp(PHONE_RE, message="Số điện thoại không hợp lệ (vd: 0912345678).")])
+    sdt = StringField("Số điện thoại", filters=[_phone_filter], validators=[
+        DataRequired(), Length(max=20),
+        Regexp(PHONE_RE, message="Nhập 9 số sau +84 (vd: 912345678).")])
     email = StringField("Email", filters=[_lower_strip],
                         validators=[DataRequired(), Length(max=120), Email(message="Email không hợp lệ.")])
-    facebook_link = StringField("Link Facebook", filters=[_strip], validators=[
-        DataRequired(), Length(max=255), NoControlChars(),
-        Regexp(FACEBOOK_RE, message="Link Facebook không hợp lệ (vd: https://facebook.com/ten.ban).")])
-    ban_hoat_dong = IntMultiSelectField("Ban hoạt động", choices=[], validate_choice=False)
+    facebook_link = StringField("Facebook", filters=[_facebook_filter], validators=[
+        DataRequired(), Length(max=80), NoControlChars(),
+        Regexp(FACEBOOK_RE, message="Chỉ nhận userID Facebook (chữ, số, dấu chấm), "
+                                    "tức link dạng https://facebook.com/userID.")])
+    ban_hoat_dong = RadioField("Ban hoạt động", choices=[], coerce=int,
+                               validators=[InputRequired(message="Vui lòng chọn một ban hoạt động.")])
     password = PasswordField("Mật khẩu", validators=[DataRequired(), StrongPassword(mssv_field="mssv")])
     confirm_password = PasswordField("Nhập lại mật khẩu", validators=[
         DataRequired(), EqualTo("password", message="Mật khẩu nhập lại không khớp.")])
@@ -148,11 +158,6 @@ class RegistrationForm(BaseForm):
         if field.data and (field.data.year < 1980 or field.data >= date.today()):
             raise ValidationError("Ngày sinh không hợp lệ.")
 
-    def validate_ban_hoat_dong(self, field):
-        """Phải chọn 1–20 ban và mọi ban đều có trong danh sách lựa chọn."""
-        allowed = {value for value, _label in self.ban_hoat_dong.choices}
-        if not field.data or len(field.data) > 20 or not set(field.data) <= allowed:
-            raise ValidationError("Vui lòng chọn ít nhất 1 ban hoạt động hợp lệ.")
 
     # Validator kiểm tra trùng lặp trong database (Ch4 – slide 36-37)
     def validate_mssv(self, field):
@@ -170,7 +175,7 @@ class RegistrationForm(BaseForm):
 
 class ChangePasswordForm(BaseForm):
     """Form đổi mật khẩu: mật khẩu hiện tại, mật khẩu mới (StrongPassword) và nhập lại."""
-    current_password = PasswordField("Mật khẩu hiện tại", validators=[DataRequired(), Length(max=PASSWORD_MAX)])
+    current_password = PasswordField("Mật khẩu hiện tại", validators=[DataRequired(), Length(max=LOGIN_PASSWORD_MAX)])
     new_password = PasswordField("Mật khẩu mới", validators=[DataRequired(), StrongPassword()])
     confirm_password = PasswordField("Nhập lại mật khẩu mới", validators=[
         DataRequired(), EqualTo("new_password", message="Mật khẩu nhập lại không khớp.")])
@@ -194,7 +199,7 @@ class ResetPasswordForm(BaseForm):
 
 class ReauthForm(BaseForm):
     """Form nhập lại mật khẩu để làm mới phiên (fresh login) trước thao tác nhạy cảm."""
-    password = PasswordField("Mật khẩu", validators=[DataRequired(), Length(max=PASSWORD_MAX)])
+    password = PasswordField("Mật khẩu", validators=[DataRequired(), Length(max=LOGIN_PASSWORD_MAX)])
     next = HiddenField()
     submit = SubmitField("Xác nhận")
 

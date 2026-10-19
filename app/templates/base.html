@@ -15,6 +15,7 @@
 ] %}
 {% set can_approve = can(Permission.APPROVE_MEMBERS) %}
 {% set can_roles = can(Permission.ASSIGN_ROLES) or can(Permission.HANDOFF_ROLE) %}
+{% set can_templates = can(Permission.MANAGE_TEMPLATES) or can(Permission.MANAGE_EVENTS) %}
 <!doctype html>
 <html lang="vi">
 <head>

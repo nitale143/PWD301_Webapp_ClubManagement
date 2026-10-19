@@ -586,39 +586,14 @@
     {% else %}<p class="muted">Chưa lưu báo cáo nào.</p>{% endfor %}
 </details>
 <details class="new-task-box">
-    <summary>Mail mẫu dùng chung</summary>
-    <p class="small muted">Ví dụ, nói với AI: “Gửi mail mẫu nhắc đóng quỹ cho Nguyễn Văn A”. AI chỉ tạo bản nháp; BDH vẫn phải duyệt gửi. Có thể dùng {{ '{{ten}}' }}, {{ '{{mssv}}' }}, {{ '{{email}}' }} để điền thông tin người nhận.</p>
-    {% if can(Permission.MANAGE_TEMPLATES) %}
-    <form method="post" action="{{ url_for('ai.email_template_create') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label>Tên mẫu</label><input name="name" maxlength="100" required placeholder="Nhắc đóng quỹ">
-        <label>Tiêu đề</label><input name="subject" maxlength="180" required>
-        <label>Nội dung</label><textarea name="body" rows="6" maxlength="3000" required></textarea>
-        <button type="submit">Lưu mail mẫu</button>
-    </form>
+    <summary>Kho mẫu (email, sự kiện, chia task)</summary>
+    <p class="small muted">Khi soạn nháp email hoặc lập đề xuất, AI tìm mẫu trong kho trước (theo tên, từ khóa, loại sự kiện).
+        Không có mẫu phù hợp thì AI dùng sự kiện tương tự đã có, hoặc mẫu chung, rồi điều chỉnh theo mô tả của bạn.
+        Ví dụ: “Gửi mail mẫu Nhắc đóng quỹ cho SE201256” hoặc “Gửi mail cho SE201256: nhắc nộp poster trước thứ 6”.</p>
+    {% if email_templates %}<p class="small">Mẫu email đang dùng: {{ email_templates|map(attribute='name')|join(', ') }}</p>{% endif %}
+    {% if can(Permission.MANAGE_TEMPLATES) or can(Permission.MANAGE_EVENTS) %}
+    <a class="btn btn-secondary btn-sm" href="{{ url_for('kho_mau.index') }}">{{ icon('file') }} Mở Kho mẫu</a>
     {% endif %}
-    {% for template in email_templates %}
-    <details class="new-task-box">
-        <summary>{{ template.name }}{{ ' (đã tạm ngừng)' if not template.active else '' }}</summary>
-        <pre style="white-space: pre-wrap">Tiêu đề: {{ template.subject }}
-
-{{ template.body }}</pre>
-        {% if can(Permission.MANAGE_TEMPLATES) %}
-        <form method="post" action="{{ url_for('ai.email_template_update', template_id=template.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <label>Tên mẫu</label><input name="name" value="{{ template.name }}" maxlength="100" required>
-            <label>Tiêu đề</label><input name="subject" value="{{ template.subject }}" maxlength="180" required>
-            <label>Nội dung</label><textarea name="body" rows="6" maxlength="3000" required>{{ template.body }}</textarea>
-            <button type="submit">Lưu thay đổi</button>
-        </form>
-        <form method="post" action="{{ url_for('ai.email_template_active', template_id=template.id) }}" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="active" value="{{ 'yes' if not template.active else 'no' }}">
-            <button type="submit">{{ 'Bật lại mẫu' if not template.active else 'Tạm ngừng mẫu' }}</button>
-        </form>
-        {% endif %}
-    </details>
-    {% else %}<p class="muted">Chưa lưu mail mẫu nào.</p>{% endfor %}
 </details>
 <details class="new-task-box">
     <summary>Đề xuất sự kiện hoặc chia task (chỉ tạo bản xem trước)</summary>
@@ -632,6 +607,11 @@
         </select>
         <label>Mô tả yêu cầu</label>
         <textarea name="brief" rows="3" maxlength="2000" required></textarea>
+        <label>Mẫu áp dụng</label>
+        <select name="template_id">
+            <option value="">Tự động: tìm trong kho → sự kiện tương tự → mẫu chung</option>
+            {% for template in proposal_templates %}<option value="{{ template.id }}">{{ 'Sự kiện' if template.kind == 'event' else 'Chia task' }} · {{ template.name }}{{ ' (mẫu chung)' if template.is_default else '' }}</option>{% endfor %}
+        </select>
         <label>Ban áp dụng (bắt buộc khi chia task / Trưởng ban đề xuất)</label>
         <select name="ban_id">
             <option value="">Tất cả thành viên</option>
@@ -643,7 +623,7 @@
             {% for event in events %}<option value="{{ event.id }}">{{ event.ten_su_kien }}</option>{% endfor %}
         </select>
         <label>Bắt đầu sự kiện mới</label><input type="datetime-local" name="start_at">
-        <label>Kết thúc sự kiện mới</label><input type="datetime-local" name="end_at">
+        <label>Kết thúc sự kiện mới (để trống: lấy thời lượng của mẫu)</label><input type="datetime-local" name="end_at">
         <label>Hạn task (chỉ dùng khi chia task)</label><input type="datetime-local" name="deadline">
         <label>Kỹ năng mong muốn khi chia task (ngăn bằng dấu phẩy)</label><input type="text" name="required_skills" maxlength="320">
         <button type="submit">Tạo bản xem trước</button>

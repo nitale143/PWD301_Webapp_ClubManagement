@@ -1,3 +1,33 @@
+# Định dạng đăng ký, tài khoản Quản trị hệ thống, Kho mẫu (20/10/2026)
+
+## Định dạng thông tin (đồng bộ form, REST API, CLI, migration)
+- **MSSV**: `^[HDQCS][ASE]\d{6}$` (vd `SE201256`), tự viết hoa. Đăng nhập gõ chữ thường cũng được.
+- **SĐT**: lưu `+84` + 9 số. Ô nhập có sẵn tiền tố `+84`, người dùng nhập 9 số (dán `0…`/`+84…` cũng được chuẩn hóa).
+- **Facebook**: chỉ nhận `https://facebook.com/<userID>`; ô nhập có sẵn tiền tố, người dùng nhập userID. Không nhận `www.`, `m.`, `fb.com`, `profile.php?id=`.
+- **Email**: kiểm tra định dạng chung, không giới hạn tên miền.
+- **Mật khẩu mới**: 8–64 ký tự (ô đăng nhập vẫn nhận tới 128 để tài khoản cũ đăng nhập được).
+- Migration `0003` chuẩn hóa SĐT/Facebook đã lưu nếu chuyển được.
+
+## Đăng ký thành viên
+- Chỉ chọn **một** ban (RadioField). Giao diện mới: chia nhóm Thông tin cá nhân / Liên hệ / Ban hoạt động / Mật khẩu, ô có tiền tố, thẻ chọn ban, các bước đăng ký ở cột trái.
+
+## Tài khoản Quản trị hệ thống
+- `flask create-admin` thay cho `create-cn`: chỉ hỏi tên hiển thị, tên đăng nhập, mật khẩu; chỉ tạo được một lần. Thêm `flask reset-admin-password`.
+- Role `ADMIN` (rank -1): mọi quyền trừ nhường chức vụ. Là tài khoản duy nhất gán được **Chủ nhiệm**. Không ai gán/đổi được vai trò ADMIN.
+- Không phải thành viên CLB: không có trong danh bạ, danh sách phân quyền, khoản thu, người nhận task, nhắc kỳ quỹ; email `*.invalid` không bao giờ được gửi.
+
+## Kho mẫu (`/kho-mau`)
+- **Mẫu email**: 12 mẫu hệ thống (nội dung mọi email tự động + mẫu chung cho AI) sửa được tiêu đề/nội dung, có khôi phục mặc định; mẫu của CLB có tên, từ khóa, mô tả, bật/tắt. Mọi email tự động nay lấy nội dung từ kho (`render_system_email`).
+- **Mẫu sự kiện / mẫu chia task** (bảng mới `proposal_template`).
+- AI chọn khung theo thứ tự: mẫu chọn tay → mẫu trong kho (tên, từ khóa, loại sự kiện) → sự kiện tương tự → mẫu chung; có model thì điều chỉnh theo mô tả. Bản xem trước đề xuất ghi rõ "Khung".
+- Nháp email AI: mẫu trong kho khớp → dùng mẫu (điền `{{noi_dung}}`); không khớp → mẫu chung, AI viết lại cho đúng mục đích.
+- Đề xuất sự kiện bỏ trống giờ kết thúc → lấy thời lượng của mẫu.
+- Quản lý mail mẫu chuyển từ trang AI sang Kho mẫu (route cũ `/ai/email-templates…` → `/kho-mau/email…`).
+- `flask init-db` / `flask seed-templates` nạp mẫu mặc định còn thiếu.
+
+## Kiểm thử
+- Thêm `tests/test_formats_admin_templates.py`; cập nhật test cũ theo định dạng mới. 181 test.
+
 # Chỉnh sửa theo góp ý vận hành (16/10/2026)
 
 ## Backend

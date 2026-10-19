@@ -12,9 +12,193 @@
   margin-top: 22px !important;
 }
 
-.register-ban-select {
-  min-height: 102px;
-  width: 100%;
+/* ---- Đăng ký thành viên: chia nhóm, ô có tiền tố, chọn 1 ban dạng thẻ ---- */
+.register-steps {
+  list-style: none;
+  counter-reset: step;
+  margin: 28px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.register-steps li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  column-gap: 12px;
+  align-items: start;
+}
+
+.register-steps li::before {
+  content: counter(step);
+  grid-row: span 2;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  background: var(--primary-soft);
+}
+
+.register-steps strong {
+  font-size: 13px;
+}
+
+.register-steps span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.register-form {
+  gap: 14px;
+}
+
+.register-section {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px 2px;
+  margin: 0;
+  min-width: 0;
+}
+
+.register-section legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.register-section legend svg {
+  width: 16px;
+  height: 16px;
+  color: var(--primary);
+}
+
+.register-section legend .field-help {
+  margin: 0 0 0 6px;
+  font-weight: 500;
+}
+
+.input-group {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color .15s;
+}
+
+.input-group:focus-within {
+  border-color: var(--primary);
+}
+
+.input-group.is-invalid {
+  border-color: var(--danger, #f87171);
+}
+
+.input-group .input-addon {
+  display: flex;
+  align-items: center;
+  padding: 0 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--primary-soft);
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.input-group .input {
+  border: 0;
+  border-radius: 0;
+  min-width: 0;
+  flex: 1;
+}
+
+.ban-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.ban-choice {
+  position: relative;
+  cursor: pointer;
+}
+
+.ban-choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ban-choice-body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px 13px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color .15s, background .15s;
+}
+
+.ban-choice-body strong {
+  font-size: 13px;
+}
+
+.ban-choice-body .small {
+  line-height: 1.5;
+}
+
+.ban-choice-check {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  color: transparent;
+}
+
+.ban-choice-check svg {
+  width: 13px;
+  height: 13px;
+}
+
+.ban-choice:hover .ban-choice-body {
+  border-color: var(--primary-dark, var(--primary));
+}
+
+.ban-choice input:checked + .ban-choice-body {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.ban-choice input:checked + .ban-choice-body .ban-choice-check {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--bg, #090d0a);
+}
+
+.ban-choice input:focus-visible + .ban-choice-body {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .ban-choice-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .preview-pending .auth-card .card-body {

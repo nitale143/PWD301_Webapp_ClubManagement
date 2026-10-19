@@ -206,16 +206,18 @@ class WorkflowTests(unittest.TestCase):
     def test_member_import_is_atomic(self):
         self.login(1)
         header = "code,name,birth_date,email,phone,department_ids,password\n"
-        good = "CSV001,New Member,2003-01-01,new1@example.test,0123456789,1,secret123\n"
+        good = "se240101,New Member,2003-01-01,new1@example.test,0123456789,1,secret123\n"
         invalid = "bad!,Bad Member,2003-01-01,new2@example.test,0123456789,1,secret123\n"
         rejected = self.csrf_request("POST", "/api/v1/members/import", data={
             "file": (BytesIO((header + good + invalid).encode()), "members.csv")})
         self.assertEqual(rejected.status_code, 400, rejected.json)
-        self.assertIsNone(User.query.filter_by(mssv="CSV001").first())
+        self.assertIsNone(User.query.filter_by(mssv="SE240101").first())
         accepted = self.csrf_request("POST", "/api/v1/members/import", data={
             "file": (BytesIO((header + good).encode()), "members.csv")})
         self.assertEqual(accepted.status_code, 201, accepted.json)
         self.assertEqual(accepted.json["imported"], 1)
+        # MSSV được viết hoa, SĐT chuẩn hóa về +84 + 9 số
+        self.assertEqual(User.query.filter_by(mssv="SE240101").one().sdt, "+84123456789")
 
     def test_ai_provider_uses_shared_key_and_scoped_context(self):
         self.app.config.update(AI_PROVIDER="anthropic", AI_API_KEY="test-shared-key", AI_STRICT_FACTS=False)
@@ -479,8 +481,8 @@ class WorkflowTests(unittest.TestCase):
         token = self.csrf()
         form = {"name": "Nhắc đóng quỹ", "subject": "Nhắc quỹ cho {{ten}}",
                 "body": "Chào {{ten}} ({{mssv}}), vui lòng kiểm tra quỹ. Email: {{email}}."}
-        self.assertEqual(self.client.post("/ai/email-templates", data=form).status_code, 400)
-        saved = self.csrf_request("POST", "/ai/email-templates", data={**form, "csrf_token": token})
+        self.assertEqual(self.client.post("/kho-mau/email", data=form).status_code, 400)
+        saved = self.csrf_request("POST", "/kho-mau/email", data={**form, "csrf_token": token})
         self.assertEqual(saved.status_code, 302)
         template = EmailTemplate.query.one()
         self.assertIn("Nhắc đóng quỹ", self.client.get("/ai").get_data(as_text=True))
@@ -500,7 +502,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("Member 3 (SV3)", draft.body)
         self.assertIn("member3@club.org", draft.body)
 
-        updated = self.csrf_request("POST", f"/ai/email-templates/{template.id}/update", data={
+        updated = self.csrf_request("POST", f"/kho-mau/email/{template.id}", data={
             "name": "Nhắc đóng quỹ", "subject": "Tiêu đề mới", "body": "Nội dung mới",
             "csrf_token": token})
         self.assertEqual(updated.status_code, 302)
@@ -515,18 +517,18 @@ class WorkflowTests(unittest.TestCase):
         self.app.config.update(AI_PROVIDER="rules")
         self.login(1)
         token = self.csrf()
-        invalid = self.csrf_request("POST", "/ai/email-templates", data={
+        invalid = self.csrf_request("POST", "/kho-mau/email", data={
             "name": "Mẫu lỗi", "subject": "Chào {{user.password}}", "body": "Nội dung",
             "csrf_token": token}, follow_redirects=True)
-        self.assertIn("Chỉ dùng biến".encode(), invalid.data)
+        self.assertIn("Chỉ dùng các biến".encode(), invalid.data)
         self.assertEqual(EmailTemplate.query.count(), 0)
-        self.csrf_request("POST", "/ai/email-templates", data={
+        self.csrf_request("POST", "/kho-mau/email", data={
             "name": "Họp CLB", "subject": "Mời họp", "body": "Chào {{ten}}, mời bạn dự họp.",
             "csrf_token": token})
         template = EmailTemplate.query.one()
 
         self.login(3)
-        self.assertEqual(self.csrf_request("POST", "/ai/email-templates", data={
+        self.assertEqual(self.csrf_request("POST", "/kho-mau/email", data={
             "name": "Khác", "subject": "A", "body": "B", "csrf_token": token}).status_code, 403)
         self.login(1)
         missing = self.csrf_request("POST", "/api/v1/assistant", json={
@@ -539,9 +541,9 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(unknown.status_code, 200, unknown.json)
         self.assertEqual(unknown.json["intent"], "email_template_needed")
         self.assertEqual(EmailProposal.query.count(), 0)
-        self.assertEqual(self.client.post(f"/ai/email-templates/{template.id}/active",
+        self.assertEqual(self.client.post(f"/kho-mau/email/{template.id}/active",
                                           data={"active": "no"}).status_code, 400)
-        self.csrf_request("POST", f"/ai/email-templates/{template.id}/active",
+        self.csrf_request("POST", f"/kho-mau/email/{template.id}/active",
                          data={"active": "no", "csrf_token": token})
         self.assertFalse(db.session.get(EmailTemplate, template.id).active)
         result = self.csrf_request("POST", "/api/v1/assistant", json={
@@ -553,7 +555,7 @@ class WorkflowTests(unittest.TestCase):
         self.app.config.update(AI_PROVIDER="rules")
         self.login(1)
         token = self.csrf()
-        self.csrf_request("POST", "/ai/email-templates", data={
+        self.csrf_request("POST", "/kho-mau/email", data={
             "name": "Nhắc họp", "subject": "Nhắc họp", "body": "Chào {{ten}}",
             "csrf_token": token})
         db.session.get(User, 3).ho_ten = "Phan Thiện Quáng"
@@ -574,7 +576,7 @@ class WorkflowTests(unittest.TestCase):
         self.app.config.update(AI_PROVIDER="rules")
         self.login(1)
         token = self.csrf()
-        self.csrf_request("POST", "/ai/email-templates", data={
+        self.csrf_request("POST", "/kho-mau/email", data={
             "name": "Nhắc đóng quỹ", "subject": "Nhắc quỹ", "body": "Chào {{ten}}",
             "csrf_token": token})
         message = "AI ơi, gửi mail nhắc quỹ cho Member 3 giúp tôi"

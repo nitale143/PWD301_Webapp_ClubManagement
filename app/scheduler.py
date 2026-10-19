@@ -19,6 +19,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from app import db
 from app.mail import send_email
+from app.services.email_templates import render_system_email
 from app.services.common import club_now
 
 _scheduler = None
@@ -56,18 +57,10 @@ def check_deadlines(app):
         tasks = Task.query.filter(Task.trang_thai.in_(["dang_lam", "lam_lai"])).all()
         for task in tasks:
             if task.assignee and task.deadline.date() == target_date:
-                sent += bool(send_email(
-                    task.assignee.email,
-                    f"[CLB] Còn {warn_days} ngày nữa đến hạn: {task.ten_task}",
-                    (
-                        f"Chào {task.assignee.ho_ten},\n\n"
-                        f"Task \"{task.ten_task}\" thuộc sự kiện "
-                        f"\"{task.event.ten_su_kien}\" sẽ đến hạn vào lúc "
-                        f"{task.deadline.strftime('%d/%m/%Y %H:%M')} "
-                        f"(còn {warn_days} ngày nữa).\n\n"
-                        "Vui lòng hoàn thành và nộp sản phẩm đúng hạn.\n\n-- CLB"
-                    ),
-                ))
+                sent += bool(send_email(task.assignee.email, *render_system_email(
+                    "deadline_reminder", ten=task.assignee.ho_ten, task=task.ten_task,
+                    su_kien=task.event.ten_su_kien, so_ngay=warn_days,
+                    han=task.deadline.strftime('%d/%m/%Y %H:%M'))))
     return sent
 
 
@@ -75,7 +68,7 @@ def check_period_reminder(app):
     """Kỳ quỹ hiện tại sắp kết thúc mà chưa nhắc → tạo Notification + mail cho
     người có quyền quản lý quỹ. Đánh dấu `da_nhac_ky_moi` để không nhắc lặp lại.
     Trả về số người được nhắc."""
-    from app.models import FundPeriod, Notification, Permission, User
+    from app.models import SYSTEM_ADMIN_ROLE, FundPeriod, Notification, Permission, User
     from app.services.access import has_permission
 
     with app.app_context():
@@ -87,7 +80,8 @@ def check_period_reminder(app):
         if so_ngay_con_lai > app.config["PERIOD_REMINDER_DAYS"]:
             return 0
 
-        managers = [user for user in User.query.filter(User.status == "approved").all()
+        managers = [user for user in User.query.filter(User.status == "approved",
+                                                       User.chuc_vu != SYSTEM_ADMIN_ROLE).all()
                     if has_permission(user, Permission.MANAGE_FUNDS)]
         noi_dung = (
             f"Kỳ \"{period.ten_ky}\" sẽ kết thúc vào {period.ngay_ket_thuc.strftime('%d/%m/%Y')} "
@@ -95,7 +89,9 @@ def check_period_reminder(app):
         )
         for member in managers:
             db.session.add(Notification(user_id=member.id, noi_dung=noi_dung))
-            send_email(member.email, "[CLB] Nhắc chuẩn bị kỳ mới", noi_dung + "\n\n-- CLB")
+            send_email(member.email, *render_system_email(
+                "period_reminder", ky=period.ten_ky, so_ngay=so_ngay_con_lai,
+                ngay_ket_thuc=period.ngay_ket_thuc.strftime('%d/%m/%Y')))
 
         period.da_nhac_ky_moi = True
         db.session.commit()

@@ -130,7 +130,7 @@ class TwoRoleSecurityTests(unittest.TestCase):
     def test_template_management_is_limited_to_cn_and_pcn(self):
         for user_id, role in self.ADMIN_ROLES:
             self.login(user_id)
-            response = self.client.post("/ai/email-templates", data={
+            response = self.client.post("/kho-mau/email", data={
                 "name": f"Mau {user_id}", "subject": "Tieu de", "body": "Noi dung"},
                 headers=self.csrf_headers)
             self.assertEqual(response.status_code, 302 if role in {"CN", "PCN"} else 403, role)

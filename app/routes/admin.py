@@ -10,12 +10,15 @@ from flask_login import current_user, fresh_login_required, login_required
 
 from app import db
 from app.mail import send_email
-from app.models import DEFAULT_ROLES, Ban, FundDue, FundPeriod, Permission, User, UserBan, role_rank
+from app.models import (
+    DEFAULT_ROLES, SYSTEM_ADMIN_ROLE, Ban, FundDue, FundPeriod, Permission, User, UserBan, role_rank,
+)
 from app.permissions import any_permission_required, can_assign_role, permission_required
 from app.services.access import (
     MEMBER_ROLE, approved, can_assign_role_to, can_issue_temp_password, set_member_role_safely,
 )
 from app.services.common import audit, member_record
+from app.services.email_templates import render_system_email
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -23,7 +26,7 @@ admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 def _role_counts():
     """Đếm số người đang giữ mỗi chức vụ (chỉ tính thành viên còn hoạt động)."""
     counts = {}
-    for member in User.query.filter_by(status="approved").all():
+    for member in User.query.filter(User.status == "approved", User.chuc_vu != SYSTEM_ADMIN_ROLE):
         if approved(member):
             counts[member.chuc_vu] = counts.get(member.chuc_vu, 0) + 1
     return counts
@@ -58,23 +61,15 @@ def approve_user(user_id):
             db.session.add(FundDue(period_id=ky_hien_tai.id, user_id=user.id, da_dong=False))
         audit(current_user, "member_approve", user)
         db.session.commit()
-        mailed = send_email(
-            user.email,
-            "[CLB] Bạn đã trở thành thành viên chính thức",
-            f"Chào {user.ho_ten},\n\nBĐH đã duyệt hồ sơ của bạn (MSSV: {user.mssv}). "
-            "Bạn có thể đăng nhập và sử dụng không gian làm việc của CLB.\n\n-- CLB",
-        )
+        mailed = send_email(user.email, *render_system_email(
+            "member_approved", ten=user.ho_ten, mssv=user.mssv))
         flash(f"Đã duyệt {user.ho_ten} thành thành viên CLB.", "success")
     elif action == "reject":
         user.status = "rejected"
         audit(current_user, "member_reject", user)
         db.session.commit()
-        mailed = send_email(
-            user.email,
-            "[CLB] Hồ sơ đăng ký chưa được chấp nhận",
-            f"Chào {user.ho_ten},\n\nRất tiếc, BĐH chưa thể xác nhận thông tin đăng ký "
-            f"của bạn (MSSV: {user.mssv}). Vui lòng liên hệ BĐH để biết thêm chi tiết.\n\n-- CLB",
-        )
+        mailed = send_email(user.email, *render_system_email(
+            "member_rejected", ten=user.ho_ten, mssv=user.mssv))
         flash(f"Đã từ chối {user.ho_ten}.", "success")
     else:
         abort(400)
@@ -90,12 +85,14 @@ def role_list():
     """Trang vai trò & phân quyền: danh sách thành viên, nút gán chức vụ (chỉ với người thấp cấp
     hơn) và hộp nhường chức vụ.
     """
-    members = User.query.filter_by(status="approved").order_by(User.ho_ten).all()
+    members = (User.query.filter(User.status == "approved", User.chuc_vu != SYSTEM_ADMIN_ROLE)
+               .order_by(User.ho_ten).all())
     members = [member for member in members if approved(member)]
-    # Vai trò mà người đang xem được phép gán (thấp hơn cấp của mình, trừ CN)
+    # Vai trò người đang xem được phép gán: thấp hơn cấp của mình; CN chỉ Quản trị hệ thống gán
     my_rank = role_rank(current_user.chuc_vu)
     assignable_roles = [name for name, spec in DEFAULT_ROLES.items()
-                        if name != "CN" and spec["rank"] > my_rank]
+                        if name != SYSTEM_ADMIN_ROLE and spec["rank"] > my_rank
+                        and (name != "CN" or current_user.chuc_vu == SYSTEM_ADMIN_ROLE)]
     assignable_ids = {member.id for member in members
                       if assignable_roles and can_assign_role_to(current_user, member, assignable_roles[-1])}
     return render_template(

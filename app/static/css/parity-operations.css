@@ -209,3 +209,23 @@
 .ops-preview .task-reassign-form .btn,.ops-preview .task-review-form .btn { min-height:37px; }
 .ops-preview .task-review-form .task-review-comment { flex-basis:100%; }
 .ops-members .member-contact { display:flex; flex-direction:column; gap:2px; }
+
+/* --- Kho mẫu (email / sự kiện / chia task) --- */
+.kho-mau .tabs a { display:flex; align-items:center; margin-bottom:-1px; padding:12px 14px; border-bottom:2px solid transparent; color:var(--muted); font-size:13px; font-weight:600; }
+.kho-mau .tabs a.active { border-bottom-color:var(--primary); color:var(--primary); }
+.kho-mau .template-intro .row { align-items:flex-start; gap:12px; }
+.kho-mau .template-intro svg { width:22px; height:22px; color:var(--primary); flex-shrink:0; }
+.kho-mau .template-intro p { margin-top:5px; line-height:1.7; }
+.kho-mau .template-list { display:flex; flex-direction:column; gap:10px; }
+.kho-mau .template-item { border:1px solid var(--border); border-radius:10px; padding:0 14px; }
+.kho-mau .template-item[open] { padding-bottom:14px; }
+.kho-mau .template-item > summary { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:13px 0; cursor:pointer; list-style:none; }
+.kho-mau .template-item > summary::-webkit-details-marker { display:none; }
+.kho-mau .template-item > summary > span:first-child { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.kho-mau .template-item > summary strong { display:flex; align-items:center; gap:6px; font-size:13px; }
+.kho-mau .template-item > summary svg { width:15px; height:15px; }
+.kho-mau .template-new { border-style:dashed; }
+.kho-mau .template-form { gap:4px; margin-top:4px; }
+.kho-mau .template-form .field { margin-bottom:10px; }
+.kho-mau .template-var { display:inline-block; margin:2px 4px 2px 0; padding:1px 6px; border-radius:5px; background:var(--primary-soft); color:var(--primary); font-size:11px; }
+.kho-mau .checkbox-row { display:flex; align-items:center; gap:8px; font-size:12px; margin:4px 0 10px; }

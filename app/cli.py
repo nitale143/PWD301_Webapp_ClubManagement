@@ -2,8 +2,10 @@
 
 Lệnh có sẵn:
     flask --app run.py db upgrade           # (Flask-Migrate) cập nhật schema mới nhất
-    flask --app run.py init-db              # upgrade + tạo 3 ban mặc định + bảng role
-    flask --app run.py create-cn            # tạo tài khoản Chủ nhiệm đầu tiên
+    flask --app run.py init-db              # upgrade + 3 ban mặc định + bảng role + kho mẫu mặc định
+    flask --app run.py create-admin         # tạo tài khoản Quản trị hệ thống đầu tiên
+    flask --app run.py reset-admin-password # đặt lại mật khẩu Quản trị hệ thống
+    flask --app run.py seed-templates       # nạp lại các mẫu mặc định còn thiếu
     flask --app run.py sync-roles           # ghi đè quyền của các role theo DEFAULT_ROLES
     flask --app run.py run-scheduler        # chạy job định kỳ ở tiến trình riêng
     flask --app run.py migrate-chats | migrate-money | migrate-email-recipients
@@ -19,14 +21,16 @@ from app import db
 
 
 def register_cli(app):
-    """Đăng ký các lệnh `flask --app run.py ...` (init-db, sync-roles, create-cn, run-scheduler,
-    migrate-*) vào app.
+    """Đăng ký các lệnh `flask --app run.py ...` (init-db, sync-roles, create-admin,
+    reset-admin-password, seed-templates, run-scheduler, migrate-*) vào app.
     """
     from app.legacy_sqlite import (
         migrate_chat_conversations, migrate_email_recipients, migrate_legacy_money,
     )
-    from app.models import Ban, Role, User
-    from app.validators import MSSV_RE, password_problems
+    from app.models import SYSTEM_ADMIN_ROLE, Ban, Role, User
+    from app.services.email_templates import seed_system_templates
+    from app.services.proposal_templates import seed_proposal_templates
+    from app.validators import ADMIN_USERNAME_RE, password_problems
 
     def _require_sqlite_file():
         if db.engine.url.get_backend_name() != "sqlite" or not db.engine.url.database:
@@ -42,7 +46,9 @@ def register_cli(app):
                 db.session.add(Ban(ten_ban=ten))
             db.session.commit()
             click.echo("Đã tạo 3 ban hoạt động mặc định.")
-        click.echo("Database đã sẵn sàng.")
+        seed_system_templates()
+        seed_proposal_templates()
+        click.echo("Database đã sẵn sàng (đã nạp kho mẫu mặc định).")
 
     @app.cli.command("sync-roles")
     def sync_roles():
@@ -51,33 +57,63 @@ def register_cli(app):
         for role in Role.query.order_by(Role.rank, Role.name):
             click.echo(f"{role.name:<14} rank={role.rank} permissions={role.permissions}")
 
-    @app.cli.command("create-cn")
-    def create_cn():
-        """Tạo tài khoản Chủ nhiệm đầu tiên (đã duyệt) để khởi động hệ thống."""
-        Role.insert_roles()
-        mssv = click.prompt("MSSV").strip()
-        if not MSSV_RE.fullmatch(mssv):
-            raise click.ClickException("MSSV phải gồm 6-15 ký tự chữ/số.")
-        if User.query.filter_by(mssv=mssv).first():
-            raise click.ClickException("MSSV này đã tồn tại.")
-        ho_ten = click.prompt("Họ tên").strip()
-        email = click.prompt("Email").strip().lower()
-        if User.query.filter_by(email=email).first():
-            raise click.ClickException("Email này đã được dùng.")
+    def _ask_admin_password(username):
+        """Hỏi mật khẩu 2 lần và kiểm tra theo chính sách mật khẩu mạnh."""
         password = click.prompt("Mật khẩu", hide_input=True, confirmation_prompt=True)
-        problems = password_problems(password, mssv)
+        problems = password_problems(password, username)
         if problems:
             raise click.ClickException(" ".join(problems))
+        return password
 
+    @app.cli.command("create-admin")
+    def create_admin():
+        """Tạo tài khoản Quản trị hệ thống đầu tiên: chỉ cần tên, tên đăng nhập và mật khẩu.
+
+        Tài khoản này có quyền cao nhất, KHÔNG phải thành viên/Chủ nhiệm CLB; dùng để
+        duyệt đơn đăng ký và gán những thành viên, BĐH đầu tiên (kể cả Chủ nhiệm).
+        """
+        Role.insert_roles()
+        if User.query.filter_by(chuc_vu=SYSTEM_ADMIN_ROLE).first():
+            raise click.ClickException(
+                "Đã có tài khoản Quản trị hệ thống. Quên mật khẩu thì dùng: flask reset-admin-password")
+        ho_ten = click.prompt("Tên hiển thị", default="Quản trị hệ thống").strip()
+        if not 2 <= len(ho_ten) <= 100:
+            raise click.ClickException("Tên phải từ 2 đến 100 ký tự.")
+        username = click.prompt("Tên đăng nhập (username)").strip()
+        if not ADMIN_USERNAME_RE.fullmatch(username):
+            raise click.ClickException("Tên đăng nhập gồm 3–20 ký tự chữ, số, dấu _ hoặc -.")
+        if User.query.filter(db.func.lower(User.mssv) == username.lower()).first():
+            raise click.ClickException("Tên đăng nhập này đã được dùng.")
+        password = _ask_admin_password(username)
         user = User(
-            mssv=mssv, ho_ten=ho_ten, ngay_sinh=date(2000, 1, 1), sdt="0000000000",
-            email=email, facebook_link="https://facebook.com/placeholder",
-            status="approved", chuc_vu="CN",
+            mssv=username, ho_ten=ho_ten, ngay_sinh=date(2000, 1, 1), sdt="",
+            # Địa chỉ .invalid: không có hộp thư thật, hệ thống không gửi mail tới đây
+            email=f"{username.lower()}@admin.invalid",
+            status="approved", chuc_vu=SYSTEM_ADMIN_ROLE,
+            email_confirmed=True,
         )
         user.password = password
         db.session.add(user)
         db.session.commit()
-        click.echo(f"Đã tạo Chủ nhiệm {ho_ten} ({mssv}). Hãy đăng nhập và cập nhật thông tin cá nhân.")
+        click.echo(f"Đã tạo Quản trị hệ thống '{username}'. Đăng nhập bằng tên đăng nhập này "
+                   "để duyệt thành viên và gán Ban điều hành đầu tiên.")
+
+    @app.cli.command("reset-admin-password")
+    def reset_admin_password():
+        """Đặt lại mật khẩu tài khoản Quản trị hệ thống (chỉ chạy được trên máy chủ)."""
+        username = click.prompt("Tên đăng nhập Quản trị hệ thống").strip()
+        user = User.query.filter_by(mssv=username, chuc_vu=SYSTEM_ADMIN_ROLE).first()
+        if user is None:
+            raise click.ClickException("Không tìm thấy tài khoản Quản trị hệ thống này.")
+        user.password = _ask_admin_password(username)
+        db.session.commit()
+        click.echo("Đã đặt lại mật khẩu. Mọi phiên đăng nhập cũ của tài khoản này đã hết hiệu lực.")
+
+    @app.cli.command("seed-templates")
+    def seed_templates():
+        """Nạp các mẫu mặc định còn thiếu vào kho mẫu (email hệ thống, mẫu sự kiện/task)."""
+        emails, proposals = seed_system_templates(), seed_proposal_templates()
+        click.echo(f"Đã thêm {emails} mẫu email và {proposals} mẫu sự kiện/task.")
 
     @app.cli.command("run-scheduler")
     def run_scheduler():

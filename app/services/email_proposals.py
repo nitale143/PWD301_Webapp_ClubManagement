@@ -12,7 +12,7 @@ from app.models import EmailProposal, EmailTemplate, User
 from .access import approved, board_members as visible_members, is_board, require
 from .assistant import AnthropicProvider, _normalize, get_provider
 from .common import DomainError, audit
-from .email_templates import render_template
+from .email_templates import find_email_template, render_template, system_template
 from app.timeutil import utcnow
 
 
@@ -157,15 +157,17 @@ def _draft_from_template(actor, message):
         return {"intent": "email_template_needed", "preview": True, "provider": "rules",
                 "answer": "Tôi chưa tạo nháp. Hãy nói tên mail mẫu muốn dùng. "
                 + ("Mẫu đang có: " + ", ".join(available) if available else
-                   "Chưa có mail mẫu; Chủ nhiệm/Phó chủ nhiệm có thể lưu mẫu ở trang AI.")}
+                   "Chưa có mẫu email nào; Quản trị/Chủ nhiệm/Phó chủ nhiệm có thể thêm mẫu ở trang Kho mẫu.")}
     recipient = _mentioned_recipient(actor, message)
     if recipient is None:
         return {"intent": "email_needs_recipient", "preview": True, "provider": "rules",
                 "answer": f"Đã chọn mẫu {template.name}, nhưng chưa xác định được người nhận. "
                 "Hãy nói họ tên, MSSV hoặc email người nhận; chưa gửi thư."}
     member, address, display_name, target_label = recipient
+    parsed = _split_command(message)
+    purpose = parsed[1] if parsed and parsed[1] else ""
     subject, body = render_template(template, display_name,
-                                    member.mssv if member else None, address)
+                                    member.mssv if member else None, address, purpose)
     draft = EmailProposal(recipient_id=member.id if member else None, recipient_email=address,
                           request_text=message, subject=subject, body=body,
                           status="pending", created_by_id=actor.id)
@@ -204,18 +206,42 @@ def _validate_address(value):
     return address
 
 
-def _draft_text(display_name, purpose, provider=None):
-    """Soạn tiêu đề/nội dung email (dùng model nếu có, không thì mẫu cố định)."""
-    subject = "Thông báo từ CLB"
-    body = f"Chào {display_name},\n\n{purpose}\n\nTrân trọng,\nBan điều hành CLB"
+def _general_text(display_name, purpose):
+    """Tiêu đề/nội dung từ mẫu chung `general` trong kho (điền tên + mục đích)."""
+    subject, body = system_template("general")
+    values = {"{{ten}}": display_name, "{{noi_dung}}": purpose}
+    for marker, value in values.items():
+        subject, body = subject.replace(marker, value), body.replace(marker, value)
+    return subject, body
+
+
+def _draft_text(display_name, purpose, provider=None, code=None, email=""):
+    """Soạn tiêu đề/nội dung email theo thứ tự:
+
+    1. Mẫu email trong kho có tên/từ khóa khớp với mục đích → điền biến, không gọi model.
+    2. Không có mẫu phù hợp → lấy mẫu chung `general`; nếu có model AI thì nhờ model
+       viết lại theo khung mẫu chung cho đúng mục đích, không có model thì điền thẳng.
+    """
+    template = find_email_template(purpose)
+    if template is not None:
+        try:
+            subject, body = render_template(template, display_name, code, email, purpose)
+            return subject, body, f"template:{template.name}"
+        except DomainError:
+            pass  # vd mẫu cần MSSV nhưng người nhận ngoài CLB → dùng mẫu chung
+    subject, body = _general_text(display_name, purpose)
+    general_subject, general_body = system_template("general")
     provider = provider if provider is not None else get_provider()
     if isinstance(provider, AnthropicProvider):
         try:
             response = provider.complete(
                 "Bạn soạn bản nháp email tiếng Việt cho CLB. Chỉ dùng mục đích được cung cấp; "
-                "không bịa số liệu, sự kiện hay hứa đã gửi thư. "
+                "không bịa số liệu, sự kiện hay hứa đã gửi thư. Viết theo khung của mẫu chung "
+                "(general_template), thay phần {{noi_dung}} bằng nội dung phù hợp mục đích. "
                 "Chỉ trả về một JSON object có hai chuỗi subject và body, không markdown.",
-                json.dumps({"recipient_name": display_name, "purpose": purpose}, ensure_ascii=False),
+                json.dumps({"recipient_name": display_name, "purpose": purpose,
+                            "general_template": {"subject": general_subject, "body": general_body}},
+                           ensure_ascii=False),
                 max_tokens=700,
                 response_schema=_EMAIL_SCHEMA,
                 purpose="email_draft",
@@ -237,8 +263,7 @@ def _draft_text(display_name, purpose, provider=None):
     subject = re.sub(r"[\r\n]+", " ", subject).strip()[:180]
     body = body.strip()[:3000]
     if not subject or not body:
-        subject = "Thông báo từ CLB"
-        body = f"Chào {display_name},\n\n{purpose}\n\nTrân trọng,\nBan điều hành CLB"
+        subject, body = _general_text(display_name, purpose)
     return subject, body, provider_name
 
 
@@ -278,7 +303,8 @@ def maybe_create_email_draft(actor, message, provider=None):
                 f"Hãy nhập mục đích, ví dụ: Gửi mail {address}: liên hệ về hoạt động CLB."}
     if not 3 <= len(purpose) <= 1000:
         raise DomainError("Nội dung yêu cầu email phải từ 3 đến 1000 ký tự.")
-    subject, body, provider = _draft_text(display_name, purpose, provider=provider)
+    subject, body, provider = _draft_text(display_name, purpose, provider=provider,
+                                          code=member.mssv if member else None, email=address)
     draft = EmailProposal(recipient_id=member.id if member else None, recipient_email=address,
                           request_text=purpose, subject=subject, body=body,
                           status="pending", created_by_id=actor.id)
@@ -286,8 +312,11 @@ def maybe_create_email_draft(actor, message, provider=None):
     db.session.flush()
     audit(actor, "email_draft_create", draft, {"recipient_id": member.id if member else None,
                                                "provider": provider})
-    return {"intent": "email_draft", "preview": True, "provider": provider,
-            "answer": f"Đã tạo bản nháp email #{draft.id} cho {target_label}. Chưa gửi. "
+    source = (f"theo mẫu '{provider.split(':', 1)[1]}' trong kho" if provider.startswith("template:")
+              else "theo mẫu chung" + (" (AI viết lại cho đúng mục đích)" if provider != "rules" else ""))
+    return {"intent": "email_draft", "preview": True,
+            "provider": "template" if provider.startswith("template:") else provider,
+            "answer": f"Đã tạo bản nháp email #{draft.id} cho {target_label} {source}. Chưa gửi. "
             "BDH cần xem nội dung bên dưới và bấm Duyệt và gửi."}
 
 

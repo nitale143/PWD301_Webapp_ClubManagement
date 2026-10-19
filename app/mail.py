@@ -43,6 +43,9 @@ def send_email(to_email: str, subject: str, body: str) -> bool:
     """Send one plain-text message, returning false if it cannot be sent safely."""
     cfg = current_app.config
 
+    # Tài khoản Quản trị hệ thống dùng địa chỉ *.invalid (không có hộp thư) → không gửi
+    if isinstance(to_email, str) and to_email.lower().endswith(".invalid"):
+        return False
     if not cfg.get("MAIL_ENABLED"):
         if cfg.get("MAIL_OUTBOX") and cfg.get("APP_ENV") == "development":
             return _write_outbox(to_email, subject, body)

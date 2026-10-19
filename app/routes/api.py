@@ -57,7 +57,9 @@ from app.services.funds import (
 )
 from app.security import require_csrf
 from app.limiter import limiter
-from app.validators import EMAIL_RE, MSSV_RE, PHONE_RE
+from app.validators import (
+    EMAIL_RE, MSSV_EXAMPLE, MSSV_RE, PASSWORD_MAX, normalize_facebook, normalize_mssv, normalize_phone,
+)
 from app.timeutil import utcnow
 
 
@@ -132,17 +134,20 @@ def _create_member(data):
     đăng nhập đầu.
     """
     require(can_manage_members(current_user))
-    code = str(data.get("code", "")).strip()
+    code = normalize_mssv(data.get("code", ""))
     name = str(data.get("name", "")).strip()
     email = str(data.get("email", "")).strip()
-    phone = str(data.get("phone", "")).strip()
+    phone = normalize_phone(data.get("phone", ""))
+    facebook = (normalize_facebook(data.get("facebook")) if data.get("facebook") else None)
     password = str(data.get("password", ""))
     if not MSSV_RE.fullmatch(code) or User.query.filter_by(mssv=code).first():
-        raise DomainError("Mã thành viên không hợp lệ hoặc đã tồn tại.")
-    if len(name) < 2 or len(name) > 100 or not EMAIL_RE.fullmatch(email) or not PHONE_RE.fullmatch(phone):
-        raise DomainError("Họ tên, email hoặc số điện thoại không hợp lệ.")
-    if len(password) < 8:
-        raise DomainError("Mật khẩu ban đầu phải có ít nhất 8 ký tự.")
+        raise DomainError(f"MSSV không đúng định dạng (vd: {MSSV_EXAMPLE}) hoặc đã tồn tại.")
+    if len(name) < 2 or len(name) > 100 or not EMAIL_RE.fullmatch(email) or not phone:
+        raise DomainError("Họ tên, email hoặc số điện thoại (+84 và 9 số) không hợp lệ.")
+    if data.get("facebook") and not facebook:
+        raise DomainError("Facebook phải có dạng https://facebook.com/userID.")
+    if not 8 <= len(password) <= PASSWORD_MAX:
+        raise DomainError(f"Mật khẩu ban đầu phải từ 8 đến {PASSWORD_MAX} ký tự.")
     birth = parse_date(data.get("birth_date"), "Ngày sinh")
     joined = parse_date(data.get("joined_at"), "Ngày gia nhập") if data.get("joined_at") else club_now().date()
     if birth >= club_now().date() or joined < birth:
@@ -159,7 +164,7 @@ def _create_member(data):
     if User.query.filter_by(email=email.lower()).first():
         raise DomainError("Email đã được dùng cho tài khoản khác.")
     user = User(mssv=code, ho_ten=name, ngay_sinh=birth, sdt=phone, email=email.lower(),
-                status="approved", chuc_vu="THANH_VIEN")
+                facebook_link=facebook, status="approved", chuc_vu="THANH_VIEN")
     user.set_password(password)
     # Mật khẩu ban đầu do BĐH đặt → thành viên phải đổi ở lần đăng nhập đầu tiên
     user.must_change_password = True
@@ -321,9 +326,9 @@ def member_update(user_id):
             raise DomainError("Họ tên không hợp lệ.")
         user.ho_ten = name
     if "phone" in data:
-        phone = str(data["phone"]).strip()
-        if not phone or len(phone) > 15:
-            raise DomainError("Số điện thoại không hợp lệ.")
+        phone = normalize_phone(data["phone"])
+        if not phone:
+            raise DomainError("Số điện thoại không hợp lệ (+84 và 9 số).")
         user.sdt = phone
     if "status" in data:
         if data["status"] not in {"active", "paused", "left"}:

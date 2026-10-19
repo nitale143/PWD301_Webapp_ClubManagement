@@ -7,7 +7,7 @@ Một người có quyền khi: tài khoản đã được duyệt (approved), c
 trữ, VÀ chức vụ của họ có bit quyền tương ứng.
 """
 from app import db
-from app.models import DEFAULT_ROLES, MemberRecord, Permission, User, UserBan
+from app.models import DEFAULT_ROLES, SYSTEM_ADMIN_ROLE, MemberRecord, Permission, User, UserBan
 from .common import DomainError
 
 
@@ -89,12 +89,18 @@ def can_assign_role_to(actor, target, new_role):
     - Cần quyền ASSIGN_ROLES và không tự đổi vai trò của mình.
     - Chỉ đổi vai trò của người có cấp THẤP hơn mình.
     - Vai trò mới phải thấp hơn cấp của mình (PCN không gán PCN/CN).
-    - CN chỉ đổi qua quy trình nhường quyền.
+    - Chủ nhiệm: chỉ Quản trị hệ thống gán được (lần đầu / khi CN cũ không còn);
+      giữa các thành viên, CN đổi qua quy trình nhường quyền.
+    - Không ai gán hoặc đổi vai trò Quản trị hệ thống qua giao diện.
     """
     from app.models import role_rank
     if not has_permission(actor, Permission.ASSIGN_ROLES) or not target or actor.id == target.id:
         return False
-    if new_role not in DEFAULT_ROLES or new_role == "CN":
+    if new_role not in DEFAULT_ROLES or new_role == SYSTEM_ADMIN_ROLE:
+        return False
+    if target.chuc_vu == SYSTEM_ADMIN_ROLE:
+        return False
+    if new_role == "CN" and actor.chuc_vu != SYSTEM_ADMIN_ROLE:
         return False
     my_rank = role_rank(actor.chuc_vu)
     return role_rank(target.chuc_vu) > my_rank and role_rank(new_role) > my_rank
@@ -196,8 +202,11 @@ def require_unchanged_scope(actor, stamp):
 
 
 def active_members():
-    """Mọi thành viên đã duyệt và chưa bị lưu trữ (dùng nội bộ cho quỹ/sự kiện)."""
-    return (User.query.filter_by(status="approved")
+    """Mọi thành viên đã duyệt và chưa bị lưu trữ (dùng nội bộ cho quỹ/sự kiện).
+
+    Không gồm tài khoản Quản trị hệ thống (không phải thành viên CLB).
+    """
+    return (User.query.filter(User.status == "approved", User.chuc_vu != SYSTEM_ADMIN_ROLE)
             .outerjoin(MemberRecord, User.id == MemberRecord.user_id)
             .filter(MemberRecord.luu_tru_luc.is_(None)))
 

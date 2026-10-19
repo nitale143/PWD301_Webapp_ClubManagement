@@ -11,6 +11,7 @@ from app.models import Permission
 from app.permissions import approved_required, permission_required
 from app.security import require_csrf
 from app.mail import send_email
+from app.services.email_templates import render_system_email
 from app.activity import cap_nhat_hoat_dong_khi_event_ket_thuc
 from app.services.common import DomainError, club_now, parse_datetime
 from app.services.access import can_manage_events
@@ -283,7 +284,8 @@ def task_new(event_id):
         abort(400)
 
     assignee_mssv = request.form.get("assignee_mssv", "").strip()
-    assignee = User.query.filter_by(mssv=assignee_mssv, status="approved").first()
+    assignee = User.query.filter(User.mssv == assignee_mssv.upper(), User.status == "approved",
+                                 User.chuc_vu != "ADMIN").first()
     if not assignee:
         flash("Không tìm thấy thành viên với MSSV này. Task phải có người phụ trách ngay từ đầu.", "error")
         return redirect(url_for("event.event_detail", event_id=ev.id))
@@ -318,13 +320,9 @@ def task_new(event_id):
     db.session.add(task)
     db.session.commit()
 
-    send_email(
-        task.assignee.email,
-        f"[CLB] Bạn được giao task mới: {task.ten_task}",
-        f"Chào {task.assignee.ho_ten},\n\nBạn được giao task \"{task.ten_task}\" "
-        f"thuộc sự kiện \"{ev.ten_su_kien}\", hạn hoàn thành: "
-        f"{task.deadline.strftime('%d/%m/%Y %H:%M')}.\n\n-- CLB",
-    )
+    send_email(task.assignee.email, *render_system_email(
+        "task_assigned", ten=task.assignee.ho_ten, task=task.ten_task, su_kien=ev.ten_su_kien,
+        han=task.deadline.strftime('%d/%m/%Y %H:%M')))
 
     flash("Đã thêm task mới.", "success")
     return redirect(url_for("event.event_detail", event_id=ev.id))
@@ -341,7 +339,8 @@ def task_reassign(task_id):
     if event_is_terminal(task.event) or task.trang_thai in {"hoan_thanh", "huy"}:
         abort(400)
     mssv = request.form.get("assignee_mssv", "").strip()
-    assignee = User.query.filter_by(mssv=mssv, status="approved").first()
+    assignee = User.query.filter(User.mssv == mssv.upper(), User.status == "approved",
+                                 User.chuc_vu != "ADMIN").first()
     if not assignee:
         flash("Không tìm thấy thành viên với MSSV này.", "error")
         return redirect(url_for("event.event_detail", event_id=task.event_id))
@@ -352,13 +351,9 @@ def task_reassign(task_id):
     task.assignee_id = assignee.id
     db.session.commit()
 
-    send_email(
-        assignee.email,
-        f"[CLB] Bạn được chỉ định task: {task.ten_task}",
-        f"Chào {assignee.ho_ten},\n\nBạn đã được chỉ định phụ trách task "
-        f"\"{task.ten_task}\", hạn hoàn thành: "
-        f"{task.deadline.strftime('%d/%m/%Y %H:%M')}.\n\n-- CLB",
-    )
+    send_email(assignee.email, *render_system_email(
+        "task_reassigned", ten=assignee.ho_ten, task=task.ten_task,
+        han=task.deadline.strftime('%d/%m/%Y %H:%M')))
 
     flash("Đã chỉ định lại người phụ trách task.", "success")
     return redirect(url_for("event.event_detail", event_id=task.event_id))
@@ -388,13 +383,9 @@ def task_submit(task_id):
 
         nguoi_tao = db.session.get(User, task.event.tao_boi_id)
         if nguoi_tao:
-            send_email(
-                nguoi_tao.email,
-                f"[CLB] Có sản phẩm cho task \"{task.ten_task}\" chờ duyệt",
-                f"Chào {nguoi_tao.ho_ten},\n\n{current_user.ho_ten} vừa nộp sản phẩm "
-                f"cho task \"{task.ten_task}\" (sự kiện \"{task.event.ten_su_kien}\"), "
-                "đang chờ BĐH duyệt.\n\n-- CLB",
-            )
+            send_email(nguoi_tao.email, *render_system_email(
+                "task_submitted", ten=nguoi_tao.ho_ten, nguoi_nop=current_user.ho_ten,
+                task=task.ten_task, su_kien=task.event.ten_su_kien))
 
         flash("Đã nộp sản phẩm, chờ BĐH duyệt.", "success")
     else:
@@ -428,15 +419,10 @@ def task_update_status(task_id):
     db.session.commit()
 
     status_label = {"lam_lai": "Làm lại", "hoan_thanh": "Hoàn thành", "huy": "Hủy"}[new_status]
-    body = (
-        f"Chào {task.assignee.ho_ten},\n\nTask \"{task.ten_task}\" "
-        f"(sự kiện \"{task.event.ten_su_kien}\") vừa được BĐH cập nhật trạng thái: "
-        f"{status_label}."
-    )
-    if nhan_xet:
-        body += f"\n\nNhận xét của BĐH: {nhan_xet}"
-    body += "\n\n-- CLB"
-    send_email(task.assignee.email, f"[CLB] Cập nhật task: {task.ten_task}", body)
+    send_email(task.assignee.email, *render_system_email(
+        "task_reviewed", ten=task.assignee.ho_ten, task=task.ten_task,
+        su_kien=task.event.ten_su_kien, trang_thai=status_label,
+        nhan_xet=nhan_xet or "(không có)"))
 
     flash("Đã cập nhật trạng thái task.", "success")
     return redirect(url_for("event.event_detail", event_id=task.event_id))

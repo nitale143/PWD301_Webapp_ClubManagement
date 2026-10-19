@@ -34,6 +34,7 @@ from app.forms import (
 )
 from app.limiter import limiter
 from app.mail import send_email
+from app.services.email_templates import render_system_email
 from app.models import Ban, User, UserBan
 from app.services.access import approved
 from app.services.common import audit
@@ -173,25 +174,16 @@ def send_confirmation_email(user):
     token = user.generate_token("confirm")
     link = url_for("auth.confirm_email", token=token, _external=True)
     hours = current_app.config.get("EMAIL_CONFIRM_MAX_AGE", 48 * 3600) // 3600
-    return send_email(
-        user.email,
-        "[CLB] Xác minh địa chỉ email",
-        f"Chào {user.ho_ten},\n\nVui lòng mở liên kết sau để xác minh email đăng ký CLB "
-        f"(hiệu lực {hours} giờ):\n{link}\n\nNếu bạn không đăng ký, hãy bỏ qua email này.\n\n-- CLB",
-    )
+    return send_email(user.email, *render_system_email(
+        "confirm_email", ten=user.ho_ten, link=link, so_gio=hours))
 
 
 def _send_reset_email(user):
     """Gửi email chứa link đặt lại mật khẩu (hiệu lực 1 giờ, dùng một lần)."""
     token = user.generate_token("reset")
     link = url_for("auth.reset_password", token=token, _external=True)
-    return send_email(
-        user.email,
-        "[CLB] Đặt lại mật khẩu",
-        f"Chào {user.ho_ten},\n\nCó yêu cầu đặt lại mật khẩu cho tài khoản MSSV {user.mssv}. "
-        f"Mở liên kết sau trong vòng 1 giờ để đặt mật khẩu mới:\n{link}\n\n"
-        "Nếu bạn không yêu cầu, hãy bỏ qua email này; mật khẩu hiện tại vẫn giữ nguyên.\n\n-- CLB",
-    )
+    return send_email(user.email, *render_system_email(
+        "reset_password", ten=user.ho_ten, mssv=user.mssv, link=link))
 
 
 # --------------------------------------------------------------------------
@@ -236,7 +228,9 @@ def login():
         return _login_failed(form)
 
     valid_mssv = bool(_MSSV_RE.fullmatch(mssv))
-    user = User.query.filter_by(mssv=mssv).first() if valid_mssv else None
+    # MSSV lưu dạng in hoa (SE201256); tên đăng nhập Quản trị hệ thống giữ nguyên như khi tạo
+    user = ((User.query.filter_by(mssv=mssv).first()
+             or User.query.filter_by(mssv=mssv.upper()).first()) if valid_mssv else None)
     password_matches = (
         user.check_password(password)
         if user is not None
@@ -303,8 +297,7 @@ def register():
         try:
             db.session.add(user)
             db.session.flush()
-            for ban_id in form.ban_hoat_dong.data:
-                db.session.add(UserBan(user_id=user.id, ban_id=ban_id))
+            db.session.add(UserBan(user_id=user.id, ban_id=form.ban_hoat_dong.data))
             db.session.commit()
         except IntegrityError:
             db.session.rollback()

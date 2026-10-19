@@ -20,12 +20,14 @@ python3 -m venv .venv && source .venv/bin/activate       # Windows: .venv\Script
 pip install -r requirements.txt
 cp .env.example .env                                     # có thể để trống SECRET_KEY khi dev
 
-flask --app run.py init-db       # tạo/cập nhật database bằng migration + dữ liệu nền (ban, role)
-flask --app run.py create-cn     # tạo tài khoản Chủ nhiệm đầu tiên (chỉ một lần)
+flask --app run.py init-db       # tạo/cập nhật database bằng migration + dữ liệu nền (ban, role, kho mẫu)
+flask --app run.py create-admin  # tạo tài khoản Quản trị hệ thống đầu tiên: tên, tên đăng nhập, mật khẩu
 python run.py                    # http://127.0.0.1:5000  (FLASK_DEBUG=1 để bật debug khi dev)
 ```
 
-Database SQLite mặc định nằm ở `instance/clb.db`. Khi đã có dữ liệu, **không xóa file này** và không tạo lại Chủ nhiệm. Nếu đang có database của bản cũ, làm theo [DEVELOPER_GUIDE § 14](docs/DEVELOPER_GUIDE.md#14-migration-database) để nâng cấp.
+Đăng nhập bằng tài khoản Quản trị hệ thống để duyệt những đơn đăng ký đầu tiên và gán Chủ nhiệm, Phó chủ nhiệm, Trưởng ban, Thư ký/Thủ quỹ. Tài khoản này không phải thành viên CLB (không có trong danh sách, không đóng quỹ, không nhận task). Quên mật khẩu: `flask --app run.py reset-admin-password`.
+
+Database SQLite mặc định nằm ở `instance/clb.db`. Khi đã có dữ liệu, **không xóa file này**. Nếu đang có database của bản cũ, làm theo [DEVELOPER_GUIDE § 14](docs/DEVELOPER_GUIDE.md#14-migration-database) để nâng cấp.
 
 Muốn thử luồng email (xác minh, quên mật khẩu) mà không cần SMTP: đặt `MAIL_OUTBOX=true` trong `.env`. Thư sẽ được lưu ở `instance/mail_outbox/*.eml`.
 
@@ -33,8 +35,9 @@ Muốn thử luồng email (xác minh, quên mật khẩu) mà không cần SMTP
 
 | Nhóm | Chức năng |
 |---|---|
-| Tài khoản | Đăng ký (chờ BĐH duyệt), xác minh email, đăng nhập có ghi nhớ, quên/đặt lại/đổi mật khẩu, xác nhận lại mật khẩu cho thao tác nhạy cảm, mật khẩu tạm do BĐH cấp |
-| Phân quyền | Chủ nhiệm, Phó chủ nhiệm, Trưởng ban, Thư ký/Thủ quỹ, Thành viên. Quyền theo bit flag, gán vai trò theo cấp bậc, nhường chức vụ |
+| Tài khoản | Đăng ký (chờ BĐH duyệt; MSSV dạng `SE201256`, SĐT `+84` + 9 số, Facebook `https://facebook.com/userID`, chọn 1 ban, mật khẩu 8–64 ký tự), xác minh email, đăng nhập có ghi nhớ, quên/đặt lại/đổi mật khẩu, xác nhận lại mật khẩu cho thao tác nhạy cảm, mật khẩu tạm do BĐH cấp |
+| Phân quyền | Quản trị hệ thống (tài khoản khởi tạo), Chủ nhiệm, Phó chủ nhiệm, Trưởng ban, Thư ký/Thủ quỹ, Thành viên. Quyền theo bit flag, gán vai trò theo cấp bậc, nhường chức vụ |
+| Kho mẫu | Mẫu email (kể cả nội dung mọi email tự động), mẫu sự kiện, mẫu chia task. AI dùng mẫu trong kho trước, rồi sự kiện tương tự, rồi mẫu chung |
 | Thành viên | Danh sách/lọc/xuất Excel, hồ sơ, avatar, kỹ năng & khả năng nhận task, nhập danh sách CSV/XLSX qua API |
 | Sự kiện & công việc | Tạo sự kiện (kể cả nhập từ CTFtime), đăng ký (không giới hạn số người), điểm danh QR hoặc thủ công, đánh giá; giao task, nộp sản phẩm, duyệt; tính % hoạt động theo ban/kỳ |
 | Quỹ | Sổ thu chi theo kỳ và đánh dấu đóng quỹ; khoản thu theo đợt, thành viên gửi thanh toán, thủ quỹ xác nhận; miễn/giảm; báo cáo Excel |
@@ -43,16 +46,17 @@ Muốn thử luồng email (xác minh, quên mật khẩu) mà không cần SMTP
 
 ## Bảng quyền
 
-| Quyền | CN | PCN | TB | TK/TQ | TV |
-|---|:-:|:-:|:-:|:-:|:-:|
-| Xem/duyệt đăng ký | ✔ | ✔ | – | – | – |
-| Quản lý thành viên | ✔ | ✔ | ✔ | – | – |
-| Sự kiện & task | ✔ | ✔ | ✔ | ✔ | – |
-| Quỹ (ghi/duyệt) | ✔ | ✔ | – | ✔ | – |
-| Phân vai trò | ✔ | ✔* | – | – | – |
-| Nhường chức vụ của bản thân | ✔ | ✔ | ✔ | ✔ | – |
+| Quyền | Admin | CN | PCN | TB | TK/TQ | TV |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| Xem/duyệt đăng ký | ✔ | ✔ | ✔ | – | – | – |
+| Quản lý thành viên | ✔ | ✔ | ✔ | ✔ | – | – |
+| Sự kiện & task (+ mẫu sự kiện/task) | ✔ | ✔ | ✔ | ✔ | ✔ | – |
+| Quỹ (ghi/duyệt) | ✔ | ✔ | ✔ | – | ✔ | – |
+| Phân vai trò | ✔** | ✔ | ✔* | – | – | – |
+| Nhường chức vụ của bản thân | – | ✔ | ✔ | ✔ | ✔ | – |
+| Mẫu email trong Kho mẫu | ✔ | ✔ | ✔ | – | – | – |
 
-\* Phó chủ nhiệm không gán được Phó chủ nhiệm hay Chủ nhiệm. AI duyệt đề xuất theo quyền tương ứng. Muốn đổi chính sách: sửa `DEFAULT_ROLES` trong `app/models.py` rồi chạy `flask --app run.py sync-roles`.
+\* Phó chủ nhiệm không gán được Phó chủ nhiệm hay Chủ nhiệm. \*\* Chỉ Quản trị hệ thống gán được Chủ nhiệm. AI duyệt đề xuất theo quyền tương ứng. Muốn đổi chính sách: sửa `DEFAULT_ROLES` trong `app/models.py` rồi chạy `flask --app run.py sync-roles`.
 
 ## Trợ lý AI
 
@@ -81,7 +85,7 @@ Test dùng database tạm và mock SMTP/AI, không đụng `instance/clb.db`. Sc
 ```bash
 cp .env.example .env    # APP_ENV=production, SECRET_KEY, TRUSTED_HOSTS, MAIL_*...
 docker compose up -d --build
-docker compose exec web flask --app run.py create-cn
+docker compose exec web flask --app run.py create-admin
 ```
 
 Đặt Nginx (`deploy/nginx.conf`) phía trước để có HTTPS. Không dùng Docker thì chạy `gunicorn -c gunicorn.conf.py wsgi:app` và `flask --app run.py run-scheduler` (systemd units có sẵn trong `deploy/`). Checklist đầy đủ: [DEVELOPER_GUIDE § 16](docs/DEVELOPER_GUIDE.md#16-triển-khai-production).

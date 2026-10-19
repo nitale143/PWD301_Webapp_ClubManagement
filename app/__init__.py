@@ -60,6 +60,8 @@ def create_app(config_override=None):
 
     from app.services.ui_context import workspace_context
     app.context_processor(workspace_context)
+    from app.validators import facebook_id_part, phone_local_part
+    app.jinja_env.globals.update(phone_local_part=phone_local_part, facebook_id_part=facebook_id_part)
 
     from app import models  # noqa: F401  (đăng ký models với SQLAlchemy)
 
@@ -73,9 +75,10 @@ def create_app(config_override=None):
     from app.routes.admin import admin_bp
     from app.routes.profile import profile_bp
     from app.routes.api import api_bp
+    from app.routes.kho_mau import kho_mau_bp
 
     for blueprint in (auth_bp, main_bp, member_bp, event_bp, funds_bp, ai_bp,
-                      admin_bp, profile_bp, api_bp):
+                      admin_bp, profile_bp, api_bp, kho_mau_bp):
         app.register_blueprint(blueprint)
 
     from app.hardening import install_hardening

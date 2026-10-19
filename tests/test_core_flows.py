@@ -171,7 +171,7 @@ class CoreFlowTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
-    def test_init_db_create_cn_and_sync_roles(self):
+    def test_init_db_create_admin_and_sync_roles(self):
         with tempfile.TemporaryDirectory() as directory:
             app = create_app({"TESTING": True, "AUTO_CREATE_TABLES": False, "SCHEDULER_ENABLED": False,
                               "SECRET_KEY": "cli-test-secret-key-0123456789abcdef",
@@ -183,14 +183,28 @@ class CliTests(unittest.TestCase):
                 result = runner.invoke(args=["init-db"])
                 self.assertEqual(result.exit_code, 0, result.output)
                 self.assertEqual(Ban.query.count(), 3)
+                # init-db nạp kho mẫu mặc định (email hệ thống + mẫu sự kiện/task)
+                from app.models import EmailTemplate, ProposalTemplate
+                self.assertTrue(EmailTemplate.query.filter_by(system_key="general").first())
+                self.assertTrue(ProposalTemplate.query.filter_by(kind="task", is_default=True).first())
 
-                weak = runner.invoke(args=["create-cn"], input="CN00001\nChu Nhiem\ncn@example.com\nabc\nabc\n")
+                weak = runner.invoke(args=["create-admin"], input="Quan tri\nadmin\nabc\nabc\n")
                 self.assertNotEqual(weak.exit_code, 0)
-                created = runner.invoke(args=["create-cn"],
-                                        input=f"CN00001\nChu Nhiem\nCN@Example.com\n{PASSWORD}\n{PASSWORD}\n")
+                bad_name = runner.invoke(args=["create-admin"], input=f"Quan tri\nad min\n{PASSWORD}\n{PASSWORD}\n")
+                self.assertNotEqual(bad_name.exit_code, 0)
+                created = runner.invoke(args=["create-admin"],
+                                        input=f"Quan tri he thong\nadmin\n{PASSWORD}\n{PASSWORD}\n")
                 self.assertEqual(created.exit_code, 0, created.output)
-                user = User.query.filter_by(mssv="CN00001").one()
-                self.assertEqual((user.chuc_vu, user.status, user.email), ("CN", "approved", "cn@example.com"))
+                user = User.query.filter_by(mssv="admin").one()
+                self.assertEqual((user.chuc_vu, user.status), ("ADMIN", "approved"))
+                self.assertTrue(user.email.endswith(".invalid"))
+                # chỉ được tạo một lần
+                again = runner.invoke(args=["create-admin"], input=f"X Y\nadmin2\n{PASSWORD}\n{PASSWORD}\n")
+                self.assertNotEqual(again.exit_code, 0)
+                reset = runner.invoke(args=["reset-admin-password"], input=f"admin\nMoiHon-2027\nMoiHon-2027\n")
+                self.assertEqual(reset.exit_code, 0, reset.output)
+                db.session.expire_all()
+                self.assertTrue(User.query.filter_by(mssv="admin").one().check_password("MoiHon-2027"))
 
                 role = Role.query.filter_by(name="TB").one()
                 role.permissions = 0

@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, badge %}
+{% block title %}Kho mẫu{% endblock %}
+
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+{% macro vars(names) %}{% for name in names %}<code class="template-var">{{ '{{' ~ name ~ '}}' }}</code>{% endfor %}{% endmacro %}
+
+{#- Form tạo/sửa mẫu sự kiện hoặc mẫu chia task -#}
+{% macro proposal_form(kind, template=None) %}
+{% set content = template.content if template else {} %}
+<form method="post" class="page-stack template-form"
+      action="{{ url_for('kho_mau.proposal_update', kind=kind, template_id=template.id) if template else url_for('kho_mau.proposal_create', kind=kind) }}">
+    {{ csrf() }}
+    <div class="form-grid">
+        <label class="field"><span class="field-label">Tên mẫu</span><input class="input" name="name" maxlength="100" required value="{{ template.name if template else '' }}" placeholder="{{ 'Workshop' if kind == 'event' else 'Task cho workshop' }}"></label>
+        <label class="field"><span class="field-label">Loại sự kiện áp dụng</span><input class="input" name="event_type" maxlength="100" value="{{ template.event_type if template else '' }}" placeholder="workshop, ctf, talkshow…"></label>
+    </div>
+    <label class="field"><span class="field-label">Từ khóa (ngăn bằng dấu phẩy)</span><input class="input" name="keywords" maxlength="300" value="{{ template.keywords if template else '' }}" placeholder="workshop, training, hội thảo"><span class="field-help">AI chọn mẫu khi mô tả yêu cầu chứa tên mẫu hoặc một trong các từ khóa.</span></label>
+    {% if kind == 'event' %}
+    <div class="form-grid">
+        <label class="field"><span class="field-label">Tên sự kiện gợi ý</span><input class="input" name="default_name" maxlength="150" value="{{ content.get('name', '') }}" placeholder="Workshop …"></label>
+        <label class="field"><span class="field-label">Thời lượng (giờ)</span><input class="input" name="duration_hours" type="number" min="0.5" max="240" step="0.5" value="{{ content.get('duration_hours', 3) }}"></label>
+    </div>
+    <label class="field"><span class="field-label">Địa điểm gợi ý</span><input class="input" name="location" maxlength="300" value="{{ content.get('location', '') }}"></label>
+    <label class="field"><span class="field-label">Nội dung / chương trình mẫu</span><textarea class="textarea" name="content" rows="6" maxlength="3000">{{ content.get('content', '') }}</textarea></label>
+    {% else %}
+    <label class="field"><span class="field-label">Danh sách task (mỗi dòng: Tên task | mô tả)</span><textarea class="textarea" name="tasks" rows="6" maxlength="5000" required placeholder="Chuẩn bị slide | Slide và tài liệu&#10;Truyền thông | Poster, bài đăng">{{ task_lines(content) if template else '' }}</textarea><span class="field-help">Tối đa 10 task. Người phụ trách và hạn task được chọn khi lập đề xuất.</span></label>
+    {% endif %}
+    <input type="hidden" name="is_default" value="0">
+    <label class="checkbox-row"><input class="checkbox" type="checkbox" name="is_default" value="1"{% if template and template.is_default %} checked{% endif %}> <span>Đặt làm mẫu chung (dùng khi không tìm thấy mẫu phù hợp hơn)</span></label>
+    <div><button class="btn btn-primary btn-sm" type="submit">{{ icon('check') }} {{ 'Lưu thay đổi' if template else 'Thêm vào kho' }}</button></div>
+</form>
+{% endmacro %}
+
+{% block content %}
+<div class="page-stack kho-mau">
+    <section class="card card-body template-intro">
+        <div class="row">{{ icon('sparkles') }}<div>
+            <strong>AI dùng kho mẫu như thế nào?</strong>
+            <p class="muted small">Khi soạn nháp email hoặc lập đề xuất sự kiện / chia task, AI tìm <b>mẫu trong kho</b> trước (theo tên mẫu, từ khóa, loại sự kiện).
+                Không có mẫu phù hợp thì dùng <b>sự kiện tương tự</b> đã có trong hệ thống, sau đó đến <b>mẫu chung</b>, rồi điều chỉnh nội dung theo mô tả của bạn.
+                Mọi nháp và đề xuất vẫn phải được BĐH duyệt. Sửa mẫu không làm thay đổi các nháp đã tạo.</p>
+        </div></div>
+    </section>
+
+    <nav class="tabs" aria-label="Loại mẫu">
+        {% for key, label in tabs %}<a class="{{ 'active' if tab == key else '' }}" href="{{ url_for('kho_mau.index', tab=key) }}"{% if tab == key %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+    </nav>
+
+    {% if tab == 'email' %}
+    <section class="card">
+        <div class="card-header"><div><h2>Mẫu email hệ thống</h2><p class="small muted">Nội dung các email tự động. Chỉ sửa được tiêu đề và nội dung; dùng đúng các biến được liệt kê.</p></div></div>
+        <div class="card-body template-list">
+            {% for template in system_emails %}
+            {% set spec = system_specs.get(template.system_key, {}) %}
+            <details class="template-item">
+                <summary><span><strong>{{ template.name }}</strong><span class="small muted">{{ template.description }}</span></span>{{ badge('Mẫu chung AI' if template.system_key == 'general' else 'Tự động', 'indigo') }}</summary>
+                <p class="small">Biến dùng được: {{ vars(spec.get('placeholders', [])) }}</p>
+                <form method="post" action="{{ url_for('kho_mau.email_update', template_id=template.id) }}" class="page-stack template-form">
+                    {{ csrf() }}
+                    <label class="field"><span class="field-label">Tiêu đề</span><input class="input" name="subject" maxlength="180" required value="{{ template.subject }}"></label>
+                    <label class="field"><span class="field-label">Nội dung</span><textarea class="textarea" name="body" rows="7" maxlength="3000" required>{{ template.body }}</textarea></label>
+                    <div class="row"><button class="btn btn-primary btn-sm" type="submit">{{ icon('check') }} Lưu thay đổi</button></div>
+                </form>
+                <form method="post" action="{{ url_for('kho_mau.email_reset', template_id=template.id) }}" class="inline-form">{{ csrf() }}<button class="btn btn-ghost btn-sm" type="submit">Khôi phục nội dung mặc định</button></form>
+            </details>
+            {% else %}
+            <p class="muted small">Chưa nạp mẫu hệ thống. Chạy <code>flask --app run.py seed-templates</code> (hệ thống vẫn dùng nội dung mặc định).</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="card">
+        <div class="card-header"><div><h2>Mẫu email của CLB</h2><p class="small muted">Biến dùng được: {{ vars(club_placeholders) }}. <code class="template-var">{{ '{{noi_dung}}' }}</code> được thay bằng mục đích bạn nhập khi nhờ AI soạn.</p></div></div>
+        <div class="card-body template-list">
+            {% for template in club_emails %}
+            <details class="template-item">
+                <summary><span><strong>{{ template.name }}</strong><span class="small muted">{{ template.description or template.subject }}{% if template.keywords %} · từ khóa: {{ template.keywords }}{% endif %}</span></span>{{ badge('Đang dùng' if template.active else 'Tạm ngừng', 'success' if template.active else 'neutral') }}</summary>
+                <form method="post" action="{{ url_for('kho_mau.email_update', template_id=template.id) }}" class="page-stack template-form">
+                    {{ csrf() }}
+                    <div class="form-grid">
+                        <label class="field"><span class="field-label">Tên mẫu</span><input class="input" name="name" maxlength="100" required value="{{ template.name }}"></label>
+                        <label class="field"><span class="field-label">Từ khóa</span><input class="input" name="keywords" maxlength="300" value="{{ template.keywords }}"></label>
+                    </div>
+                    <label class="field"><span class="field-label">Mô tả ngắn</span><input class="input" name="description" maxlength="300" value="{{ template.description }}"></label>
+                    <label class="field"><span class="field-label">Tiêu đề</span><input class="input" name="subject" maxlength="180" required value="{{ template.subject }}"></label>
+                    <label class="field"><span class="field-label">Nội dung</span><textarea class="textarea" name="body" rows="6" maxlength="3000" required>{{ template.body }}</textarea></label>
+                    <div><button class="btn btn-primary btn-sm" type="submit">{{ icon('check') }} Lưu thay đổi</button></div>
+                </form>
+                <form method="post" action="{{ url_for('kho_mau.email_active', template_id=template.id) }}" class="inline-form">{{ csrf() }}<input type="hidden" name="active" value="{{ 'no' if template.active else 'yes' }}"><button class="btn btn-ghost btn-sm" type="submit">{{ 'Tạm ngừng mẫu' if template.active else 'Bật lại mẫu' }}</button></form>
+            </details>
+            {% else %}
+            <p class="muted small">Chưa có mẫu email nào. AI sẽ dùng “Mẫu chung” ở trên.</p>
+            {% endfor %}
+            <details class="template-item template-new">
+                <summary><span><strong>{{ icon('plus') }} Thêm mẫu email</strong></span></summary>
+                <form method="post" action="{{ url_for('kho_mau.email_create') }}" class="page-stack template-form">
+                    {{ csrf() }}
+                    <div class="form-grid">
+                        <label class="field"><span class="field-label">Tên mẫu</span><input class="input" name="name" maxlength="100" required placeholder="Nhắc đóng quỹ"></label>
+                        <label class="field"><span class="field-label">Từ khóa</span><input class="input" name="keywords" maxlength="300" placeholder="dong quy, nhac quy"></label>
+                    </div>
+                    <label class="field"><span class="field-label">Mô tả ngắn</span><input class="input" name="description" maxlength="300"></label>
+                    <label class="field"><span class="field-label">Tiêu đề</span><input class="input" name="subject" maxlength="180" required placeholder="[CLB] Nhắc đóng quỹ"></label>
+                    <label class="field"><span class="field-label">Nội dung</span><textarea class="textarea" name="body" rows="6" maxlength="3000" required placeholder="Chào {{ '{{ten}}' }},&#10;&#10;{{ '{{noi_dung}}' }}&#10;&#10;-- CLB"></textarea></label>
+                    <div><button class="btn btn-primary btn-sm" type="submit">{{ icon('check') }} Thêm vào kho</button></div>
+                </form>
+            </details>
+        </div>
+    </section>
+    {% else %}
+    <section class="card">
+        <div class="card-header"><div><h2>{{ kinds[tab] }}</h2><p class="small muted">{{ 'Khung nội dung, địa điểm, thời lượng cho đề xuất sự kiện mới.' if tab == 'event' else 'Danh sách task mẫu khi chia task cho một sự kiện.' }}</p></div></div>
+        <div class="card-body template-list">
+            {% for template in proposals[tab] %}
+            <details class="template-item">
+                <summary><span><strong>{{ template.name }}</strong>{% set meta = [] %}{% if template.event_type %}{% set _ = meta.append('loại: ' ~ template.event_type) %}{% endif %}{% if template.keywords %}{% set _ = meta.append('từ khóa: ' ~ template.keywords) %}{% endif %}{% if tab == 'task' %}{% set _ = meta.append(template.content.get('tasks', [])|length ~ ' task') %}{% else %}{% set _ = meta.append(template.content.get('duration_hours', 3) ~ ' giờ') %}{% endif %}<span class="small muted">{{ meta|join(' · ') }}</span></span>
+                    <span class="row">{% if template.is_default %}{{ badge('Mẫu chung', 'indigo') }}{% endif %}{{ badge('Đang dùng' if template.active else 'Tạm ngừng', 'success' if template.active else 'neutral') }}</span></summary>
+                {{ proposal_form(tab, template) }}
+                <form method="post" action="{{ url_for('kho_mau.proposal_active', kind=tab, template_id=template.id) }}" class="inline-form">{{ csrf() }}<input type="hidden" name="active" value="{{ 'no' if template.active else 'yes' }}"><button class="btn btn-ghost btn-sm" type="submit">{{ 'Tạm ngừng mẫu' if template.active else 'Bật lại mẫu' }}</button></form>
+            </details>
+            {% else %}
+            <p class="muted small">Chưa có mẫu nào. AI sẽ dùng sự kiện tương tự hoặc mẫu chung viết sẵn.</p>
+            {% endfor %}
+            <details class="template-item template-new">
+                <summary><span><strong>{{ icon('plus') }} Thêm {{ kinds[tab]|lower }}</strong></span></summary>
+                {{ proposal_form(tab) }}
+            </details>
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

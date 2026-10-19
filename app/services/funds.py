@@ -21,7 +21,7 @@ def target_members(fund):
     """Query thành viên phải đóng khoản thu (tất cả hoặc theo ban áp dụng), bỏ người đã rời/lưu
     trữ.
     """
-    query = User.query.filter_by(status="approved").outerjoin(
+    query = User.query.filter(User.status == "approved", User.chuc_vu != "ADMIN").outerjoin(
         MemberRecord, User.id == MemberRecord.user_id
     ).filter(MemberRecord.luu_tru_luc.is_(None)).filter(
         db.or_(MemberRecord.user_id.is_(None), MemberRecord.tinh_trang != "left")

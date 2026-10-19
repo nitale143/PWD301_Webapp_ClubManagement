@@ -22,6 +22,7 @@ PAGE_LABELS = {
     "auth.change_password": ("Đổi mật khẩu", "Bảo vệ tài khoản của bạn."),
     "auth.reauthenticate": ("Xác nhận lại mật khẩu", "Cần cho thao tác nhạy cảm."),
     "profile": ("Hồ sơ cá nhân", "Thông tin và hoạt động của thành viên."),
+    "kho_mau": ("Kho mẫu", "Mẫu email, mẫu sự kiện và mẫu chia task cho AI."),
 }
 
 

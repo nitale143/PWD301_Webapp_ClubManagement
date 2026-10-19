@@ -110,7 +110,9 @@ def can_assign_role(assigner, target, new_role, current_counts):
         return False, "Chức vụ không hợp lệ."
     if not approved(assigner) or not approved(target) or assigner.id == target.id:
         return False, "Chỉ được chỉ định cho thành viên khác đã được duyệt."
-    if new_role == "CN":
+    if new_role == "ADMIN" or target.chuc_vu == "ADMIN":
+        return False, "Không thể gán hoặc thay đổi vai trò Quản trị hệ thống."
+    if new_role == "CN" and assigner.chuc_vu != "ADMIN":
         return False, "Vui lòng dùng quy trình nhường quyền để chỉ định Chủ nhiệm."
     if not can_assign_role_to(assigner, target, new_role):
         return False, "Bạn không có quyền phân vai trò này (chỉ gán vai trò thấp hơn cấp của bạn)."

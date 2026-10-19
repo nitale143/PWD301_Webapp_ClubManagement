@@ -32,13 +32,13 @@ Tài liệu dành cho **thành viên** và **Ban điều hành (BĐH)** của CL
    | Ô | Yêu cầu |
    |---|---|
    | Họ và tên | 2–100 ký tự |
-   | MSSV | 6–15 ký tự chữ/số, chưa được đăng ký |
+   | MSSV | 8 ký tự dạng **`SE201256`**: chữ campus (`H`, `D`, `Q`, `C`, `S`) + chữ ngành (`A`, `S`, `E`) + 6 số. Gõ chữ thường cũng được, hệ thống tự viết hoa. Chưa được đăng ký |
    | Ngày sinh | Từ năm 1980, trước hôm nay |
-   | Số điện thoại | Bắt đầu bằng 0, gồm 10–11 số (vd: 0912345678) |
-   | Email | Email thật bạn dùng thường xuyên, chưa gắn với tài khoản khác |
-   | Link Facebook | Dạng `https://facebook.com/...` |
-   | Ban hoạt động | Chọn một hoặc nhiều ban. Giữ Ctrl (Windows) hoặc Command (Mac) để chọn nhiều |
-   | Mật khẩu | 8–128 ký tự, **có cả chữ và số**, không chứa MSSV, không quá phổ biến (vd: `password123`) |
+   | Số điện thoại | Ô đã có sẵn **+84**, bạn chỉ nhập **9 số** phía sau (vd: `912345678`). Lỡ gõ cả số `0` đầu hoặc `+84` thì hệ thống tự bỏ |
+   | Email | Email thật bạn dùng thường xuyên (đuôi nào cũng được), chưa gắn với tài khoản khác |
+   | Facebook | Ô đã có sẵn **facebook.com/**, bạn chỉ nhập **userID** (chữ, số, dấu chấm). Hệ thống lưu thành `https://facebook.com/userID`. Không nhận link `www.`, `m.`, `fb.com` hay `profile.php?id=…` |
+   | Ban hoạt động | Chọn **một** ban (bấm vào thẻ ban) |
+   | Mật khẩu | 8–64 ký tự, **có cả chữ và số**, không chứa MSSV, không quá phổ biến (vd: `password123`) |
    | Nhập lại mật khẩu | Phải giống ô Mật khẩu |
 
 3. Bấm **Gửi đăng ký**. Nếu ô nào sai, lỗi hiện ngay dưới ô đó.
@@ -48,7 +48,7 @@ Tài liệu dành cho **thành viên** và **Ban điều hành (BĐH)** của CL
 
 ### 1.2. Đăng nhập
 
-- Nhập **MSSV** và **mật khẩu**, bấm **Đăng nhập**.
+- Nhập **MSSV** (hoặc **tên đăng nhập** nếu bạn là Quản trị hệ thống) và **mật khẩu**, bấm **Đăng nhập**. MSSV gõ chữ thường cũng được.
 - Ô **Ghi nhớ đăng nhập trên thiết bị này**: giữ đăng nhập tối đa 14 ngày. **Không tích** trên máy dùng chung (phòng lab, máy mượn).
 - Nhập sai nhiều lần liên tiếp thì tài khoản bị khóa đăng nhập tạm thời khoảng 5 phút. Thông báo lỗi luôn là "MSSV hoặc mật khẩu không đúng." để kẻ gian không dò được MSSV.
 - Phiên đăng nhập tự hết hạn sau 8 giờ. Nếu bạn đổi mạng/IP hoặc trình duyệt, hệ thống có thể yêu cầu đăng nhập lại để bảo vệ tài khoản.
@@ -105,7 +105,7 @@ Vào bằng tên của bạn ở góc dưới thanh bên trái, hoặc avatar �
 | Hoạt động theo ban/kỳ | Tỉ lệ task hoàn thành theo từng ban, từng kỳ. |
 | Tình trạng đóng quỹ | Đã đóng hoặc chưa đóng quỹ theo từng kỳ. |
 
-**Trang Thành viên**: mọi thành viên đều thấy danh bạ CLB với thông tin cơ bản (tên, MSSV, ban, vai trò) và chỉ mở được hồ sơ chi tiết của chính mình. Người có quyền quản lý thành viên thấy thêm tình trạng hoạt động, cột **Liên hệ** (số điện thoại ở trên, link Facebook ở dưới), mở được hồ sơ mọi người và bấm **Xuất danh sách** ra Excel. Chọn tìm kiếm / ban / sắp xếp rồi bấm **Áp dụng**.
+**Trang Thành viên**: mọi thành viên đều thấy danh bạ CLB với thông tin cơ bản (tên, MSSV, ban, vai trò) và chỉ mở được hồ sơ chi tiết của chính mình. Người có quyền quản lý thành viên thấy thêm tình trạng hoạt động, cột **Liên hệ** (số điện thoại ở trên, link Facebook ở dưới), mở được hồ sơ mọi người và bấm **Xuất danh sách** ra Excel. Chọn tìm kiếm / ban / sắp xếp rồi bấm **Áp dụng**. Danh bạ không gồm tài khoản Quản trị hệ thống.
 
 ---
 
@@ -197,18 +197,28 @@ Khi câu hỏi nằm ngoài phạm vi hỗ trợ, trợ lý nói rõ là chưa h
 
 ## 7. Ban điều hành: ai được làm gì
 
-| Quyền | Chủ nhiệm | Phó CN | Trưởng ban | Thư ký/Thủ quỹ | Thành viên |
-|---|:-:|:-:|:-:|:-:|:-:|
-| Xem danh sách chờ và duyệt đăng ký | ✔ | ✔ | – | – | – |
-| Quản lý thành viên (xem hồ sơ đầy đủ, sửa, lưu trữ, nhập file, cộng/trừ điểm, cấp mật khẩu tạm) | ✔ | ✔ | ✔ | – | – |
-| Sự kiện và task (tạo, giao, duyệt, điểm danh, đề xuất AI) | ✔ | ✔ | ✔ | ✔ | – |
-| Quỹ (mở kỳ, ghi thu chi, khoản thu, xác nhận thanh toán) | ✔ | ✔ | – | ✔ | – |
-| Phân vai trò cho người khác | ✔ | ✔* | – | – | – |
-| Nhường chức vụ của bản thân | ✔ | ✔ | ✔ | ✔ | – |
-| Báo cáo tổng hợp, nháp email AI | ✔ | ✔ | ✔ | ✔ | – |
-| Quản lý mail mẫu dùng chung | ✔ | ✔ | – | – | – |
+| Quyền | Quản trị hệ thống | Chủ nhiệm | Phó CN | Trưởng ban | Thư ký/Thủ quỹ | Thành viên |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| Xem danh sách chờ và duyệt đăng ký | ✔ | ✔ | ✔ | – | – | – |
+| Quản lý thành viên (xem hồ sơ đầy đủ, sửa, lưu trữ, nhập file, cộng/trừ điểm, cấp mật khẩu tạm) | ✔ | ✔ | ✔ | ✔ | – | – |
+| Sự kiện và task (tạo, giao, duyệt, điểm danh, đề xuất AI, mẫu sự kiện/task trong Kho mẫu) | ✔ | ✔ | ✔ | ✔ | ✔ | – |
+| Quỹ (mở kỳ, ghi thu chi, khoản thu, xác nhận thanh toán) | ✔ | ✔ | ✔ | – | ✔ | – |
+| Phân vai trò cho người khác | ✔** | ✔ | ✔* | – | – | – |
+| Nhường chức vụ của bản thân | – | ✔ | ✔ | ✔ | ✔ | – |
+| Báo cáo tổng hợp, nháp email AI | ✔ | ✔ | ✔ | ✔ | ✔ | – |
+| Mẫu email trong Kho mẫu (kể cả email tự động) | ✔ | ✔ | ✔ | – | – | – |
 
 \* Phó chủ nhiệm chỉ gán được vai trò **thấp hơn** mình (Trưởng ban, Thư ký/Thủ quỹ, Thành viên). PCN không gán được Phó chủ nhiệm hay Chủ nhiệm, và không đổi được vai trò của Chủ nhiệm hay Phó chủ nhiệm khác.
+
+\*\* **Quản trị hệ thống** là tài khoản đầu tiên, do người cài đặt tạo bằng lệnh `flask create-admin` (xem [mục 7.1](#71-tài-khoản-quản-trị-hệ-thống)). Đây là tài khoản duy nhất gán được **Chủ nhiệm**.
+
+### 7.1. Tài khoản Quản trị hệ thống
+
+- Dùng để **khởi động CLB trên hệ thống**: duyệt những đơn đăng ký đầu tiên rồi gán Chủ nhiệm, Phó chủ nhiệm, Trưởng ban, Thư ký/Thủ quỹ. Tài khoản này **không phải Chủ nhiệm** và không phải thành viên CLB: không xuất hiện trong danh sách thành viên, không đóng quỹ, không nhận task, không nhận email (không có hộp thư).
+- Đăng nhập bằng **tên đăng nhập** (vd `admin`) thay cho MSSV.
+- Không ai gán được, đổi được hay nhường được vai trò Quản trị hệ thống qua giao diện.
+- Quên mật khẩu: người quản lý máy chủ chạy `flask --app run.py reset-admin-password`.
+- Khi BĐH đã đủ người, nên hạn chế dùng tài khoản này. Chỉ dùng khi cần gán lại Chủ nhiệm, ví dụ Chủ nhiệm cũ rời CLB mà chưa kịp nhường chức.
 
 Số người tối đa mỗi chức vụ: 1 Chủ nhiệm, 2 Phó chủ nhiệm, 3 Trưởng ban, 1 Thư ký/Thủ quỹ. Hệ thống không cho hạ chức hay lưu trữ **thành viên BĐH cuối cùng**, để CLB không bị mất quyền quản trị.
 
@@ -218,7 +228,7 @@ Nút nào không thuộc quyền của bạn sẽ bị ẩn. Kể cả khi gửi
 
 ## 8. Duyệt thành viên và quản lý hồ sơ
 
-### 8.1. Duyệt đơn đăng ký *(Chủ nhiệm, Phó chủ nhiệm)*
+### 8.1. Duyệt đơn đăng ký *(Quản trị hệ thống, Chủ nhiệm, Phó chủ nhiệm)*
 
 1. Vào **ĐIỀU HÀNH → Phê duyệt**. Mỗi đơn hiển thị họ tên, MSSV, ngày sinh, SĐT, email, ban đăng ký, Facebook và ngày nộp.
 2. Kiểm tra thông tin (gợi ý: đối chiếu Facebook, MSSV; xem email đã xác minh chưa).
@@ -249,12 +259,12 @@ Dùng khi thành viên quên mật khẩu mà không nhận được email đặ
 
 Vào **ĐIỀU HÀNH → Vai trò & phân quyền**.
 
-### 9.1. Gán chức vụ *(Chủ nhiệm, Phó chủ nhiệm)*
+### 9.1. Gán chức vụ *(Quản trị hệ thống, Chủ nhiệm, Phó chủ nhiệm)*
 
 1. Ở dòng của thành viên, bấm **Gán chức vụ**. Nút chỉ hiện với người có cấp thấp hơn bạn.
 2. Chọn **Chức vụ mới**. Nếu chọn **Trưởng ban** thì phải chọn thêm **Ban quản lý**.
 3. Bấm **Lưu chức vụ**. Hệ thống kiểm tra cấp bậc, số lượng tối đa và quy tắc "không hạ BĐH cuối cùng".
-4. Không gán trực tiếp được **Chủ nhiệm**. Chủ nhiệm chỉ thay đổi qua quy trình nhường chức vụ.
+4. Chủ nhiệm và Phó chủ nhiệm không gán được **Chủ nhiệm**. Giữa các thành viên, Chủ nhiệm chỉ thay đổi qua quy trình nhường chức vụ. Riêng **Quản trị hệ thống** gán được Chủ nhiệm (lần đầu, hoặc khi Chủ nhiệm cũ không còn).
 
 ### 9.2. Nhường chức vụ *(mọi chức vụ BĐH)*
 
@@ -358,13 +368,39 @@ AI chỉ tạo **đề xuất (bản xem trước)**. Không có gì được gh
   - `Đề xuất sự kiện: Workshop bảo mật | 2026-11-01 09:00 | 2026-11-01 11:00 | 1`
   - `Chia task: 12 | 1 | 2026-11-01 08:00 | Chuẩn bị tài liệu; Kiểm tra thiết bị | python, mạng`
 - Chỉ ghi ngày/tháng thì hệ thống hiểu là **năm hiện tại**. Luôn đọc lại bản xem trước trước khi duyệt.
+- Ở form **Đề xuất sự kiện hoặc chia task** có ô **Mẫu áp dụng**: để *Tự động* hoặc chọn một mẫu trong Kho mẫu. Đề xuất sự kiện mới mà bỏ trống giờ kết thúc thì hệ thống lấy **thời lượng của mẫu**.
+- AI chọn khung cho đề xuất theo thứ tự (xem thêm [mục 12.4](#124-kho-mẫu)):
+  1. Mẫu bạn chọn.
+  2. Mẫu trong kho có **tên hoặc từ khóa** xuất hiện trong mô tả, hoặc cùng **loại sự kiện**.
+  3. **Sự kiện tương tự** đã có (cùng loại hoặc tên gần giống): lấy nội dung / danh sách task của sự kiện đó làm khung.
+  4. **Mẫu chung**.
 
-### 12.3. Nháp email và mail mẫu
+  Có model AI thì AI điều chỉnh khung theo mô tả của bạn. Không có model thì: mô tả liệt kê nhiều task (ngăn bằng `;` hoặc xuống dòng) → dùng đúng danh sách đó; mô tả một dòng → dùng mẫu nếu bạn chọn mẫu hoặc mô tả chứa tên/từ khóa mẫu, ngược lại tạo đúng 1 task theo mô tả. Bản xem trước luôn ghi rõ **Khung** đã dùng.
 
-- Trong chat: `Gửi mail cho SV123: nhắc nộp báo cáo trước thứ Sáu` hoặc `Gửi mail mẫu nhắc đóng quỹ cho Nguyễn Văn A`. AI chỉ tạo **nháp**.
+### 12.3. Nháp email
+
+- Trong chat: `Gửi mail cho SE201256: nhắc nộp báo cáo trước thứ Sáu` hoặc `Gửi mail mẫu nhắc đóng quỹ cho Nguyễn Văn A`. AI chỉ tạo **nháp**.
+- Cách AI soạn nội dung:
+  1. Bạn nhắc tên mẫu ("mail mẫu …"), hoặc mục đích chứa **tên / từ khóa** của một mẫu email trong Kho mẫu → dùng mẫu đó. Phần sau dấu `:` được điền vào biến `{{noi_dung}}`.
+  2. Không có mẫu phù hợp → dùng **Mẫu chung**. Có model AI thì AI viết lại theo khung mẫu chung cho đúng mục đích; không có model thì điền thẳng mục đích vào mẫu chung.
+  3. Bạn yêu cầu "mail mẫu" mà kho chưa có mẫu nào khớp → AI **không tạo nháp**, chỉ liệt kê các mẫu đang có (hoặc nhắc thêm mẫu ở Kho mẫu).
 - Ở mục **Nháp email chờ BĐH duyệt**: sửa tiêu đề/nội dung nếu cần → **Duyệt và gửi** hoặc **Từ chối**. Gửi lỗi thì có nút **Thử gửi lại**.
 - Nếu việc gửi bị gián đoạn giữa chừng, hãy kiểm tra hộp thư đã gửi rồi chọn **Đã gửi (đã kiểm tra)** hoặc **Chưa gửi (đã kiểm tra)**. Hệ thống không tự gửi lại để tránh gửi trùng.
-- **Mail mẫu dùng chung** *(Chủ nhiệm, Phó chủ nhiệm)*: tạo mẫu có tên, tiêu đề, nội dung. Có thể dùng biến `{{ten}}`, `{{mssv}}`, `{{email}}`. Mẫu có thể tạm ngừng mà không ảnh hưởng nháp cũ.
+
+### 12.4. Kho mẫu
+
+Vào **ĐIỀU HÀNH → Kho mẫu**. Có 3 tab:
+
+| Tab | Ai dùng được | Nội dung |
+|---|---|---|
+| **Mẫu email** | Quản trị hệ thống, Chủ nhiệm, Phó chủ nhiệm | **Mẫu email hệ thống**: nội dung các email tự động (xác minh email, đặt lại mật khẩu, duyệt/từ chối thành viên, giao/chỉ định/duyệt task, có sản phẩm chờ duyệt, nhắc deadline, nhắc kỳ quỹ, nhắc đóng quỹ) và **Mẫu chung** cho AI. Chỉ sửa được tiêu đề và nội dung, có nút **Khôi phục nội dung mặc định**. **Mẫu email của CLB**: tự tạo, có tên, từ khóa, mô tả, tiêu đề, nội dung; bật/tắt được |
+| **Mẫu sự kiện** | Người có quyền Sự kiện & task | Tên mẫu, loại sự kiện, từ khóa, tên gợi ý, thời lượng (giờ), địa điểm, nội dung / chương trình |
+| **Mẫu chia task** | Người có quyền Sự kiện & task | Tên mẫu, loại sự kiện, từ khóa, danh sách task (mỗi dòng `Tên task \| mô tả`, tối đa 10) |
+
+- **Biến trong mẫu email**: mỗi mẫu hệ thống ghi rõ các biến được dùng (vd `{{ten}}`, `{{link}}`, `{{task}}`, `{{han}}`). Mẫu của CLB dùng `{{ten}}`, `{{mssv}}`, `{{email}}`, `{{noi_dung}}`. Dùng biến khác thì hệ thống báo lỗi, không lưu.
+- **Từ khóa**: ngăn bằng dấu phẩy. Có dấu hay không dấu đều khớp ("đóng quỹ" khớp "dong quy").
+- **Mẫu chung**: tích ô *Đặt làm mẫu chung* để dùng khi không tìm thấy mẫu phù hợp hơn. Mỗi loại chỉ có một mẫu chung.
+- Sửa hoặc tắt mẫu **không làm thay đổi** các nháp email và đề xuất đã tạo trước đó.
 
 ---
 
@@ -378,7 +414,9 @@ AI chỉ tạo **đề xuất (bản xem trước)**. Không có gì được gh
 | "Phiên biểu mẫu không hợp lệ. Hãy tải lại trang." | Trang mở quá lâu hoặc đã đăng xuất ở tab khác. Tải lại trang (F5) rồi làm lại. |
 | "Quá nhiều yêu cầu. Vui lòng thử lại sau." (lỗi 429) | Bạn thao tác quá nhanh. Chờ khoảng 1 phút. |
 | Không nhận được email | Kiểm tra thư mục Spam. Nếu CLB chưa bật gửi email, hãy liên hệ BĐH. |
-| Không thấy nút Gán chức vụ / Phê duyệt | Chức vụ của bạn không có quyền đó (xem [mục 7](#7-ban-điều-hành-ai-được-làm-gì)). |
+| Không thấy nút Gán chức vụ / Phê duyệt / Kho mẫu | Chức vụ của bạn không có quyền đó (xem [mục 7](#7-ban-điều-hành-ai-được-làm-gì)). |
+| Đăng ký báo "MSSV không đúng định dạng" | MSSV phải có dạng `SE201256` (chữ campus H/D/Q/C/S + chữ ngành A/S/E + 6 số). |
+| Đăng ký báo lỗi Facebook | Chỉ nhập userID sau `facebook.com/` (chữ, số, dấu chấm), không dán link `www.` / `m.` / `fb.com`. |
 | Quét QR báo "Chỉ được điểm danh trong thời gian diễn ra sự kiện" | Chỉ quét được từ 30 phút trước giờ bắt đầu đến giờ kết thúc. |
 | Quét QR báo "Mã QR đã hết hạn" | Nhờ BĐH tải lại trang để lấy mã mới. |
 | Trang báo lỗi kèm "Mã hỗ trợ: …" | Gửi mã này cho người quản trị để tra nhật ký lỗi. |

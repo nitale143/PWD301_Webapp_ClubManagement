@@ -7,6 +7,7 @@
             {% for endpoint, glyph, label, prefix in nav %}<a class="quick-link" href="{{ url_for(endpoint) }}">{{ icon(glyph) }}{{ label }}{{ icon('chevron') }}</a>{% endfor %}
             {% if can_approve %}<a class="quick-link" href="{{ url_for('admin.approve_list') }}">{{ icon('shield') }}Phê duyệt</a>{% endif %}
             {% if can_roles %}<a class="quick-link" href="{{ url_for('admin.role_list') }}">{{ icon('settings') }}Vai trò &amp; phân quyền</a>{% endif %}
+            {% if can_templates %}<a class="quick-link" href="{{ url_for('kho_mau.index') }}">{{ icon('file') }}Kho mẫu</a>{% endif %}
             <a class="quick-link" href="{{ url_for('profile.view_profile') }}">{{ icon('users') }}Hồ sơ cá nhân</a>
             <a class="quick-link" href="{{ url_for('auth.change_password') }}">{{ icon('shield') }}Đổi mật khẩu</a>
         </div>

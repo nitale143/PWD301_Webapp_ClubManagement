@@ -5,7 +5,7 @@ Phát triển (máy cá nhân):
 Production (Ch11): không dùng file này để chạy server, dùng Gunicorn:
     gunicorn -c gunicorn.conf.py wsgi:app
 
-Lệnh quản trị (init-db, create-cn, db upgrade, …) xem app/cli.py.
+Lệnh quản trị (init-db, create-admin, db upgrade, …) xem app/cli.py.
 """
 import os
 

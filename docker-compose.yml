@@ -2,7 +2,7 @@
 # Đặt Nginx (deploy/nginx.conf) phía trước để có HTTPS.
 #   cp .env.example .env  # điền SECRET_KEY, TRUSTED_HOSTS, ...
 #   docker compose up -d --build
-#   docker compose exec web flask --app run.py create-cn
+#   docker compose exec web flask --app run.py create-admin
 services:
   web:
     build: .

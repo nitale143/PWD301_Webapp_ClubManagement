@@ -9,6 +9,7 @@ from app.models import Permission
 from app.permissions import approved_required, permission_required
 from app.security import require_csrf
 from app.mail import send_email
+from app.services.email_templates import render_system_email
 from app.services.access import active_members, approved, can_manage_funds
 from app.services.common import DomainError, audit, club_now
 from app.services.export_security import safe_excel_row
@@ -236,12 +237,8 @@ def remind_unpaid():
     unpaid_dues = FundDue.query.filter_by(period_id=period.id, da_dong=False).all()
     sent = 0
     for due in unpaid_dues:
-        sent += bool(send_email(
-            due.user.email,
-            f"[CLB] Nhắc đóng quỹ kỳ {period.ten_ky}",
-            f"Chào {due.user.ho_ten},\n\nBạn chưa đóng quỹ CLB cho kỳ \"{period.ten_ky}\". "
-            "Vui lòng liên hệ thủ quỹ để hoàn tất.\n\n-- CLB",
-        ))
+        sent += bool(send_email(due.user.email, *render_system_email(
+            "fund_reminder", ten=due.user.ho_ten, ky=period.ten_ky)))
     audit(current_user, "legacy_fund_reminder", period, {"recipients": len(unpaid_dues), "sent": sent})
     db.session.commit()
     if sent == len(unpaid_dues):

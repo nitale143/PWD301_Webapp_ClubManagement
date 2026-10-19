@@ -66,17 +66,17 @@ Nginx (TLS, static) ──► Gunicorn ──► ProxyFix (WSGI middleware)
 ├── gunicorn.conf.py        # cấu hình Gunicorn
 ├── Dockerfile, docker-compose.yml, .dockerignore
 ├── deploy/                 # nginx.conf, systemd units
-├── migrations/             # Flask-Migrate (Alembic): 0001 baseline, 0002 roles/auth
+├── migrations/             # Flask-Migrate (Alembic): 0001 baseline, 0002 roles/auth, 0003 admin/kho mẫu/định dạng
 ├── scripts/gen_function_reference.py
 ├── docs/                   # tài liệu
 ├── tests/                  # unittest (+ support.py) và script Playwright (.cjs)
 └── app/
     ├── __init__.py         # create_app(): app factory
     ├── config.py           # Config đọc biến môi trường
-    ├── cli.py              # lệnh flask: init-db, create-cn, sync-roles, run-scheduler, migrate-*
+    ├── cli.py              # lệnh flask: init-db, create-admin, reset-admin-password, seed-templates, sync-roles, run-scheduler, migrate-*
     ├── models.py           # ORM models + Permission/Role
     ├── forms.py            # Flask-WTF forms
-    ├── validators.py       # regex & validator dùng chung (mật khẩu mạnh…)
+    ├── validators.py       # định dạng MSSV/SĐT/Facebook (regex + normalize_*), mật khẩu mạnh
     ├── permissions.py      # decorator: permission_required, approved_required…
     ├── security.py         # CSRF helper, chốt "bắt đổi mật khẩu"
     ├── hardening.py        # cấu hình an toàn, header, CSP, error handler, ProxyFix
@@ -87,7 +87,7 @@ Nginx (TLS, static) ──► Gunicorn ──► ProxyFix (WSGI middleware)
     ├── activity.py         # tính % hoạt động khi sự kiện kết thúc
     ├── legacy_sqlite.py    # nâng cấp DB SQLite tạo trước khi có migrations/
     ├── timeutil.py         # utcnow() thay datetime.utcnow()
-    ├── routes/             # Blueprint: auth, main, member, profile, event, funds, ai, admin, api
+    ├── routes/             # Blueprint: auth, main, member, profile, event, funds, ai, admin, api, kho_mau
     ├── services/           # nghiệp vụ: access, funds, events, activities, AI…
     ├── templates/          # Jinja2: base.html + partials/ + _ui.html (macro)
     └── static/             # css, js, ảnh; uploads/ (avatar – gitignore)
@@ -117,8 +117,8 @@ Nginx (TLS, static) ──► Gunicorn ──► ProxyFix (WSGI middleware)
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt          # hoặc: pip install --require-hashes -r requirements-lock.txt
 cp .env.example .env                          # điền SECRET_KEY (có thể để trống khi dev: tự tạo instance/session-secret.key)
-flask --app run.py init-db                    # = flask db upgrade + seed ban & role
-flask --app run.py create-cn                  # tạo Chủ nhiệm đầu tiên
+flask --app run.py init-db                    # = flask db upgrade + seed ban, role, kho mẫu mặc định
+flask --app run.py create-admin               # tạo tài khoản Quản trị hệ thống đầu tiên (tên, username, mật khẩu)
 FLASK_DEBUG=1 python run.py                   # http://127.0.0.1:5000
 ```
 
@@ -189,7 +189,8 @@ Tên bảng và cột giữ tiếng Việt không dấu như database cũ. Thờ
 | Hoạt động | `member_activity`, `activity_point`, `club_setting` | `member_activity`: % task theo (user, ban, kỳ). `activity_point`: điểm danh / điều chỉnh tay. |
 | Quỹ theo kỳ | `fund_period`, `fund_transaction`, `fund_due` | Sổ thu chi + đánh dấu đóng quỹ theo kỳ. `fund_period` cũng là "kỳ" để tính hoạt động. |
 | Khoản thu | `fund_collection`, `fund_target_ban`, `fund_adjustment`, `fund_payment`, `payment_evidence` | Thu theo đợt, có xác nhận. |
-| AI | `chat_conversation`, `chat_message`, `conversation_pending`, `assistant_pending`, `ai_proposal`, `email_proposal`, `email_template`, `ai_report_snapshot`, `member_planning_profile`, `ai_usage_log` | |
+| AI | `chat_conversation`, `chat_message`, `conversation_pending`, `assistant_pending`, `ai_proposal`, `email_proposal`, `ai_report_snapshot`, `member_planning_profile`, `ai_usage_log` | |
+| Kho mẫu | `email_template`, `proposal_template` | `email_template.system_key` có giá trị = mẫu email tự động (+ `general`); rỗng = mẫu của CLB. `proposal_template.kind` = `event` / `task`, `content` là JSON, `is_default` = mẫu chung. Xem [mục 12.1](#121-kho-mẫu). |
 | Khác | `notification`, `audit_log` | |
 
 > **Hai hệ thống quỹ chạy song song.** `fund_period/fund_due/fund_transaction` (sổ quỹ theo kỳ) và `fund_collection/fund_payment` (khoản thu) **không tự đồng bộ** với nhau. Báo cáo AI chỉ tính `fund_payment` đã xác nhận. Gộp hai hệ thống là thay đổi dữ liệu lớn (`fund_period` còn được dùng làm "kỳ" cho `member_activity` và `user.ky_tham_gia_id`), nên cần migration dữ liệu riêng nếu muốn làm.
@@ -197,6 +198,17 @@ Tên bảng và cột giữ tiếng Việt không dấu như database cũ. Thờ
 ### Ràng buộc quan trọng
 
 - `user.mssv` unique. `user.email` unique (chữ thường; migration 0002 dừng lại nếu có email trùng).
+- Định dạng lưu trữ (kiểm tra ở form, API và CLI qua `app/validators.py`):
+
+  | Trường | Định dạng | Hàm |
+  |---|---|---|
+  | `user.mssv` (thành viên) | `^[HDQCS][ASE]\d{6}$`, in hoa (vd `SE201256`) | `MSSV_RE`, `normalize_mssv` |
+  | `user.mssv` (Quản trị hệ thống) | tên đăng nhập `^[A-Za-z0-9_-]{3,20}$` | `ADMIN_USERNAME_RE` |
+  | `user.sdt` | `+84` + 9 số (`^\+84[1-9]\d{8}$`); form chỉ nhận 9 số sau +84, chấp nhận cả `0…`/`+84…` rồi chuẩn hóa | `PHONE_RE`, `normalize_phone` |
+  | `user.facebook_link` | `https://facebook.com/<userID>`, userID `[A-Za-z0-9.]{1,50}` | `FACEBOOK_RE`, `normalize_facebook` |
+  | mật khẩu mới | 8–64 ký tự, có chữ và số, không chứa MSSV, không phổ biến (`PASSWORD_MAX = 64`) | `password_problems`, `StrongPassword` |
+
+  Ô mật khẩu khi **đăng nhập** vẫn nhận tới 128 ký tự (`LOGIN_PASSWORD_MAX`) để tài khoản cũ không bị khóa. Migration 0003 chuẩn hóa SĐT/Facebook cũ nếu chuyển được.
 - `CheckConstraint` cho trạng thái, số tiền ≥ 0, lý do không rỗng…
 - Số tiền dùng `Numeric(14,2)` và `Decimal` trong Python (`parse_money`).
 - Thao tác cạnh tranh (duyệt thanh toán, gửi email, đổi vai trò BĐH cuối cùng) dùng `UPDATE ... WHERE <điều kiện>` rồi kiểm tra `rowcount`, không đọc-rồi-ghi.
@@ -216,13 +228,14 @@ class Permission:                # app/models.py – bit flag
     ASSIGN_ROLES    = 16         # phân vai trò (theo cấp bậc)
     HANDOFF_ROLE    = 32         # nhường chức vụ của chính mình
     BOARD           = 64         # khu vực BĐH: báo cáo, nháp email, digest
-    MANAGE_TEMPLATES = 128       # mail mẫu dùng chung
+    MANAGE_TEMPLATES = 128       # mẫu email trong Kho mẫu (kể cả email tự động)
 ```
 
 `DEFAULT_ROLES` (trong `models.py`) là bảng quyền mặc định, đã thống nhất với CLB:
 
 | Role | rank | Quyền |
 |---|---|---|
+| `ADMIN` Quản trị hệ thống | -1 | tất cả trừ HANDOFF_ROLE (223). Không phải thành viên CLB |
 | `CN` Chủ nhiệm | 0 | tất cả (255) |
 | `PCN` Phó chủ nhiệm | 1 | tất cả (255) – nhưng bị giới hạn cấp bậc khi phân vai trò |
 | `TB` Trưởng ban | 2 | MANAGE_MEMBERS, MANAGE_EVENTS, HANDOFF_ROLE, BOARD |
@@ -241,9 +254,15 @@ Bảng `role` trong DB là nguồn sự thật. `Role.insert_roles()` seed bản
   - `visible_members(actor)`: tất cả nếu có MANAGE_MEMBERS, ngược lại chỉ chính mình.
   - `scoped_members(actor, perm)`: tất cả nếu có `perm` (vd: thủ quỹ xem tình trạng đóng quỹ của mọi người).
   - `board_members(actor)`: phạm vi tra cứu tên/MSSV cho AI và nháp email của BĐH.
-  - `active_members()`: mọi thành viên còn hoạt động, dùng nội bộ.
+  - `directory_members(actor)`: danh bạ thông tin cơ bản cho mọi thành viên đã duyệt (trang Thành viên).
+  - `active_members()`: mọi thành viên còn hoạt động, dùng nội bộ. **Không gồm** tài khoản `ADMIN`.
 
-**Quy tắc cấp bậc khi phân vai trò** (`can_assign_role_to`): cần ASSIGN_ROLES; chỉ đổi vai trò của người có `rank` lớn hơn mình (cấp thấp hơn); vai trò mới cũng phải có rank lớn hơn mình; không gán `CN` trực tiếp. Hệ quả: PCN không gán PCN/CN và không đụng tới CN/PCN khác. Sau đó `permissions.can_assign_role` kiểm tra thêm giới hạn số lượng `Config.ROLE_LIMITS`.
+**Quy tắc cấp bậc khi phân vai trò** (`can_assign_role_to`): cần ASSIGN_ROLES; chỉ đổi vai trò của người có `rank` lớn hơn mình (cấp thấp hơn); vai trò mới cũng phải có rank lớn hơn mình; `CN` chỉ `ADMIN` gán được; không ai gán/đổi vai trò `ADMIN`. Hệ quả: PCN không gán PCN/CN và không đụng tới CN/PCN khác.
+
+**Tài khoản Quản trị hệ thống (`ADMIN`)** tạo bằng `flask create-admin` (chỉ hỏi tên hiển thị, tên đăng nhập, mật khẩu; chỉ tạo được một lần). Đặc điểm:
+- `email = <username>@admin.invalid`; `mail.send_email` bỏ qua mọi địa chỉ `*.invalid`.
+- Không có `member_record`, không thuộc ban. Bị loại khỏi `active_members()`, `funds.target_members()`, danh sách phân quyền, người nhận task và người nhận nhắc kỳ quỹ.
+- Quên mật khẩu: `flask reset-admin-password` (chỉ chạy được trên máy chủ). Sau đó `permissions.can_assign_role` kiểm tra thêm giới hạn số lượng `Config.ROLE_LIMITS`.
 
 **Bảo vệ BĐH cuối cùng:** `set_member_role_safely` và `set_member_left_safely` dùng câu UPDATE có điều kiện "còn hơn 1 BĐH hoạt động".
 
@@ -305,6 +324,8 @@ Template dùng `can(Permission.X)` (từ context processor) để ẩn/hiện n�
 - Mọi form chính là class trong `app/forms.py`, kế thừa `BaseForm` (FlaskForm có thông báo lỗi tiếng Việt).
 - Trong view, dùng mẫu chuẩn: `form = XForm()` → `if form.validate_on_submit(): ... return redirect(...)` (Post/Redirect/Get) → nếu không hợp lệ thì render lại template, form tự giữ dữ liệu đã nhập.
 - Validator gồm loại có sẵn (`DataRequired`, `Length`, `Email`, `EqualTo`, `Regexp`, `NumberRange`, `FileAllowed`…), loại tùy biến dạng class (`StrongPassword`, `NoControlChars`) và inline `validate_<field>` (kiểm tra trùng MSSV/email/mã sự kiện).
+- **Filter chuẩn hóa trước khi validate** (`RegistrationForm`): `_mssv_filter` (viết hoa), `_phone_filter` (→ `+84xxxxxxxxx`), `_facebook_filter` (→ `https://facebook.com/<id>`). Sai định dạng thì filter giữ nguyên giá trị để `Regexp` báo lỗi tiếng Việt.
+- Đăng ký chọn **một** ban: `ban_hoat_dong = RadioField(coerce=int)`. Template `register.html` có macro `prefixed_field` (ô có tiền tố `+84` / `facebook.com/`) và thẻ chọn ban `.ban-choice`; hai hàm Jinja `phone_local_part`, `facebook_id_part` tách phần người dùng nhập để hiển thị lại.
 - Template:
   ```jinja
   {% from "_ui.html" import form_field %}
@@ -406,7 +427,8 @@ await fetch('/api/v1/funds', {
 | Agent | `services/agent_orchestrator.py` | Vòng lặp: model lập kế hoạch JSON → backend kiểm tra tên tool và phạm vi → chạy **reader đã kiểm chứng** → tối đa `AI_AGENT_MAX_STEPS` bước. Tiến trình stream qua SSE `/ai/stream`. |
 | Truy vấn kiểm chứng | `verified_queries.py`, `briefings.py` | Hồ sơ/task thành viên, digest ngày, báo cáo tuần/tháng. |
 | Đề xuất | `proposals.py`, `natural_proposals.py`, `natural_datetime.py` | Tạo `AIProposal` (event/task). Duyệt mới ghi dữ liệu thật (MANAGE_EVENTS). |
-| Email | `email_proposals.py`, `email_templates.py` | Tạo `EmailProposal` nháp. BĐH duyệt mới gửi. Mẫu dùng chung cần MANAGE_TEMPLATES. |
+| Email | `email_proposals.py`, `email_templates.py` | Tạo `EmailProposal` nháp. BĐH duyệt mới gửi. Nội dung: mẫu trong kho → mẫu chung (xem 12.1). |
+| Kho mẫu | `email_templates.py`, `proposal_templates.py`, `routes/kho_mau.py` | Lưu/sửa mẫu, chọn mẫu cho AI. |
 | Hội thoại | `chat_conversations.py` | Sở hữu theo user, phân trang keyset. |
 
 **Các bất biến an toàn (không được phá khi sửa code):**
@@ -417,11 +439,30 @@ await fetch('/api/v1/funds', {
 4. Trước khi trả kết quả, gọi lại `_reauthorize`. Quyền đổi giữa chừng thì hủy lượt đó.
 5. Quota: `AI_MAX_CALLS_PER_MINUTE`, `AI_DAILY_TOKEN_LIMIT`, `AI_CHAT_MESSAGES_PER_MINUTE`. Usage được ghi vào `ai_usage_log` (không lưu prompt).
 
+### 12.1. Kho mẫu
+
+Trang `/kho-mau` (blueprint `kho_mau`), 3 tab: Mẫu email (MANAGE_TEMPLATES), Mẫu sự kiện và Mẫu chia task (MANAGE_EVENTS). `flask init-db` và `flask seed-templates` nạp mẫu mặc định còn thiếu (không ghi đè mẫu đã sửa).
+
+**Mẫu email** (`services/email_templates.py`):
+- `SYSTEM_EMAILS`: 12 mẫu hệ thống (`general`, `confirm_email`, `reset_password`, `member_approved`, `member_rejected`, `task_assigned`, `task_reassigned`, `task_submitted`, `task_reviewed`, `deadline_reminder`, `period_reminder`, `fund_reminder`), mỗi mẫu có danh sách biến riêng.
+- Gửi email tự động: `send_email(to, *render_system_email("task_assigned", ten=..., task=..., su_kien=..., han=...))`. Hàm đọc mẫu trong kho; thiếu hoặc không hợp lệ thì dùng nội dung mặc định.
+- Biến chỉ được thay bằng `str.replace` (`_fill`), không bao giờ chạy code trong mẫu. `_validate_text` chặn biến lạ khi lưu.
+- Mẫu của CLB dùng `{{ten}}`, `{{mssv}}`, `{{email}}`, `{{noi_dung}}`; `find_email_template(text)` chấm điểm theo tên (3) và từ khóa (1 mỗi từ).
+
+**Soạn nháp email** (`email_proposals._draft_text`): mẫu của CLB khớp → điền biến, không gọi model. Không khớp → mẫu `general`; có model thì model viết lại theo khung `general_template`, không có model thì điền thẳng `{{noi_dung}}`.
+
+**Mẫu sự kiện / chia task** (`services/proposal_templates.py`, bảng `proposal_template`):
+- `find_proposal_template(kind, brief, event=None, template_id=None)` trả `{source, label, content, text_match}` theo thứ tự: mẫu chọn tay → mẫu trong kho (tên 3 điểm, từ khóa 1, cùng loại sự kiện 2) → sự kiện tương tự (`_similar_event`: cùng loại hoặc từ ≥4 ký tự trùng tên; task lấy từ các task cũ không bị hủy) → mẫu `is_default` → `BUILTIN`.
+- `proposals._event_payload`: model nhận `template` trong context; không có model thì nội dung = mô tả + nội dung mẫu, loại/địa điểm lấy từ mẫu. Không nhập `end_at` thì `end = start + duration_hours`.
+- `proposals._task_payload` khi không có model: mô tả ≥2 dòng/`;` → dùng đúng danh sách; 1 dòng → dùng task của mẫu chỉ khi `source == "store"` và `text_match` (chọn tay hoặc khớp tên/từ khóa), ngược lại 1 task theo mô tả.
+- Payload lưu `template` và `template_source`; `proposal_preview` in dòng "Khung: …".
+
 ---
 
 ## 13. Email, scheduler, file upload
 
-- **`mail.send_email(to, subject, body) -> bool`**: không ném lỗi. Bắt buộc TLS/SSL, chặn header injection. `MAIL_ENABLED=false` thì không gửi (trả False), trừ chế độ outbox khi dev.
+- **`mail.send_email(to, subject, body) -> bool`**: không ném lỗi. Bắt buộc TLS/SSL, chặn header injection. `MAIL_ENABLED=false` thì không gửi (trả False), trừ chế độ outbox khi dev. Địa chỉ `*.invalid` (tài khoản Quản trị hệ thống) luôn bị bỏ qua.
+- Nội dung mọi email tự động lấy từ **Kho mẫu** qua `render_system_email(key, **values)` (mục 12.1).
 - **Scheduler** (`app/scheduler.py`): `check_deadlines` chạy 07:00, `check_period_reminder` chạy 07:05 (giờ `APP_TIMEZONE`).
   - Chạy 1 process: để mặc định (`SCHEDULER_IN_WEB=true`).
   - Gunicorn nhiều worker: đặt `SCHEDULER_IN_WEB=false` cho web và chạy riêng `flask --app run.py run-scheduler` (đã có service `scheduler` trong `docker-compose.yml` và `deploy/club-scheduler.service`). Nếu không, mỗi worker chạy job một lần và mail bị gửi trùng.
@@ -440,6 +481,7 @@ Schema do **Flask-Migrate (Alembic)** quản lý trong thư mục `migrations/`:
 |---|---|
 | `0001` | Schema gốc (đúng như database cũ tạo bằng `db.create_all`) |
 | `0002` | Bảng `role` (+ seed quyền), cột xác thực trên `user`, email unique |
+| `0003` | Role `ADMIN`; `email_template` thêm `system_key`/`keywords`/`description`; bảng `proposal_template`; chuẩn hóa SĐT (`+84…`) và link Facebook cũ |
 
 **Quy trình thay đổi schema** (Ch5.2):
 
@@ -464,6 +506,15 @@ flask --app run.py migrate-email-recipients
 flask --app run.py db stamp 0001      # đánh dấu DB đang ở schema gốc
 flask --app run.py db upgrade         # chạy 0002 trở đi
 ```
+
+**Nâng cấp từ bản có 0002 lên 0003** (sao lưu DB trước):
+
+```bash
+flask --app run.py init-db          # = db upgrade (chạy 0003) + nạp kho mẫu mặc định
+flask --app run.py create-admin     # nếu chưa có tài khoản Quản trị hệ thống
+```
+
+MSSV cũ không đúng định dạng mới vẫn đăng nhập được (định dạng chỉ kiểm tra khi đăng ký/nhập mới).
 
 Nếu migration 0002 báo email trùng, sửa email của một trong các tài khoản trùng (SQLite: `UPDATE user SET email=... WHERE id=...`) rồi chạy lại `db upgrade`.
 
@@ -511,7 +562,7 @@ Mock `send_email` bằng `patch("app.routes.<module>.send_email")`. Không gửi
 ```bash
 cp .env.example .env     # APP_ENV=production, SECRET_KEY, TRUSTED_HOSTS=clb.example.com, MAIL_*...
 docker compose up -d --build
-docker compose exec web flask --app run.py create-cn
+docker compose exec web flask --app run.py create-admin
 ```
 
 Compose gồm 3 service:

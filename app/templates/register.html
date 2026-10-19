@@ -1,14 +1,35 @@
 {% extends "base.html" %}
 {% from "_ui.html" import icon, badge, form_field %}
 {% block title %}Đăng ký thành viên{% endblock %}
+
+{#- Ô nhập có tiền tố cố định (vd "+84", "https://facebook.com/"): người dùng chỉ nhập phần sau. -#}
+{% macro prefixed_field(field, prefix, value, id, placeholder, help, inputmode='text', maxlength=50, pattern=None, autocomplete='off') -%}
+<div class="field register-prefixed">
+    <label class="field-label" for="{{ id }}">{{ field.label.text }}</label>
+    <div class="input-group{{ ' is-invalid' if field.errors else '' }}">
+        <span class="input-addon">{{ prefix }}</span>
+        <input class="input" id="{{ id }}" name="{{ field.name }}" type="text" value="{{ value }}"
+               inputmode="{{ inputmode }}" maxlength="{{ maxlength }}" placeholder="{{ placeholder }}"
+               autocomplete="{{ autocomplete }}"{% if pattern %} pattern="{{ pattern }}"{% endif %} required>
+    </div>
+    <span class="field-help">{{ help }}</span>
+    {% for error in field.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+</div>
+{%- endmacro %}
+
 {% block content %}
+{% set ban_notes = {'Kỹ thuật': 'CTF, lab bảo mật, ra đề, hạ tầng', 'Nhân sự': 'Tuyển thành viên, hậu cần, điều phối', 'Truyền thông': 'Thiết kế, viết bài, chụp ảnh, video'} %}
 <div class="auth-layout preview-auth preview-register">
     <section class="auth-art">
         <div class="auth-art-mark">{{ icon('users') }}</div>
         <p class="eyebrow">THAM GIA FIA</p>
         <h1>Góp sức trong một đội ngũ nhiều màu sắc.</h1>
         <p>Gửi thông tin của bạn để Ban Điều hành xem xét đăng ký thành viên.</p>
-        <div class="auth-art-quote">“Cùng học hỏi, cùng làm nên những dự án có ích.”</div>
+        <ol class="register-steps">
+            <li><strong>Điền đơn</strong><span>Thông tin cá nhân, liên hệ và ban muốn tham gia.</span></li>
+            <li><strong>Xác minh email</strong><span>Mở liên kết hệ thống gửi tới hộp thư của bạn.</span></li>
+            <li><strong>Chờ BĐH duyệt</strong><span>Được duyệt là dùng được toàn bộ không gian làm việc.</span></li>
+        </ol>
     </section>
     <section class="auth-card card">
         <div class="card-body">
@@ -16,19 +37,54 @@
             <h1>Đăng ký thành viên</h1>
             <p class="muted">Điền thông tin để gửi đơn đăng ký vào FIA.</p>
             {{ badge('Ban Điều hành sẽ xem xét hồ sơ', 'neutral') }}
-            <form method="post" action="{{ url_for('auth.register') }}" class="page-stack" autocomplete="on" novalidate>
+            <form method="post" action="{{ url_for('auth.register') }}" class="page-stack register-form" autocomplete="on" novalidate>
                 {{ form.hidden_tag() }}
-                <div class="form-grid">
+
+                <fieldset class="register-section">
+                    <legend>{{ icon('users') }} Thông tin cá nhân</legend>
                     {{ form_field(form.ho_ten, id='register-ho-ten', required=true, maxlength=100, autocomplete='name', placeholder='Nguyễn Văn A') }}
-                    {{ form_field(form.mssv, id='register-mssv', required=true, maxlength=15, autocomplete='username', placeholder='22110018') }}
-                    {{ form_field(form.ngay_sinh, id='register-ngay-sinh', type='date', required=true, autocomplete='bday') }}
-                    {{ form_field(form.sdt, id='register-sdt', type='tel', required=true, maxlength=15, autocomplete='tel', placeholder='09xx xxx xxx') }}
+                    <div class="form-grid">
+                        {{ form_field(form.mssv, id='register-mssv', required=true, maxlength=8, autocomplete='username', placeholder='SE201256', help='Chữ campus (H, D, Q, C, S) + chữ ngành (A, S, E) + 6 số.', pattern='[HDQCShdqcs][ASEase][0-9]{6}', style='text-transform:uppercase') }}
+                        {{ form_field(form.ngay_sinh, id='register-ngay-sinh', type='date', required=true, autocomplete='bday') }}
+                    </div>
+                </fieldset>
+
+                <fieldset class="register-section">
+                    <legend>{{ icon('mail') }} Liên hệ</legend>
                     {{ form_field(form.email, id='register-email', type='email', required=true, maxlength=120, autocomplete='email', placeholder='ban@example.com') }}
-                    {{ form_field(form.facebook_link, id='register-facebook', type='url', required=true, maxlength=255, placeholder='https://facebook.com/…') }}
-                </div>
-                {{ form_field(form.ban_hoat_dong, help='Có thể chọn nhiều ban. Giữ Ctrl (Windows) hoặc Command (Mac) khi chọn.', id='register-ban', required=true, size=3) }}
-                {{ form_field(form.password, help='8–128 ký tự, có cả chữ và số, không chứa MSSV.', id='register-password', required=true, minlength=8, maxlength=128, autocomplete='new-password') }}
-                {{ form_field(form.confirm_password, id='register-confirm-password', required=true, minlength=8, maxlength=128, autocomplete='new-password') }}
+                    <div class="form-grid">
+                        {{ prefixed_field(form.sdt, '+84', phone_local_part(form.sdt.data), 'register-sdt', '912345678', 'Nhập 9 số sau +84.', inputmode='numeric', maxlength=12, pattern='[0-9]{9}', autocomplete='tel-national') }}
+                        {{ prefixed_field(form.facebook_link, 'facebook.com/', facebook_id_part(form.facebook_link.data), 'register-facebook', 'ten.cua.ban', 'Chỉ nhập userID (chữ, số, dấu chấm).', maxlength=50, pattern='[A-Za-z0-9.]{1,50}') }}
+                    </div>
+                </fieldset>
+
+                <fieldset class="register-section">
+                    <legend>{{ icon('briefcase') }} Ban hoạt động <span class="field-help">Chọn một ban</span></legend>
+                    <div class="ban-choice-grid" role="radiogroup" aria-label="Ban hoạt động">
+                        {% for value, label in form.ban_hoat_dong.choices %}
+                        <label class="ban-choice">
+                            <input type="radio" name="{{ form.ban_hoat_dong.name }}" value="{{ value }}" required{% if form.ban_hoat_dong.data == value %} checked{% endif %}>
+                            <span class="ban-choice-body">
+                                <span class="ban-choice-check" aria-hidden="true">{{ icon('check') }}</span>
+                                <strong>{{ label }}</strong>
+                                <span class="small muted">{{ ban_notes.get(label, 'Ban hoạt động của CLB') }}</span>
+                            </span>
+                        </label>
+                        {% else %}
+                        <p class="muted small">CLB chưa tạo ban hoạt động nào.</p>
+                        {% endfor %}
+                    </div>
+                    {% for error in form.ban_hoat_dong.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+                </fieldset>
+
+                <fieldset class="register-section">
+                    <legend>{{ icon('shield') }} Mật khẩu</legend>
+                    <div class="form-grid">
+                        {{ form_field(form.password, help='8–64 ký tự, có cả chữ và số, không chứa MSSV.', id='register-password', required=true, minlength=8, maxlength=64, autocomplete='new-password') }}
+                        {{ form_field(form.confirm_password, id='register-confirm-password', required=true, minlength=8, maxlength=64, autocomplete='new-password') }}
+                    </div>
+                </fieldset>
+
                 <button class="btn btn-primary" type="submit">Gửi đăng ký {{ icon('arrow') }}</button>
             </form>
             <p class="auth-switch muted">Đã có tài khoản? <a href="{{ url_for('auth.login') }}">Đăng nhập</a></p>

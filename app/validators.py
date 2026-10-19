@@ -8,13 +8,23 @@ import unicodedata
 
 from wtforms.validators import ValidationError
 
-MSSV_RE = re.compile(r"^[A-Za-z0-9]{6,15}$")
-PHONE_RE = re.compile(r"^0\d{9,10}$")
-FACEBOOK_RE = re.compile(r"^https?://(www\.)?facebook\.com/.+$")
+# MSSV: <campus><ngành><6 số>. Campus H/D/Q/C/S, ngành A/S/E, vd SE201256.
+MSSV_RE = re.compile(r"^[HDQCS][ASE]\d{6}$")
+MSSV_EXAMPLE = "SE201256"
+# Tên đăng nhập của tài khoản quản trị hệ thống (không phải MSSV).
+ADMIN_USERNAME_RE = re.compile(r"^[A-Za-z0-9_-]{3,20}$")
+# SĐT lưu dạng +84 + 9 số; người dùng chỉ nhập 9 số sau +84.
+PHONE_PREFIX = "+84"
+PHONE_LOCAL_RE = re.compile(r"^[1-9]\d{8}$")
+PHONE_RE = re.compile(r"^\+84[1-9]\d{8}$")
+# Facebook chỉ nhận đúng một dạng: https://facebook.com/<userID>.
+FACEBOOK_PREFIX = "https://facebook.com/"
+FACEBOOK_ID_RE = re.compile(r"^[A-Za-z0-9.]{1,50}$")
+FACEBOOK_RE = re.compile(r"^https://facebook\.com/[A-Za-z0-9.]{1,50}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 PASSWORD_MIN = 8
-PASSWORD_MAX = 128
+PASSWORD_MAX = 64
 COMMON_PASSWORDS = frozenset({
     "12345678", "123456789", "1234567890", "password", "password1", "password123",
     "qwerty123", "11111111", "abc12345", "matkhau123", "iloveyou1", "admin123",
@@ -26,10 +36,55 @@ def contains_control(value):
     return any(unicodedata.category(char).startswith("C") for char in value or "")
 
 
+def normalize_mssv(value):
+    """Bỏ khoảng trắng và viết hoa MSSV (se201256 → SE201256)."""
+    return str(value or "").strip().upper()
+
+
+def normalize_phone(value):
+    """Chuẩn hóa SĐT về dạng +84xxxxxxxxx; trả None nếu không hợp lệ.
+
+    Nhận 9 số sau +84 (dạng chuẩn trên form). Để thân thiện, cũng nhận khi
+    người dùng dán cả "+84…", "84…" hoặc "0…" (10 số); khoảng trắng, dấu chấm,
+    gạch ngang được bỏ qua.
+    """
+    digits = re.sub(r"[\s.\-()]", "", str(value or ""))
+    if digits.startswith("+84"):
+        digits = digits[3:]
+    elif digits.startswith("84") and len(digits) == 11:
+        digits = digits[2:]
+    elif digits.startswith("0") and len(digits) == 10:
+        digits = digits[1:]
+    return PHONE_PREFIX + digits if PHONE_LOCAL_RE.fullmatch(digits) else None
+
+
+def phone_local_part(value):
+    """Phần 9 số sau +84 để hiển thị lại trong ô nhập."""
+    value = str(value or "")
+    return value[len(PHONE_PREFIX):] if value.startswith(PHONE_PREFIX) else value
+
+
+def normalize_facebook(value):
+    """Chuẩn hóa link Facebook về https://facebook.com/<userID>; trả None nếu sai dạng.
+
+    Chỉ nhận userID (chữ, số, dấu chấm) hoặc đúng link https://facebook.com/<userID>.
+    Không nhận http://, www., m., fb.com, tham số ?id=… hay đường dẫn con.
+    """
+    raw = str(value or "").strip()
+    user_id = raw[len(FACEBOOK_PREFIX):] if raw.startswith(FACEBOOK_PREFIX) else raw
+    return FACEBOOK_PREFIX + user_id if FACEBOOK_ID_RE.fullmatch(user_id) else None
+
+
+def facebook_id_part(value):
+    """Phần userID sau https://facebook.com/ để hiển thị lại trong ô nhập."""
+    value = str(value or "")
+    return value[len(FACEBOOK_PREFIX):] if value.startswith(FACEBOOK_PREFIX) else value
+
+
 def password_problems(password, mssv=None):
     """Trả về danh sách lý do mật khẩu chưa đủ mạnh (rỗng = hợp lệ).
 
-    Chính sách (Ch6 – slide 79-80): 8–128 ký tự, có ít nhất một chữ cái và một
+    Chính sách (Ch6 – slide 79-80): 8–64 ký tự, có ít nhất một chữ cái và một
     chữ số, không chứa MSSV, không nằm trong danh sách mật khẩu phổ biến.
     """
     problems = []

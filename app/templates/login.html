@@ -21,7 +21,7 @@
             {{ badge('Đăng nhập bằng tài khoản FIA', 'neutral') }}
             <form method="post" action="{{ url_for('auth.login') }}" class="page-stack" autocomplete="on" novalidate>
                 {{ form.hidden_tag() }}
-                {{ form_field(form.mssv, required=true, maxlength=20, autofocus=true, autocomplete='username', placeholder='Nhập MSSV của bạn') }}
+                {{ form_field(form.mssv, required=true, maxlength=20, autofocus=true, autocomplete='username', placeholder='VD: SE201256') }}
                 {{ form_field(form.password, required=true, maxlength=128, autocomplete='current-password', placeholder='Nhập mật khẩu') }}
                 {{ form_field(form.remember) }}
                 <button class="btn btn-primary" type="submit">Đăng nhập {{ icon('arrow') }}</button>

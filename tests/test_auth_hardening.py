@@ -176,7 +176,7 @@ class AuthHardeningTests(unittest.TestCase):
         token = self.csrf()
         form = {
             "csrf_token": token,
-            "mssv": "NEW001",
+            "mssv": "SE240011",
             "ho_ten": "New Member",
             "ngay_sinh": "2003-01-01",
             "sdt": "0912345678",
@@ -188,23 +188,26 @@ class AuthHardeningTests(unittest.TestCase):
         }
         created = self.client.post("/register", data=form)
         self.assertEqual(created.status_code, 302)
-        new_user = User.query.filter_by(mssv="NEW001").one()
+        new_user = User.query.filter_by(mssv="SE240011").one()
         self.assertEqual(len(new_user.ban_links), 1)
 
         duplicate = self.client.post("/register", data=form)
         self.assertEqual(duplicate.status_code, 200)
         self.assertIn("đã được đăng ký".encode(), duplicate.data)
+        # Đã lưu theo định dạng mới: SĐT +84 + 9 số, Facebook https://facebook.com/<id>
+        self.assertEqual(new_user.sdt, "+84912345678")
+        self.assertEqual(new_user.facebook_link, "https://facebook.com/new.member")
 
-        malformed = {**form, "mssv": "NEW002", "ban_hoat_dong": ["999", "bad"]}
+        malformed = {**form, "mssv": "SE240012", "ban_hoat_dong": ["999", "bad"]}
         response = self.client.post("/register", data=malformed)
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("Traceback".encode(), response.data)
-        self.assertIsNone(User.query.filter_by(mssv="NEW002").first())
+        self.assertIsNone(User.query.filter_by(mssv="SE240012").first())
 
-        too_long = {**form, "mssv": "NEW003", "password": "x1" * 65, "confirm_password": "x1" * 65}
+        too_long = {**form, "mssv": "SE240013", "password": "x1" * 65, "confirm_password": "x1" * 65}
         rejected = self.client.post("/register", data=too_long)
         self.assertEqual(rejected.status_code, 200)
-        self.assertIsNone(User.query.filter_by(mssv="NEW003").first())
+        self.assertIsNone(User.query.filter_by(mssv="SE240013").first())
 
     def test_avatar_upload_requires_image_content_and_does_not_replace_with_invalid_data(self):
         response = self.login()

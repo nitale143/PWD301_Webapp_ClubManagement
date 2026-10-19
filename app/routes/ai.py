@@ -7,7 +7,9 @@ from flask import (Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 
 from app import db
-from app.models import AIProposal, AIReportSnapshot, AIUsageLog, Ban, EmailProposal, EmailTemplate, Event
+from app.models import (
+    AIProposal, AIReportSnapshot, AIUsageLog, Ban, EmailProposal, EmailTemplate, Event, ProposalTemplate,
+)
 from app.models import ChatConversation, User
 from app.models import Permission
 from app.permissions import approved_required, bdh_required, permission_required
@@ -21,7 +23,6 @@ from app.services.chat_conversations import (append_exchange, checked_title,
 from app.services.proposals import can_review, create_proposal, proposal_preview, review_proposal
 from app.services.email_proposals import (can_review_email, edit_email_draft,
                                           reconcile_email_draft, review_email_draft)
-from app.services.email_templates import save_template, set_template_active
 from app.services.briefings import (can_access_report, daily_digest, report_data,
                                     report_email_draft, report_text, report_workbook,
                                     save_report)
@@ -199,11 +200,15 @@ def ai_chat():
                            older_before=older_before, newer_after=newer_after,
                            viewing_older=newer_after is not None,
                            email_proposals=email_proposals, usage_summary=usage_summary,
-                           email_templates=(EmailTemplate.query.order_by(EmailTemplate.name).all()
-                                            if is_board(current_user) else
-                                            EmailTemplate.query.filter_by(active=True)
+                           email_templates=(EmailTemplate.query.filter(
+                                                EmailTemplate.system_key.is_(None),
+                                                EmailTemplate.active.is_(True))
                                             .order_by(EmailTemplate.name).all()
                                             if is_board(current_user) else []),
+                           proposal_templates=(ProposalTemplate.query.filter_by(active=True)
+                                               .order_by(ProposalTemplate.kind,
+                                                         ProposalTemplate.name).all()
+                                               if is_board(current_user) else []),
                            digest=digest, reports=reports, report_previews=report_previews,
                            report_text=report_text,
                            proposal_preview=proposal_preview,
@@ -318,51 +323,6 @@ def report_draft_email(report_id):
     except DomainError as exc:
         db.session.rollback()
         flash(str(exc), "error")
-    return redirect(url_for("ai.ai_chat"))
-
-
-@ai_bp.post("/ai/email-templates")
-@login_required
-@permission_required(Permission.MANAGE_TEMPLATES)
-def email_template_create():
-    """Tạo mail mẫu dùng chung (quyền MANAGE_TEMPLATES)."""
-    require_csrf()
-    try:
-        save_template(current_user, request.form.get("name"), request.form.get("subject"),
-                      request.form.get("body"))
-        flash("Đã lưu mail mẫu dùng chung; chưa gửi email nào.", "success")
-    except DomainError as exc:
-        db.session.rollback()
-        flash(str(exc), "error")
-    return redirect(url_for("ai.ai_chat"))
-
-
-@ai_bp.post("/ai/email-templates/<int:template_id>/update")
-@login_required
-@permission_required(Permission.MANAGE_TEMPLATES)
-def email_template_update(template_id):
-    """Sửa mail mẫu; nháp cũ giữ nguyên nội dung đã xem trước."""
-    require_csrf()
-    template = db.get_or_404(EmailTemplate, template_id)
-    try:
-        save_template(current_user, request.form.get("name"), request.form.get("subject"),
-                      request.form.get("body"), template)
-        flash("Đã cập nhật mail mẫu. Nháp cũ vẫn giữ nội dung đã xem trước.", "success")
-    except DomainError as exc:
-        db.session.rollback()
-        flash(str(exc), "error")
-    return redirect(url_for("ai.ai_chat"))
-
-
-@ai_bp.post("/ai/email-templates/<int:template_id>/active")
-@login_required
-@permission_required(Permission.MANAGE_TEMPLATES)
-def email_template_active(template_id):
-    """Bật/tắt mail mẫu."""
-    require_csrf()
-    template = db.get_or_404(EmailTemplate, template_id)
-    set_template_active(current_user, template, request.form.get("active") == "yes")
-    flash("Đã cập nhật trạng thái mail mẫu.", "success")
     return redirect(url_for("ai.ai_chat"))
 
 
