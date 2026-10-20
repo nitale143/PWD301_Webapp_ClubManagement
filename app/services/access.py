@@ -7,7 +7,9 @@ Một người có quyền khi: tài khoản đã được duyệt (approved), c
 trữ, VÀ chức vụ của họ có bit quyền tương ứng.
 """
 from app import db
-from app.models import DEFAULT_ROLES, SYSTEM_ADMIN_ROLE, MemberRecord, Permission, User, UserBan
+from app.models import (
+    DEFAULT_ROLES, SYSTEM_ADMIN_ROLE, MemberRecord, Permission, User, UserBan, role_rank,
+)
 from .common import DomainError
 
 
@@ -71,16 +73,20 @@ def can_view_all_members(user):
 
 
 def can_manage_member(actor, target):
-    """Sửa/lưu trữ/cộng điểm cho một thành viên khác (không áp dụng cho chính mình)."""
-    return bool(can_manage_members(actor) and target and actor.id != target.id)
+    """Sửa/lưu trữ/cộng điểm cho người có cấp thấp hơn (không áp dụng cho chính mình).
+
+    Quản trị hệ thống luôn được bảo vệ khỏi thay đổi hồ sơ từ các route quản lý thành viên,
+    kể cả khi dữ liệu bảng role bị cấu hình sai thứ hạng.
+    """
+    return bool(can_manage_members(actor) and target and actor.id != target.id
+                and target.chuc_vu != SYSTEM_ADMIN_ROLE
+                and role_rank(target.chuc_vu) > role_rank(actor.chuc_vu))
 
 
 def can_issue_temp_password(actor, target):
     """Cấp mật khẩu tạm: cần quyền quản lý thành viên và cấp cao hơn người nhận
     (Trưởng ban không thể chiếm tài khoản Chủ nhiệm bằng cách đặt lại mật khẩu)."""
-    from app.models import role_rank
-    return bool(can_manage_member(actor, target)
-                and role_rank(target.chuc_vu) > role_rank(actor.chuc_vu))
+    return can_manage_member(actor, target)
 
 
 def can_assign_role_to(actor, target, new_role):
@@ -144,12 +150,20 @@ def set_member_role_safely(target, new_role):
     return True
 
 
-def set_member_left_safely(target, record, archived_at=None):
+def set_member_left_safely(target, record, archived_at=None, *, actor=None):
     """Mark a member left while atomically preserving one active admin."""
     values = {"tinh_trang": "left"}
     if archived_at is not None:
         values["luu_tru_luc"] = archived_at
     conditions = [MemberRecord.user_id == target.id]
+    if actor is not None:
+        # Do not archive using a rank check made before a concurrent promotion
+        # or after the acting manager lost their role/approval.
+        conditions.append(db.session.query(User.id).filter(
+            User.id == target.id, User.chuc_vu == target.chuc_vu).exists())
+        conditions.append(db.session.query(User.id).filter(
+            User.id == actor.id, User.chuc_vu == actor.chuc_vu,
+            User.status == "approved", _active_member_row(User.id)).exists())
     active_admin_in_database = db.session.query(User.id).filter(
         User.id == target.id, User.status == "approved", User.chuc_vu.in_(ADMIN_ROLES),
         _active_member_row(User.id)).exists()

@@ -39,83 +39,115 @@ def _valid_email(value):
     return _safe_header(value, 254) and _EMAIL_RE.fullmatch(value) is not None and ".." not in value
 
 
-def send_email(to_email: str, subject: str, body: str) -> bool:
-    """Send one plain-text message, returning false if it cannot be sent safely."""
+def send_email(to_email: str, subject: str, body: str, *, idempotency_key=None) -> bool:
+    """Track and send one plain-text message, returning false if it cannot be sent safely.
+
+    The optional idempotency key is useful to callers that can identify one logical
+    send request. Existing three-argument callers retain their original interface.
+    """
+    from app.services.mail_delivery import send_tracked_email
+
+    return send_tracked_email(to_email, subject, body, idempotency_key=idempotency_key)
+
+
+def _send_delivery_message(to_email, subject, body, message_id):
+    """Perform one network/outbox attempt and return (status, safe_code, phase)."""
     cfg = current_app.config
 
     # Tài khoản Quản trị hệ thống dùng địa chỉ *.invalid (không có hộp thư) → không gửi
     if isinstance(to_email, str) and to_email.lower().endswith(".invalid"):
-        return False
+        return "skipped", "invalid_test_address", "validate"
     if not cfg.get("MAIL_ENABLED"):
         if cfg.get("MAIL_OUTBOX") and cfg.get("APP_ENV") == "development":
-            return _write_outbox(to_email, subject, body)
-        return False
+            try:
+                saved = _write_outbox(to_email, subject, body, message_id)
+            except Exception as exc:
+                current_app.logger.warning("Development outbox write failed (%s)", type(exc).__name__)
+                return "failed", type(exc).__name__, "outbox"
+            return ("dev-saved", None, "outbox") if saved else ("failed", "invalid_message", "validate")
+        return "skipped", "mail_disabled", "validate"
     if not _valid_email(to_email) or not _safe_header(subject, 255) or not isinstance(body, str):
         current_app.logger.warning("Email rejected because its address or subject was invalid")
-        return False
+        return "failed", "invalid_message", "validate"
 
     sender = cfg.get("MAIL_DEFAULT_SENDER", "")
     server_name = cfg.get("MAIL_SERVER", "")
     if not _valid_email(sender) or not _safe_header(server_name, 253) or any(c.isspace() for c in server_name):
         current_app.logger.warning("Email delivery configuration is invalid")
-        return False
+        return "failed", "invalid_configuration", "validate"
 
     use_ssl = bool(cfg.get("MAIL_USE_SSL", False))
     use_tls = bool(cfg.get("MAIL_USE_TLS", False))
     if not (use_ssl or use_tls):
         current_app.logger.warning("Email delivery requires an encrypted SMTP connection")
-        return False
+        return "failed", "unencrypted_smtp", "validate"
     if use_ssl and use_tls:
         current_app.logger.warning("Email delivery configuration selects conflicting SMTP transports")
-        return False
+        return "failed", "conflicting_smtp_transport", "validate"
 
     try:
         timeout = float(cfg.get("MAIL_TIMEOUT_SECONDS", 10))
         port = int(cfg.get("MAIL_PORT", 587))
     except (TypeError, ValueError, OverflowError):
         current_app.logger.warning("Email delivery configuration is invalid")
-        return False
+        return "failed", "invalid_configuration", "validate"
     if not 0 < timeout <= 120 or not 1 <= port <= 65535:
         current_app.logger.warning("Email delivery configuration is invalid")
-        return False
+        return "failed", "invalid_configuration", "validate"
 
     username = cfg.get("MAIL_USERNAME", "")
     password = cfg.get("MAIL_PASSWORD", "")
     if username and (not _safe_header(username, 254) or not password):
         current_app.logger.warning("Email authentication configuration is invalid")
-        return False
+        return "failed", "invalid_auth_configuration", "validate"
 
     message = EmailMessage()
     try:
         message["Subject"] = subject
         message["From"] = sender
         message["To"] = to_email
+        message["Message-ID"] = message_id
         message.set_content(body)
     except (TypeError, ValueError):
         current_app.logger.warning("Email rejected because its headers were invalid")
-        return False
+        return "failed", "invalid_message", "validate"
 
     context = ssl.create_default_context()
+    smtp = None
+    phase = "connect"
     try:
         if use_ssl:
-            smtp_context = smtplib.SMTP_SSL(server_name, port, timeout=timeout, context=context)
+            smtp = smtplib.SMTP_SSL(server_name, port, timeout=timeout, context=context)
         else:
-            smtp_context = smtplib.SMTP(server_name, port, timeout=timeout)
-        with smtp_context as smtp:
-            if use_tls:
-                smtp.ehlo()
-                smtp.starttls(context=context)
-                smtp.ehlo()
-            if username:
-                smtp.login(username, password)
-            smtp.send_message(message)
-        return True
+            smtp = smtplib.SMTP(server_name, port, timeout=timeout)
+        if use_tls:
+            smtp.ehlo()
+            smtp.starttls(context=context)
+            smtp.ehlo()
+        if username:
+            smtp.login(username, password)
+        phase = "send"
+        refused = smtp.send_message(message)
+        if isinstance(refused, dict) and refused:
+            current_app.logger.warning("SMTP rejected an email recipient")
+            return "failed", "recipient_rejected", "send"
+        # Once send_message returns, SMTP accepted the message. A later quit error
+        # cannot turn an accepted message into an unsent one.
+        phase = "accepted"
+        return "sent", None, "accepted"
     except Exception as exc:
         current_app.logger.warning("SMTP delivery failed (%s)", type(exc).__name__)
-        return False
+        status = "unknown" if phase == "send" else "failed"
+        return status, type(exc).__name__, phase
+    finally:
+        if smtp is not None:
+            try:
+                smtp.quit()
+            except Exception:
+                pass
 
 
-def _write_outbox(to_email, subject, body):
+def _write_outbox(to_email, subject, body, message_id=None):
     """Chỉ dùng khi phát triển: lưu thư vào instance/mail_outbox/<thời-gian>.eml (quyền 0600)."""
     if not _valid_email(to_email) or not _safe_header(subject, 255) or not isinstance(body, str):
         return False
@@ -123,6 +155,8 @@ def _write_outbox(to_email, subject, body):
     message["Subject"] = subject
     message["From"] = current_app.config.get("MAIL_DEFAULT_SENDER") or "dev@localhost"
     message["To"] = to_email
+    if message_id:
+        message["Message-ID"] = message_id
     message.set_content(body)
     folder = os.path.join(current_app.instance_path, "mail_outbox")
     os.makedirs(folder, mode=0o700, exist_ok=True)

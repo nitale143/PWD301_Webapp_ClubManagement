@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, badge, stat %}
+{% block title %}Hộp thư điều hành{% endblock %}
+{% block content %}
+<div class="page-stack ops-inbox">
+    <section class="ops-inbox-hero">
+        <div>
+            <p class="eyebrow">FIA · BAN ĐIỀU HÀNH</p>
+            <h2>Việc đang chờ bạn</h2>
+            <p>Các mục được hiển thị theo quyền phê duyệt của tài khoản hiện tại.</p>
+        </div>
+        <div class="ops-inbox-hero-count" aria-label="{{ total_pending }} mục đang chờ">
+            <strong>{{ total_pending }}</strong>
+            <span>mục đang chờ</span>
+        </div>
+    </section>
+
+    {% if sections %}
+    <div class="ops-inbox-stats">
+        {% for section in sections %}
+        <a class="ops-inbox-stat" href="#inbox-{{ section.key }}">
+            <span>{{ section.title }}</span><strong>{{ section.count }}</strong>
+        </a>
+        {% endfor %}
+    </div>
+
+    <div class="ops-inbox-sections">
+        {% for section in sections %}
+        <section class="card ops-inbox-section" id="inbox-{{ section.key }}" aria-labelledby="inbox-title-{{ section.key }}">
+            <header class="card-header">
+                <div>
+                    <h2 id="inbox-title-{{ section.key }}">{{ section.title }}</h2>
+                    <p class="small muted">{{ section.description }}</p>
+                </div>
+                {{ badge(section.count ~ ' mục', 'warning' if section.count else 'neutral') }}
+            </header>
+            <div class="card-body">
+                {% if section["items"] %}
+                <ul class="ops-inbox-list">
+                    {% if section.key == 'members' %}
+                        {% for applicant in section["items"] %}
+                        <li>
+                            <div class="ops-inbox-item-copy">
+                                <strong>{{ applicant.ho_ten }}</strong>
+                                <span>MSSV {{ applicant.mssv }} · Đăng ký {{ applicant.ngay_tao.strftime('%d/%m/%Y') if applicant.ngay_tao else 'chưa rõ ngày' }}</span>
+                            </div>
+                            <a class="btn btn-secondary btn-sm" href="{{ url_for('admin.approve_list') }}">Mở duyệt hồ sơ {{ icon('arrow') }}</a>
+                        </li>
+                        {% endfor %}
+                    {% elif section.key == 'tasks' %}
+                        {% for task in section["items"] %}
+                        <li>
+                            <div class="ops-inbox-item-copy">
+                                <strong>{{ task.ten_task }}</strong>
+                                <span>{{ task.event.ten_su_kien }} · {{ task.assignee.ho_ten }} · Hạn {{ task.deadline.strftime('%d/%m/%Y %H:%M') }}</span>
+                            </div>
+                            <a class="btn btn-secondary btn-sm" href="{{ url_for('event.event_detail', event_id=task.event_id, tab='tasks') }}">Mở nhiệm vụ {{ icon('arrow') }}</a>
+                        </li>
+                        {% endfor %}
+                    {% elif section.key == 'payments' %}
+                        {% for payment, fund, member in section["items"] %}
+                        <li>
+                            <div class="ops-inbox-item-copy">
+                                <strong>{{ fund.ten_khoan_thu }} · {{ '%.2f'|format(payment.so_tien) }} ₫</strong>
+                                <span>{{ member.ho_ten }} · Gửi {{ payment.ngay_dong.strftime('%d/%m/%Y %H:%M') }}</span>
+                            </div>
+                            <a class="btn btn-secondary btn-sm" href="{{ url_for('funds.funds_home') }}">Mở quỹ {{ icon('arrow') }}</a>
+                        </li>
+                        {% endfor %}
+                    {% elif section.key == 'ai' %}
+                        {% for proposal in section["items"] %}
+                        <li>
+                            <div class="ops-inbox-item-copy">
+                                <strong>#{{ proposal.id }} · {{ 'Sự kiện' if proposal.kind == 'event' else 'Chia nhiệm vụ' }}</strong>
+                                <span>Tạo {{ proposal.created_at.strftime('%d/%m/%Y %H:%M') }} · Cần xem nội dung trước khi quyết định.</span>
+                            </div>
+                            <a class="btn btn-secondary btn-sm" href="{{ url_for('ai.ai_chat', proposal_id=proposal.id, _anchor='proposal-' ~ proposal.id) }}">Mở đề xuất {{ icon('arrow') }}</a>
+                        </li>
+                        {% endfor %}
+                    {% elif section.key == 'email' %}
+                        {% for draft in section["items"] %}
+                        <li>
+                            <div class="ops-inbox-item-copy">
+                                <strong>#{{ draft.id }} · {{ draft.subject }}</strong>
+                                <span>{{ draft.recipient_email }} · {{ {'pending': 'Chưa gửi', 'failed': 'Gửi lỗi', 'sending': 'Cần đối soát'}.get(draft.status, draft.status) }}</span>
+                            </div>
+                            <a class="btn btn-secondary btn-sm" href="{{ url_for('ai.ai_chat', draft_id=draft.id, _anchor='email-proposal-' ~ draft.id) }}">Mở bản nháp {{ icon('arrow') }}</a>
+                        </li>
+                        {% endfor %}
+                    {% endif %}
+                </ul>
+                {% else %}
+                <div class="empty-state">
+                    {{ icon('check') }}
+                    <strong>Không có mục chờ xử lý</strong>
+                    <span class="small muted">Khi có việc mới trong phạm vi quyền của bạn, mục này sẽ được cập nhật.</span>
+                </div>
+                {% endif %}
+                {% if section.has_previous or section.has_next %}
+                <nav class="ops-inbox-pagination" aria-label="Trang {{ section.title }}">
+                    {% if section.has_previous %}<a href="{{ url_for('operations.inbox', **{section.page_arg: section.page - 1}) }}">Mục trước</a>{% else %}<span></span>{% endif %}
+                    <span>Trang {{ section.page }}</span>
+                    {% if section.has_next %}<a href="{{ url_for('operations.inbox', **{section.page_arg: section.page + 1}) }}">Mục tiếp</a>{% else %}<span></span>{% endif %}
+                </nav>
+                {% endif %}
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+    {% else %}
+    <section class="card empty-state">
+        {{ icon('shield') }}
+        <strong>Chưa có hộp thư trong phạm vi quyền</strong>
+        <span class="small muted">Không tìm thấy nhóm việc điều hành mà tài khoản hiện tại có thể xem.</span>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

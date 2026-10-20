@@ -101,15 +101,20 @@ def select_conversation(actor, requested_id=None, create=False, active=False):
     return conversation
 
 
-def append_exchange(actor, conversation, question, reply):
+def append_exchange(actor, conversation, question, reply, result=None):
     """Lưu cặp câu hỏi – trả lời vào cuộc trò chuyện (đặt tiêu đề từ câu hỏi đầu tiên)."""
     owned_conversation(actor, conversation.id, active=True)
     if conversation.title == DEFAULT_TITLE and not ChatMessage.query.filter_by(
             conversation_id=conversation.id, user_id=actor.id, role="user").first():
         conversation.title = " ".join(question.split())[:100] or DEFAULT_TITLE
     for role, content in (("user", question), ("ai", reply)):
-        db.session.add(ChatMessage(user_id=actor.id, conversation_id=conversation.id,
-                                   role=role, content=content))
+        message = ChatMessage(user_id=actor.id, conversation_id=conversation.id,
+                              role=role, content=content)
+        db.session.add(message)
+        if role == "ai" and result is not None:
+            db.session.flush()
+            from .chat_evidence import save_evidence
+            save_evidence(actor, message, result)
     conversation.updated_at = utcnow()
 
 
@@ -149,6 +154,8 @@ def finish_turn(actor, conversation, reply, user_message_id, run_id, permission_
         "run_id": run_id, "user_message_id": user_message_id,
     })
     db.session.flush()
+    from .chat_evidence import save_evidence
+    save_evidence(actor, message, reply)
     db.session.commit()
     return message
 

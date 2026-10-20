@@ -25,7 +25,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}FIA Workspace{% endblock %} · FIA</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='assets/fia-club-logo.png') }}">
-    {% for name in ['preview-style', 'preview-reference-theme', 'preview-landing', 'preview-fia-brand', 'preview-events-sources', 'live-ui', 'parity-ai', 'parity-finance', 'parity-operations', 'parity-public'] %}
+    {% for name in ['preview-style', 'preview-reference-theme', 'preview-landing', 'preview-fia-brand', 'preview-events-sources', 'live-ui', 'parity-ai', 'parity-finance', 'parity-operations', 'parity-public', 'operations-inbox'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/' ~ name ~ '.css') }}">
     {% endfor %}
 </head>

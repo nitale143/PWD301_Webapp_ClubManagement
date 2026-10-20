@@ -34,7 +34,7 @@ const output=process.env.FIA_SCREENSHOTS||'D:/PWD301/parity-screenshots';
   assert.equal(await page.locator('#fund-collection-dialog').count(),0);
   const pay=page.locator('[data-dialog-open^="fund-payment"]').first();const id=await pay.getAttribute('data-dialog-open');await pay.click();
   assert.ok(await page.locator('#'+id).isVisible());assert.match(await page.locator('#'+id+' form').getAttribute('action'),/\/funds\/collections\/\d+\/payments$/);
-  await page.locator('#'+id+' [name=amount]').fill('10');assert.ok(await page.locator('#'+id+' form').evaluate(form=>form.checkValidity()));
+  assert.ok(await page.locator('#'+id+' form').evaluate(form=>form.checkValidity()));
   await page.keyboard.press('Escape');await page.goto(base+'/tasks');assert.match(await page.locator('#view').innerText(),/Thiết kế poster/);
   assert.deepEqual(errors,[]);assert.deepEqual(bad,[]);
   console.log('PASS: 14 screens desktop/mobile, finance tabs/dialogs, member payment, live actions, no errors or failed assets');

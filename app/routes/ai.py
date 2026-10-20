@@ -7,6 +7,7 @@ from flask import (Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 
 from app import db
+from app.evidence_models import ChatEvidence
 from app.models import (
     AIProposal, AIReportSnapshot, AIUsageLog, Ban, EmailProposal, EmailTemplate, Event, ProposalTemplate,
 )
@@ -85,6 +86,8 @@ def ai_stream():
                 raise DomainError("AI chưa hoàn tất câu trả lời. Hãy tải lại lịch sử trước khi gửi lại.", 503)
             answer = finish_turn(actor, conversation, result, user_message_id, run_id,
                                  permission_stamp=permission_stamp)
+            if db.session.get(ChatEvidence, answer.id):
+                result["evidence_url"] = url_for("ai.message_sources", message_id=answer.id)
             saved = True
             # Transport chunks of the verified answer, not fabricated token streaming.
             for offset in range(0, len(result["answer"]), 240):
@@ -148,7 +151,8 @@ def ai_chat():
                 reply = str(exc)
                 intent = "denied"
                 provider = "error"
-            append_exchange(current_user, conversation, content, reply)
+                result = None
+            append_exchange(current_user, conversation, content, reply, result=result)
             audit(current_user, "assistant_query", current_user, {"intent": intent, "provider": provider})
             db.session.commit()
         except DomainError as exc:
@@ -182,10 +186,22 @@ def ai_chat():
                            for period in ("week", "month")}
         query = AIProposal.query.filter_by(status="pending").order_by(AIProposal.created_at.desc())
         proposals = [proposal for proposal in query.limit(30) if can_review(current_user, proposal)]
+        focused_proposal = request.args.get("proposal_id", type=int)
+        if focused_proposal:
+            proposal = AIProposal.query.filter_by(id=focused_proposal, status="pending").first_or_404()
+            if not can_review(current_user, proposal):
+                abort(403)
+            proposals = [proposal] + [item for item in proposals if item.id != proposal.id]
         email_query = EmailProposal.query.filter(
             EmailProposal.status.in_(["pending", "failed", "sending"])
         ).order_by(EmailProposal.created_at.desc())
         email_proposals = [draft for draft in email_query.limit(30) if can_review_email(current_user, draft)]
+        focused_draft = request.args.get("draft_id", type=int)
+        if focused_draft:
+            draft = email_query.filter(EmailProposal.id == focused_draft).first_or_404()
+            if not can_review_email(current_user, draft):
+                abort(403)
+            email_proposals = [draft] + [item for item in email_proposals if item.id != draft.id]
         usage_query = AIUsageLog.query.filter(
             AIUsageLog.created_at >= utcnow() - timedelta(days=1))
         usage = usage_query.all()
@@ -193,7 +209,10 @@ def ai_chat():
                          "tokens": sum(row.total_tokens for row in usage),
                          "average_ms": round(sum(row.elapsed_ms for row in usage) / len(usage))
                          if usage else 0}
-    return render_template("ai.html", history=history, proposals=proposals,
+    evidence_ids = {row.message_id for row in ChatEvidence.query.filter(
+        ChatEvidence.user_id == current_user.id,
+        ChatEvidence.message_id.in_([message.id for message in history] or [-1])).all()}
+    return render_template("ai.html", history=history, evidence_ids=evidence_ids, proposals=proposals,
                            current_conversation=conversation, conversations=conversations,
                            conversations_has_next=conversations_has_next,
                            conversation_page=conversation_page, show_archived=show_archived,
@@ -215,6 +234,20 @@ def ai_chat():
                            bans=Ban.query.all() if is_board(current_user) else [],
                            events=Event.query.filter(Event.trang_thai.notin_(["da_ket_thuc", "cancelled"])).all()
                            if is_board(current_user) else [])
+
+
+@ai_bp.get("/ai/messages/<int:message_id>/sources")
+@login_required
+@approved_required
+def message_sources(message_id):
+    """Bằng chứng riêng tư của tin nhắn; kiểm tra lại quyền ở mỗi lần mở."""
+    from app.services.chat_evidence import evidence_for
+    try:
+        entry, message, items, hidden = evidence_for(current_user, message_id)
+    except DomainError as exc:
+        abort(exc.status, description=str(exc))
+    return render_template("chat_sources.html", entry=entry, message=message,
+                           items=items, hidden=hidden)
 
 
 @ai_bp.post("/ai/conversations/new")

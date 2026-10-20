@@ -1,0 +1,44 @@
+.ops-inbox,.notification-center{--ops-accent:#169365;--ops-accent-soft:#e8f5ef}
+.ops-inbox-hero{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:25px 29px;border:1px solid #1c684d;border-radius:16px;color:#effff8;background:linear-gradient(115deg,#0a1c16,#12392b 65%,#0d2920);box-shadow:0 15px 36px #0b301f24}
+.ops-inbox-hero .eyebrow{color:#8fdbb6}
+.ops-inbox-hero h2{margin:7px 0;font-size:clamp(24px,3vw,34px);letter-spacing:-.035em}
+.ops-inbox-hero p:last-child{margin:0;color:#bbd7c9}
+.ops-inbox-hero-count{display:grid;justify-items:center;min-width:105px;padding:13px 16px;border:1px solid #ffffff25;border-radius:13px;background:#ffffff0c}
+.ops-inbox-hero-count strong{font-size:30px;line-height:1.1}
+.ops-inbox-hero-count span{margin-top:4px;color:#bbd7c9;font-size:11px}
+.ops-inbox-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px}
+.ops-inbox-stat{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border:1px solid var(--border);border-radius:12px;color:var(--text);background:var(--surface);text-decoration:none}
+.ops-inbox-stat:hover{border-color:#6bb897;color:var(--text)}
+.ops-inbox-stat span{font-size:12px}
+.ops-inbox-stat strong{display:grid;place-items:center;min-width:28px;height:28px;padding:0 6px;border-radius:9px;color:#126344;background:#e8f5ef;font-size:13px}
+.ops-inbox-sections{display:grid;gap:16px}
+.ops-inbox-section{scroll-margin-top:90px}
+.ops-inbox-section .card-header h2{margin:0;font-size:17px}
+.ops-inbox-section .card-header p{margin:5px 0 0}
+.ops-inbox-list,.notification-center-list{display:grid;margin:0;padding:0;list-style:none}
+.ops-inbox-list>li{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 1px;border-bottom:1px solid var(--border)}
+.ops-inbox-list>li:first-child{padding-top:2px}
+.ops-inbox-list>li:last-child{padding-bottom:2px;border-bottom:0}
+.ops-inbox-item-copy{display:grid;gap:5px;min-width:0}
+.ops-inbox-item-copy strong{overflow-wrap:anywhere}
+.ops-inbox-item-copy span{color:var(--muted);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.ops-inbox-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding-top:13px;border-top:1px solid var(--border);color:var(--muted);font-size:12px}
+.ops-inbox-pagination a{color:var(--ops-accent);font-weight:650;text-decoration:none}
+.ops-inbox-pagination a:hover{text-decoration:underline}
+.notification-center-heading{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.notification-center-heading h2{margin:5px 0;font-size:clamp(24px,3vw,32px)}
+.notification-center-heading p:last-child{margin:0;font-size:13px}
+.notification-center-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.notification-center-list>li{display:flex;align-items:flex-start;gap:13px;padding:17px 3px;border-bottom:1px solid var(--border)}
+.notification-center-list>li:last-child{border-bottom:0}
+.notification-center-list>li.is-unread{background:linear-gradient(90deg,#e9f6ef78,transparent);border-radius:10px}
+.notification-center-mark{width:9px;height:9px;flex:0 0 9px;margin:6px 2px 0;border-radius:50%;background:#a7adac}
+.notification-center-list>li.is-unread .notification-center-mark{background:#169365;box-shadow:0 0 0 4px #16936520}
+.notification-center-copy{flex:1;min-width:0}
+.notification-center-copy p{margin:0 0 6px;line-height:1.55;overflow-wrap:anywhere}
+.notification-center-copy time,.notification-center-read{color:var(--muted);font-size:11px}
+.notification-center-pagination{margin-top:0}
+.notification-link{position:relative;text-decoration:none}
+.notification-link-count{position:absolute;top:-5px;right:-7px;display:grid;place-items:center;min-width:17px;height:17px;padding:0 4px;border:2px solid var(--surface);border-radius:999px;color:#fff;background:#138d60;font-size:9px;font-weight:750;line-height:1}
+.notification-link:focus-visible,.ops-inbox a:focus-visible,.notification-center a:focus-visible,.notification-center button:focus-visible{outline:3px solid #43b982;outline-offset:3px}
+@media(max-width:680px){.ops-inbox-hero{align-items:flex-start;padding:21px 19px}.ops-inbox-hero-count{min-width:78px;padding:10px}.ops-inbox-hero-count strong{font-size:24px}.ops-inbox-list>li{align-items:flex-start;flex-direction:column}.ops-inbox-list .btn{align-self:flex-start}.notification-center-heading{align-items:flex-start;flex-direction:column}.notification-center-actions{width:100%;justify-content:space-between}.notification-center-list>li{flex-wrap:wrap}.notification-center-list>li form{margin-left:22px}}

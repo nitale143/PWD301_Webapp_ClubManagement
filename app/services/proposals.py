@@ -241,8 +241,10 @@ def proposal_preview(proposal):
     lines = [f"Chia task cho sự kiện #{payload['event_id']}, ban #{payload['ban_id']}, "
              f"hạn {payload['deadline']}; kỹ năng: {', '.join(payload.get('required_skills', [])) or '(không yêu cầu)'}; "
              f"khung: {payload.get('template') or '(không dùng mẫu)'}:"]
-    lines.extend(f"- {row['name']} → thành viên #{row['assignee_id']}: {row['description']}"
-                 for row in payload["tasks"])
+    for row in payload["tasks"]:
+        assignee = db.session.get(User, row['assignee_id'])
+        recipient = f"{assignee.ho_ten} ({assignee.mssv})" if assignee else "Không còn tồn tại — cần tạo lại đề xuất"
+        lines.append(f"- {row['name']} → {recipient}, thành viên #{row['assignee_id']}: {row['description']}")
     return "\n".join(lines)
 
 
@@ -310,6 +312,7 @@ def review_proposal(actor, proposal, decision):
                             trang_thai="dang_lam")
                 db.session.add(task)
                 db.session.flush()
+                audit(actor, "task_assigned", task, {"proposal_id": proposal.id})
                 ids.append(task.id)
     proposal.status = decision
     proposal.reviewed_by_id = actor.id

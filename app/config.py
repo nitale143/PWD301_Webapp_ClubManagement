@@ -122,6 +122,9 @@ class Config:
     SCHEDULER_ENABLED = os.environ.get("SCHEDULER_ENABLED", "true").lower() == "true"
     # False khi chạy nhiều worker Gunicorn: scheduler chạy riêng bằng `flask run-scheduler`
     SCHEDULER_IN_WEB = _env_bool("SCHEDULER_IN_WEB", True)
+    BACKUP_ENABLED = _env_bool("BACKUP_ENABLED", True)
+    BACKUP_DIRECTORY = os.environ.get("BACKUP_DIRECTORY", os.path.join(
+        os.path.dirname(BASE_DIR), "backups", "fia-verified"))
     DEADLINE_WARNING_DAYS = 7
     # Số ngày trước khi kỳ hiện tại kết thúc thì bắt đầu nhắc BĐH nhập kỳ mới
     PERIOD_REMINDER_DAYS = 30

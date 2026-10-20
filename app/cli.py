@@ -127,6 +127,47 @@ def register_cli(app):
         except (KeyboardInterrupt, SystemExit):
             pass
 
+    @app.cli.command("backup-create")
+    @click.option("--directory", type=click.Path(file_okay=False), default=None,
+                  help="Thư mục riêng lưu bản sao; mặc định BACKUP_DIRECTORY.")
+    def backup_create(directory):
+        """Sao lưu DB, avatar, minh chứng thanh toán kèm manifest kiểm tra toàn vẹn."""
+        from app.services.maintenance import backup_database
+        try:
+            result = backup_database(directory)
+        except Exception as exc:
+            raise click.ClickException(f"Không thể tạo bản sao ({type(exc).__name__}).") from None
+        click.echo(f"Đã tạo bản sao riêng tư: {result}")
+
+    @app.cli.command("backup-verify")
+    @click.argument("backup_path", type=click.Path(exists=True, file_okay=False))
+    def backup_verify(backup_path):
+        """Kiểm tra manifest/hash/integrity và khóa ngoại, không đổi database thật."""
+        from app.services.backups import verify_backup
+        try:
+            verify_backup(backup_path)
+        except Exception as exc:
+            raise click.ClickException(f"Bản sao không qua kiểm tra ({type(exc).__name__}).") from None
+        click.echo("Bản sao đã qua kiểm tra toàn vẹn.")
+
+    @app.cli.command("backup-restore")
+    @click.argument("backup_path", type=click.Path(exists=True, file_okay=False))
+    @click.option("--target", required=True, type=click.Path(dir_okay=False),
+                  help="File SQLite MỚI, tách biệt database hiện tại; không ghi đè file có sẵn.")
+    @click.option("--artifacts-target", type=click.Path(file_okay=False), default=None,
+                  help="Thư mục MỚI phục hồi avatar/minh chứng, không ghi đè tập tin đang dùng.")
+    def backup_restore(backup_path, target, artifacts_target):
+        """Phục hồi vào file riêng; dùng để diễn tập hoặc phục hồi ngoại tuyến đã kiểm tra."""
+        from pathlib import Path
+        from app.services.backups import restore_backup
+        if db.engine.url.database and Path(target).resolve() == Path(db.engine.url.database).resolve():
+            raise click.ClickException("Không được ghi đè database web đang dùng.")
+        try:
+            restored = restore_backup(backup_path, target, target_artifacts_dir=artifacts_target)
+        except Exception as exc:
+            raise click.ClickException(f"Không thể phục hồi ({type(exc).__name__}).") from None
+        click.echo(f"Đã phục hồi và kiểm tra vào: {restored}. Database đang chạy không đổi.")
+
     # ---- nâng cấp database SQLite tạo trước khi có thư mục migrations/ ----
     @app.cli.command("migrate-chats")
     def migrate_chats():

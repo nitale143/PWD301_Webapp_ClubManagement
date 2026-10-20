@@ -9,6 +9,7 @@
 | [docs/FUNCTION_REFERENCE.md](docs/FUNCTION_REFERENCE.md) | Developer: tham chiếu mọi hàm/class (sinh tự động từ docstring) |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | Những gì đã thay đổi trong bản này |
 | [SECURITY.md](SECURITY.md) | Chính sách và kiểm soát bảo mật |
+| [docs/OPERATIONS_GUIDE.md](docs/OPERATIONS_GUIDE.md) | Việc chờ xử lý, thông báo, theo dõi email, nguồn AI và sao lưu–phục hồi |
 
 ## Chạy nhanh (máy cá nhân)
 
@@ -43,6 +44,8 @@ Muốn thử luồng email (xác minh, quên mật khẩu) mà không cần SMTP
 | Quỹ | Sổ thu chi theo kỳ và đánh dấu đóng quỹ; khoản thu theo đợt, thành viên gửi thanh toán, thủ quỹ xác nhận; miễn/giảm; báo cáo Excel |
 | Trợ lý AI | Chat có lịch sử, tra cứu số liệu đã kiểm chứng theo quyền, tóm tắt ngày, báo cáo tuần/tháng, đề xuất sự kiện/task và nháp email. Mọi hành động đều cần người có quyền duyệt |
 | Thông báo | Email khi duyệt thành viên, giao/duyệt task; nhắc deadline và kỳ quỹ bằng job định kỳ |
+| Điều hành | Hộp thư việc chờ xử lý theo quyền, thông báo trong web có phân trang và đánh dấu đã đọc |
+| Vận hành an toàn | Theo dõi kết quả SMTP/thử lại có kiểm soát, nguồn kiểm chứng gắn với câu trả lời AI, sao lưu có kiểm tra và phục hồi sang đích riêng |
 
 ## Bảng quyền
 

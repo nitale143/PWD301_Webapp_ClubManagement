@@ -97,6 +97,7 @@
                 <div class="chat-msg chat-bubble chat-{{ msg.role }}{{ ' user' if msg.role == 'user' else '' }}">
                     <span class="chat-role">{{ 'Bạn' if msg.role == 'user' else 'AI' }}</span>
                     <p>{{ msg.content }}</p>
+                    {% if msg.id in evidence_ids %}<a class="small" href="{{ url_for('ai.message_sources', message_id=msg.id) }}">Xem dữ liệu kiểm chứng ↗</a>{% endif %}
                 </div>
                 {% else %}
                 <p class="muted chat-empty-state">{% if current_conversation %}Chưa có tin nhắn. Hãy gửi câu hỏi đầu tiên để bắt đầu.{% else %}Chọn một cuộc trò chuyện ở bên trái hoặc tạo chat mới để bắt đầu.{% endif %}</p>
@@ -341,6 +342,14 @@
             });
             metaBox.hidden = false;
 
+            if (typeof result.evidence_url === 'string' && /^\/ai\/messages\/\d+\/sources$/.test(result.evidence_url)) {
+                const sourceLink = document.createElement('a');
+                sourceLink.className = 'chat-stream-badge';
+                sourceLink.href = result.evidence_url;
+                sourceLink.textContent = 'Xem dữ liệu kiểm chứng ↗';
+                metaBox.appendChild(sourceLink);
+            }
+
             if (mode === 'rules') {
                 note.textContent = 'Câu trả lời được tra cứu bằng quy tắc dữ liệu CLB; không gọi API model.';
                 note.hidden = false;
@@ -531,6 +540,13 @@
                         if (finalAnswer.length > MAX_ANSWER_LENGTH) throw new Error('Câu trả lời vượt quá giới hạn hiển thị.');
                         responseParagraph.textContent = finalAnswer;
                         responseParagraph.parentElement.classList.remove('chat-stream-pending');
+                        if (typeof payload.result.evidence_url === 'string' && /^\/ai\/messages\/\d+\/sources$/.test(payload.result.evidence_url)) {
+                            const evidenceLink = document.createElement('a');
+                            evidenceLink.className = 'small';
+                            evidenceLink.href = payload.result.evidence_url;
+                            evidenceLink.textContent = 'Xem dữ liệu kiểm chứng ↗';
+                            responseParagraph.parentElement.appendChild(evidenceLink);
+                        }
                         addResultDetails(payload.result);
                         statusHeading.textContent = 'Đã hoàn tất';
                         statusBox.classList.add('chat-stream-complete');
@@ -632,10 +648,11 @@
 
 <h2>Đề xuất đang chờ duyệt</h2>
 {% for item in proposals %}
-<div class="new-task-box">
+<div class="new-task-box" id="proposal-{{ item.id }}">
     <p><strong>#{{ item.id }} — {{ 'Sự kiện' if item.kind == 'event' else 'Chia task' }}</strong>
         <span class="small muted">({{ item.provider }})</span></p>
     <pre style="white-space: pre-wrap">{{ proposal_preview(item) }}</pre>
+    <p class="small muted">Tác động khi duyệt: {{ 'tạo 1 sự kiện thật' if item.kind == 'event' else 'tạo ' ~ (item.payload.tasks|length) ~ ' task thật và giao cho những người nêu trên' }}. Không gửi email chỉ vì mở bản xem trước.</p>
     <form method="post" action="{{ url_for('ai.proposal_review', proposal_id=item.id, decision='approved') }}" class="inline-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit">Duyệt và áp dụng</button>
@@ -651,12 +668,13 @@
 
 <h2>Nháp email chờ BDH duyệt</h2>
 {% for draft in email_proposals %}
-<div class="new-task-box">
+<div class="new-task-box" id="email-proposal-{{ draft.id }}">
     <p><strong>#{{ draft.id }} — {{ 'Cần đối soát gửi dở' if draft.status == 'sending' else ('Gửi lỗi, cần kiểm tra trước khi thử lại' if draft.status == 'failed' else 'Chưa gửi') }}</strong></p>
     <pre style="white-space: pre-wrap">Người nhận: {{ draft.recipient_email }}{{ ' (email ngoài danh sách thành viên)' if draft.recipient_id is none else '' }}
 Tiêu đề: {{ draft.subject }}
 
 {{ draft.body }}</pre>
+    <p class="small muted">Duyệt và gửi sẽ gửi 1 email thật tới đúng địa chỉ trên. Nội dung AI là bản nháp, người duyệt chịu trách nhiệm kiểm tra trước khi bấm.</p>
     {% if draft.status == 'pending' %}
     <details>
         <summary>Sửa tiêu đề/nội dung trước khi duyệt</summary>

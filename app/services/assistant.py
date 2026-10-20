@@ -193,14 +193,17 @@ class RulesProvider(AssistantProvider):
 
         if "dong thieu" in text or "thieu tien" in text:
             rows = []
+            source_funds = []
             for fund in FundCollection.query.filter_by(trang_thai="open").order_by(FundCollection.id.asc()):
                 for member in target_members(fund).order_by(User.id.asc()):
                     if member.id not in visible_ids:
                         continue
                     item = balance(fund, member)
                     if item["paid"] > 0 and item["remaining"] > 0:
+                        source_funds.append(fund.id)
                         rows.append(f"{member.mssv} - {member.ho_ten}: {fund.ten_khoan_thu}, còn {_money(item['remaining'])}")
-            return {"intent": "partial_payments", "answer": "Đóng thiếu:\n" + ("\n".join(rows[:100]) or "Không có.")}
+            return {"intent": "partial_payments", "sources": {"fund_collection": sorted(set(source_funds))[:100]},
+                    "answer": "Đóng thiếu:\n" + ("\n".join(rows[:100]) or "Không có.")}
 
         if "chua dong" in text or "qua han" in text:
             overdue_only = "qua han" in text and "chua dong" not in text
@@ -211,11 +214,13 @@ class RulesProvider(AssistantProvider):
                         "Có nhiều kỳ quỹ đang được đánh dấu hiện tại. Vui lòng nhờ BDH kiểm tra cấu hình kỳ quỹ trước."}
             period = named_period or (current_periods[0] if current_periods else None)
             rows = []
+            sources = {"fund_period": [period.id] if period else [], "fund_due": [], "fund_collection": []}
             if period:
                 dues = (FundDue.query.filter_by(period_id=period.id)
                         .filter(FundDue.user_id.in_(visible_ids))
                         .order_by(FundDue.user_id.asc(), FundDue.id.asc()).all())
                 unpaid = [due for due in dues if not due.da_dong]
+                sources["fund_due"] = [due.id for due in dues[:100]]
                 if not dues:
                     rows.append(f"Kỳ {period.ten_ky}: chưa có bản ghi đóng quỹ trong phạm vi bạn được xem.")
                 elif overdue_only:
@@ -235,6 +240,8 @@ class RulesProvider(AssistantProvider):
             debt_rows = []
             for fund in funds:
                 members = target_members(fund).filter(User.id.in_(visible_ids)).order_by(User.id.asc()).all()
+                if members:
+                    sources["fund_collection"].append(fund.id)
                 applicable_members += len(members)
                 for member in members:
                     item = balance(fund, member)
@@ -251,9 +258,9 @@ class RulesProvider(AssistantProvider):
                     answer = "Không có khoản thu nào được xác nhận là quá hạn trong phạm vi bạn được xem."
                 else:
                     answer = "Có dữ liệu quỹ nhưng không còn khoản nào cần đóng trong phạm vi bạn được xem."
-                return {"intent": "unpaid_members", "answer": answer}
+                return {"intent": "unpaid_members", "sources": sources, "answer": answer}
             heading = "Khoản quá hạn" if overdue_only else "Chưa đóng hoặc quá hạn"
-            return {"intent": "unpaid_members", "answer": heading + ":\n" +
+            return {"intent": "unpaid_members", "sources": sources, "answer": heading + ":\n" +
                     "\n".join(rows[:100])}
 
         if "quy" in text and ("kiem tra" in text or "tinh trang" in text):
@@ -263,10 +270,11 @@ class RulesProvider(AssistantProvider):
                 return {"intent": "period_ambiguous", "answer":
                         "Có nhiều kỳ quỹ đang được đánh dấu hiện tại. Vui lòng nhờ BDH kiểm tra cấu hình kỳ quỹ trước."}
             period = named_period or (current_periods[0] if current_periods else None)
-            open_collections = sum(
-                bool(target_members(fund).filter(User.id.in_(visible_ids)).first())
-                for fund in FundCollection.query.filter_by(trang_thai="open").order_by(FundCollection.id.asc())
-            )
+            applicable_collections = [fund for fund in FundCollection.query.filter_by(trang_thai="open").order_by(FundCollection.id.asc())
+                                      if target_members(fund).filter(User.id.in_(visible_ids)).first()]
+            open_collections = len(applicable_collections)
+            sources = {"fund_period": [period.id] if period else [],
+                       "fund_collection": [fund.id for fund in applicable_collections[:100]]}
             if not period and not open_collections:
                 return {"intent": "fund_overview", "answer": "Chưa có kỳ quỹ hoặc khoản thu đang mở."}
             rows = []
@@ -278,15 +286,17 @@ class RulesProvider(AssistantProvider):
                 rows.append(f"Kỳ {period.ten_ky}: đã đóng {paid}/{len(dues)} bản ghi "
                             "trong phạm vi bạn được xem.")
             rows.append(f"Khoản thu mới đang mở: {open_collections}.")
-            return {"intent": "fund_overview", "answer": "\n".join(rows)}
+            return {"intent": "fund_overview", "sources": sources, "answer": "\n".join(rows)}
 
         if "tong" in text and "da thu" in text:
             query = FundPayment.query.filter_by(trang_thai="confirmed")
             if not full_scope:
                 query = query.filter(FundPayment.user_id.in_(visible_ids))
-            total = sum((p.so_tien for p in query), Decimal("0.00"))
+            payments = query.order_by(FundPayment.id).all()
+            total = sum((p.so_tien for p in payments), Decimal("0.00"))
             label = "trong phạm vi bạn được xem" if not full_scope else "của câu lạc bộ"
-            return {"intent": "collected_total", "answer": f"Tổng tiền đã thu và xác nhận {label}: {_money(total)}."}
+            return {"intent": "collected_total", "sources": {"fund_payment": [p.id for p in payments[:100]]},
+                    "answer": f"Tổng tiền đã thu và xác nhận {label}: {_money(total)}."}
 
         if "khong tham gia" in text or "khong hoat dong" in text or "60 ngay" in text:
             require(can_manage_members(actor))
@@ -339,9 +349,10 @@ class RulesProvider(AssistantProvider):
         if "su kien" in text and any(word in text for word in ["sap", "dien ra", "liet ke"]):
             events = (Event.query.filter(Event.thoi_gian_bat_dau >= club_now(),
                                          Event.trang_thai.notin_(["cancelled", "draft"]))
-                      .order_by(Event.thoi_gian_bat_dau.asc(), Event.id.asc()).limit(20))
+                      .order_by(Event.thoi_gian_bat_dau.asc(), Event.id.asc()).limit(20).all())
             rows = [f"{e.ten_su_kien} - {e.thoi_gian_bat_dau:%d/%m/%Y %H:%M}" for e in events]
-            return {"intent": "upcoming_events", "answer": "Sự kiện sắp diễn ra:\n" + ("\n".join(rows) or "Chưa có sự kiện.")}
+            return {"intent": "upcoming_events", "sources": {"event": [e.id for e in events]},
+                    "answer": "Sự kiện sắp diễn ra:\n" + ("\n".join(rows) or "Chưa có sự kiện.")}
 
         return {"intent": "help", "answer": "Tôi có thể tra cứu người chưa đóng hoặc đóng thiếu, tổng đã thu, thành viên không hoạt động, sự kiện sắp diễn ra, sự kiện vắng nhiều nhất, soạn nhắc quỹ và xem trước báo cáo."}
 

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon, badge %}
+{% block title %}Thông báo{% endblock %}
+{% block content %}
+<div class="page-stack notification-center">
+    <section class="notification-center-heading">
+        <div>
+            <p class="eyebrow">CẬP NHẬT CỦA BẠN</p>
+            <h2>Thông báo</h2>
+            <p class="muted">Chỉ bạn mới xem được lịch sử thông báo của tài khoản này.</p>
+        </div>
+        <div class="notification-center-actions">
+            {{ badge(unread_count ~ ' chưa đọc', 'warning' if unread_count else 'neutral') }}
+            {% if unread_count %}
+            <form method="post" action="{{ url_for('operations.notifications_read_all') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-secondary btn-sm">{{ icon('check') }} Đánh dấu tất cả đã đọc</button>
+            </form>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="card notification-center-card" aria-label="Lịch sử thông báo">
+        {% if notifications %}
+        <ul class="notification-center-list">
+            {% for item in notifications %}
+            <li class="{{ 'is-unread' if not item.da_doc else '' }}">
+                <span class="notification-center-mark" aria-hidden="true"></span>
+                <div class="notification-center-copy">
+                    <p>{{ item.noi_dung }}</p>
+                    <time datetime="{{ item.thoi_gian.isoformat() }}">{{ item.thoi_gian.strftime('%d/%m/%Y %H:%M') }}</time>
+                </div>
+                {% if not item.da_doc %}
+                <form method="post" action="{{ url_for('operations.notification_read', notification_id=item.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-ghost btn-sm">Đánh dấu đã đọc</button>
+                </form>
+                {% else %}
+                <span class="notification-center-read">Đã đọc</span>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="empty-state">
+            {{ icon('bell') }}
+            <strong>Chưa có thông báo</strong>
+            <span class="small muted">Các cập nhật dành cho bạn sẽ xuất hiện ở đây.</span>
+        </div>
+        {% endif %}
+    </section>
+
+    {% if total > 25 %}
+    <nav class="ops-inbox-pagination notification-center-pagination" aria-label="Trang thông báo">
+        {% if page > 1 %}<a href="{{ url_for('operations.notifications', page=page - 1) }}">Thông báo mới hơn</a>{% else %}<span></span>{% endif %}
+        <span>Trang {{ page }} / {{ last_page }} · {{ total }} thông báo</span>
+        {% if page < last_page %}<a href="{{ url_for('operations.notifications', page=page + 1) }}">Thông báo cũ hơn</a>{% else %}<span></span>{% endif %}
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

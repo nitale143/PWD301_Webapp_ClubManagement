@@ -13,7 +13,7 @@ from app.security import require_csrf
 from app.mail import send_email
 from app.services.email_templates import render_system_email
 from app.activity import cap_nhat_hoat_dong_khi_event_ket_thuc
-from app.services.common import DomainError, club_now, parse_datetime
+from app.services.common import DomainError, audit, club_now, parse_datetime
 from app.services.access import can_manage_events
 from app.services.events import (
     cancel_registration, eligible, event_is_terminal, feedback, manual_attendance,
@@ -318,6 +318,8 @@ def task_new(event_id):
         trang_thai="dang_lam",
     )
     db.session.add(task)
+    db.session.flush()
+    audit(current_user, "task_assigned", task, {"event_id": ev.id})
     db.session.commit()
 
     send_email(task.assignee.email, *render_system_email(
@@ -348,7 +350,10 @@ def task_reassign(task_id):
         flash("Người phụ trách mới không thuộc ban của task.", "error")
         return redirect(url_for("event.event_detail", event_id=task.event_id))
 
+    old_assignee_id = task.assignee_id
     task.assignee_id = assignee.id
+    if old_assignee_id != assignee.id:
+        audit(current_user, "task_reassigned", task, {"old_assignee_id": old_assignee_id})
     db.session.commit()
 
     send_email(assignee.email, *render_system_email(
@@ -379,6 +384,7 @@ def task_submit(task_id):
         task.noi_dung_nop = noi_dung_moi
         task.lan_nop_gan_nhat = utcnow()
         task.trang_thai = "cho_duyet"
+        audit(current_user, "task_submitted", task)
         db.session.commit()
 
         nguoi_tao = db.session.get(User, task.event.tao_boi_id)
@@ -416,6 +422,7 @@ def task_update_status(task_id):
 
     task.trang_thai = new_status
     task.nhan_xet_bdh = nhan_xet or task.nhan_xet_bdh
+    audit(current_user, "task_reviewed", task, {"status": new_status})
     db.session.commit()
 
     status_label = {"lam_lai": "Làm lại", "hoan_thanh": "Hoàn thành", "huy": "Hủy"}[new_status]

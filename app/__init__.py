@@ -5,6 +5,7 @@ hook bảo mật. Mọi extension được tạo ở cấp module rồi `init_ap
 factory, để test có thể tạo nhiều app độc lập.
 """
 import os
+from importlib import import_module
 
 from flask import Flask
 from flask_login import LoginManager
@@ -63,7 +64,9 @@ def create_app(config_override=None):
     from app.validators import facebook_id_part, phone_local_part
     app.jinja_env.globals.update(phone_local_part=phone_local_part, facebook_id_part=facebook_id_part)
 
-    from app import models  # noqa: F401  (đăng ký models với SQLAlchemy)
+    # Đăng ký model trước Alembic/create_all; các module không phải biến của factory.
+    for module_name in ("app.models", "app.evidence_models", "app.mail_models"):
+        import_module(module_name)
 
     # --- đăng ký blueprints ---
     from app.routes.auth import auth_bp
@@ -76,9 +79,11 @@ def create_app(config_override=None):
     from app.routes.profile import profile_bp
     from app.routes.api import api_bp
     from app.routes.kho_mau import kho_mau_bp
+    from app.routes.operations import operations_bp
+    from app.routes.mail_delivery import mail_delivery_bp
 
     for blueprint in (auth_bp, main_bp, member_bp, event_bp, funds_bp, ai_bp,
-                      admin_bp, profile_bp, api_bp, kho_mau_bp):
+                      admin_bp, profile_bp, api_bp, kho_mau_bp, operations_bp, mail_delivery_bp):
         app.register_blueprint(blueprint)
 
     from app.hardening import install_hardening

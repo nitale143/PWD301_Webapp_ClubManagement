@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Theo dõi email{% endblock %}
+{% block content %}
+<section class="card page-stack">
+    <div class="card-header">
+        <div>
+            <h2>Theo dõi email</h2>
+            <p class="small muted">Lịch sử các lần gửi đồng bộ. Nội dung thư không hiển thị trên trang này.</p>
+        </div>
+    </div>
+    {% if deliveries %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>Thời điểm</th><th>Người nhận</th><th>Tiêu đề</th><th>Trạng thái</th><th>Lần thử</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for delivery in deliveries %}
+                <tr>
+                    <td>{{ delivery.created_at.strftime('%d/%m/%Y %H:%M:%S') }} UTC</td>
+                    <td>{{ delivery.recipient_email or '—' }}</td>
+                    <td>{{ delivery.subject or '—' }}</td>
+                    <td>
+                        {% set labels = {
+                            'pending': 'Đang chờ', 'sending': 'Đang gửi', 'sent': 'Đã gửi',
+                            'failed': 'Thất bại', 'unknown': 'Chưa rõ kết quả',
+                            'skipped': 'Đã bỏ qua', 'dev-saved': 'Đã lưu trong hộp thư phát triển'
+                        } %}
+                        {{ labels.get(delivery.status, delivery.status) }}
+                        {% if delivery.sensitive_content %}<div class="small muted">Nội dung nhạy cảm đã được ẩn.</div>{% elif not delivery.retry_allowed %}<div class="small muted">Không thể thử gửi lại thư này.</div>{% endif %}
+                        {% if delivery.sender_email != delivery.last_sender_email %}<div class="small muted">Địa chỉ gửi đã thay đổi kể từ lần đầu.</div>{% endif %}
+                    </td>
+                    <td>{{ delivery.attempt_count }}</td>
+                    <td>
+                        {% if delivery.retry_allowed and delivery.status == 'failed' %}
+                        <form method="post" action="{{ url_for('mail_delivery.retry', delivery_id=delivery.id) }}" class="page-stack">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-secondary btn-sm" type="submit">Thử gửi lại</button>
+                        </form>
+                        {% elif delivery.retry_allowed and delivery.status == 'unknown' %}
+                        <form method="post" action="{{ url_for('mail_delivery.retry', delivery_id=delivery.id) }}" class="page-stack">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <label class="small"><input type="checkbox" name="confirm_unknown" value="yes" required> Tôi đã kiểm tra thư đã gửi và xác nhận thử lại.</label>
+                            <button class="btn btn-secondary btn-sm" type="submit">Xác nhận và thử lại</button>
+                        </form>
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="muted">Chưa có email nào được ghi nhận.</p>
+    {% endif %}
+    {% if page_count > 1 %}
+    <nav class="row" aria-label="Phân trang lịch sử email">
+        {% if page > 1 %}<a class="btn btn-ghost btn-sm" href="{{ url_for('mail_delivery.index', page=page - 1) }}">Trang trước</a>{% endif %}
+        <span class="small muted">Trang {{ page }} / {{ page_count }}</span>
+        {% if page < page_count %}<a class="btn btn-ghost btn-sm" href="{{ url_for('mail_delivery.index', page=page + 1) }}">Trang sau</a>{% endif %}
+    </nav>
+    {% endif %}
+</section>
+{% endblock %}

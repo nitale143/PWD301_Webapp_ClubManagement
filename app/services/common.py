@@ -62,12 +62,16 @@ def parse_money(value, label="Số tiền", allow_zero=False):
 
 def audit(actor, action, obj, details=None):
     """Thêm một dòng AuditLog (chưa commit) cho thao tác của `actor` trên `obj`."""
+    details = details or {}
     entry = AuditLog(
         actor_id=getattr(actor, "id", None), action=action,
         object_type=obj.__class__.__name__, object_id=str(getattr(obj, "id", None) or getattr(obj, "user_id", "")),
-        details=details or {},
+        details=details,
     )
     db.session.add(entry)
+    if action in {"task_assigned", "task_reassigned", "task_submitted", "task_reviewed"}:
+        from app.services.notifications import notify_task_action
+        notify_task_action(action, obj, details)
     return entry
 
 

@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Nguồn kiểm chứng AI{% endblock %}
+{% block content %}
+<section class="card" style="padding:24px">
+    <p class="eyebrow">DỮ LIỆU HỆ THỐNG · KHÔNG PHẢI SUY NGHĨ CỦA MODEL</p>
+    <h2>Nguồn của câu trả lời #{{ message.id }}</h2>
+    <p>Chụp lúc {{ entry.captured_at.strftime('%d/%m/%Y %H:%M:%S') }} UTC · {{ entry.query_version }}</p>
+    <p class="muted">Đây là kết quả tại thời điểm tra cứu. Dữ liệu hiện tại có thể đã đổi. Dấu SHA-256 chỉ giúp phát hiện nội dung lưu bị thay đổi, không chứng minh dữ liệu đầu vào là đúng.</p>
+    <pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{ message.content }}</pre>
+    <h3>Quy tắc đã dùng</h3>
+    <ul>{% for label in entry.query_labels %}<li>{{ label }}</li>{% endfor %}</ul>
+    <p>Phạm vi: {{ 'Toàn CLB theo quyền nghiệp vụ' if current_user.is_bdh() else 'Dữ liệu của chính bạn' }}. Khi mở lại, hệ thống kiểm tra lại quyền xem từng nguồn.</p>
+    <h3>Bản ghi tham chiếu</h3>
+    <p class="small muted">Tối đa 100 bản ghi mỗi loại. Đây là liên kết tới dữ liệu hiện tại, không phải toàn bộ bản sao dữ liệu đầu vào hay một phép kiểm toán độc lập.</p>
+    <ul>{% for item in items %}<li><a href="{{ item.url }}">{{ item.label }}</a></li>{% else %}<li>Không có bản ghi chi tiết được trả về (có thể là tập dữ liệu rỗng hoặc truy vấn tổng hợp). Không suy diễn rằng không có dữ liệu ngoài phạm vi này.</li>{% endfor %}</ul>
+    {% if hidden %}<p class="muted">Một số nguồn đã bị xóa hoặc không còn trong quyền xem nên được ẩn.</p>{% endif %}
+    <p class="small muted" style="overflow-wrap:anywhere">Dấu nội dung: {{ entry.answer_sha256 }}</p>
+    <a class="btn btn-secondary" href="{{ url_for('ai.ai_chat', chat=message.conversation_id) }}">Trở lại cuộc trò chuyện</a>
+</section>
+{% endblock %}

@@ -5,10 +5,12 @@
         {% if approved %}
         <button class="search-trigger" type="button" id="global-search">{{ icon('search') }}<span>Tìm nhanh trong workspace</span><kbd>Ctrl K</kbd></button>
         <span class="preview-tag">FIA · WORKSPACE</span>
-        <details class="live-notifications">
-            <summary class="icon-button" aria-label="Xem thông báo">{{ icon('bell') }}{% if shell_unread %}<i></i>{% endif %}</summary>
-            <div class="live-notification-panel"><strong>Thông báo của bạn</strong>{% for item in shell_notifications %}<p>{{ item.noi_dung }}<small>{{ item.thoi_gian.strftime('%d/%m/%Y %H:%M') }}</small></p>{% else %}<p class="muted">Chưa có thông báo.</p>{% endfor %}<a href="{{ url_for('main.home') }}">Xem tổng quan {{ icon('arrow') }}</a></div>
-        </details>
+        <a class="icon-button notification-link" href="{{ url_for('operations.notifications') }}"
+           aria-label="Xem thông báo{% if shell_unread %}, {{ shell_unread }} chưa đọc{% endif %}"
+           title="Thông báo{% if shell_unread %} · {{ shell_unread }} chưa đọc{% endif %}">
+            {{ icon('bell') }}
+            {% if shell_unread %}<span class="notification-link-count" aria-hidden="true">{{ shell_unread if shell_unread < 100 else '99+' }}</span>{% endif %}
+        </a>
         <a href="{{ url_for('profile.view_profile') }}" class="avatar small-avatar indigo" aria-label="Xem hồ sơ">{{ current_user.ho_ten[:1]|upper }}</a>
         {% else %}
         <a class="btn btn-secondary btn-sm" href="{{ url_for('auth.index') }}">Về trang FIA {{ icon('arrow') }}</a>

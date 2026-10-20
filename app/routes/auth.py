@@ -321,7 +321,10 @@ def register():
 def logout():
     """Đăng xuất (chỉ nhận POST) và xóa session."""
     logout_user()
+    clear_remember_cookie = session.get("_remember") == "clear"
     session.clear()
+    if clear_remember_cookie:
+        session["_remember"] = "clear"
     flash("Bạn đã đăng xuất.", "success")
     return redirect(url_for("auth.login"))
 

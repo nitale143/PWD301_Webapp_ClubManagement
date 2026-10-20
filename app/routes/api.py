@@ -334,7 +334,7 @@ def member_update(user_id):
         if data["status"] not in {"active", "paused", "left"}:
             raise DomainError("Trạng thái thành viên không hợp lệ.")
         if data["status"] == "left":
-            if not set_member_left_safely(user, record):
+            if not set_member_left_safely(user, record, actor=current_user):
                 raise DomainError("Không thể đưa quản trị viên cuối cùng sang trạng thái đã rời CLB.", 409)
         else:
             record.tinh_trang = data["status"]
@@ -349,11 +349,11 @@ def member_update(user_id):
 def member_archive(user_id):
     """POST /members/<id>/archive – lưu trữ thành viên (không cho lưu trữ BĐH cuối cùng)."""
     user = db.get_or_404(User, user_id)
-    require(can_manage_members(current_user) and user.id != current_user.id)
+    require(can_manage_member(current_user, user))
     record = member_record(user)
     if record.luu_tru_luc:
         raise DomainError("Thành viên đã được lưu trữ.")
-    if not set_member_left_safely(user, record, utcnow()):
+    if not set_member_left_safely(user, record, utcnow(), actor=current_user):
         raise DomainError("Không thể lưu trữ quản trị viên cuối cùng.", 409)
     audit(current_user, "member_archive", record, {"member_id": user.id})
     db.session.commit()
@@ -778,10 +778,13 @@ def assistant():
             raise DomainError("AI chưa hoàn tất câu trả lời. Hãy kiểm tra lịch sử trước khi gửi lại.", 503)
         reply = finish_turn(actor, conversation, answer, human_id, run_id,
                             permission_stamp=permission_stamp)
+        from app.evidence_models import ChatEvidence
+        if db.session.get(ChatEvidence, reply.id):
+            answer["evidence_url"] = url_for("ai.message_sources", message_id=reply.id)
         answer.update(conversation_id=conversation.id, message_id=reply.id, run_id=run_id)
         return jsonify(answer)
     answer = respond(current_user, question, conversation=conversation)
-    append_exchange(current_user, conversation, question, answer["answer"])
+    append_exchange(current_user, conversation, question, answer["answer"], result=answer)
     audit(current_user, "assistant_query", current_user, {"intent": answer["intent"]})
     db.session.commit()
     answer["conversation_id"] = conversation.id

@@ -278,7 +278,7 @@ class AccountSecurityTests(unittest.TestCase):
             self.assertEqual(check_period_reminder(self.app), 2)       # CN + Thư ký/Thủ quỹ
             self.assertEqual(check_period_reminder(self.app), 0)       # không nhắc lặp lại
         notified = {row.user_id for row in Notification.query.all()}
-        self.assertEqual(notified, {1, 4})
+        self.assertEqual(notified, {1, 3, 4})  # quỹ: CN/TK; nhắc deadline trong web: người nhận task
 
 
 class MigrationTests(unittest.TestCase):

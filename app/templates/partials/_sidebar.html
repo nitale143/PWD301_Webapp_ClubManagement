@@ -7,10 +7,11 @@
         {% for endpoint, glyph, label, prefix in nav %}
         <a href="{{ url_for(endpoint) }}"{% if (request.endpoint or '').startswith(prefix) %} class="active" aria-current="page"{% endif %}>{{ icon(glyph) }}{{ label }}{% if endpoint == 'ai.ai_chat' %}<span class="nav-ai">AI</span>{% endif %}</a>
         {% endfor %}
-        {% if can_approve or can_roles or can_templates %}
+{% if can_approve or can_roles or can_templates or can(Permission.BOARD) %}
         <div class="fia-admin-nav">
             <p class="nav-label">ĐIỀU HÀNH</p>
             {% if can_approve %}<a href="{{ url_for('admin.approve_list') }}"{% if request.endpoint == 'admin.approve_list' %} class="active" aria-current="page"{% endif %}>{{ icon('shield') }}Phê duyệt</a>{% endif %}
+            {% if can(Permission.BOARD) %}<a href="{{ url_for('operations.inbox') }}"{% if request.endpoint == 'operations.inbox' %} class="active" aria-current="page"{% endif %}>{{ icon('file') }}Hộp thư điều hành</a><a href="{{ url_for('mail_delivery.index') }}"{% if (request.endpoint or '').startswith('mail_delivery.') %} class="active" aria-current="page"{% endif %}>{{ icon('mail') }}Lịch sử email</a>{% endif %}
             {% if can_roles %}<a href="{{ url_for('admin.role_list') }}"{% if request.endpoint == 'admin.role_list' %} class="active" aria-current="page"{% endif %}>{{ icon('settings') }}Vai trò &amp; phân quyền</a>{% endif %}
             {% if can_templates %}<a href="{{ url_for('kho_mau.index') }}"{% if (request.endpoint or '').startswith('kho_mau') %} class="active" aria-current="page"{% endif %}>{{ icon('file') }}Kho mẫu</a>{% endif %}
         </div>

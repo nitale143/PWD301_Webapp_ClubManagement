@@ -1,3 +1,16 @@
+# Hoàn thiện vận hành và sửa lỗi sau tích hợp (20/10/2026)
+
+- Sửa cookie ghi nhớ còn sống sau khi đăng xuất; chặn quản lý/lưu trữ thành viên ngang hoặc cao cấp hơn và bảo vệ ADMIN hệ thống. Khi đưa thành viên ra khỏi CLB, kiểm tra lại vai trò ở thời điểm ghi để tránh quyền vừa thay đổi.
+- Hộp thư điều hành `/operations`: đăng ký, task, thanh toán, đề xuất AI và email chờ xử lý theo quyền, từng nhóm có phân trang.
+- Thông báo riêng `/notifications`, đánh dấu đã đọc bằng POST+CSRF; task được giao/nộp/duyệt/làm lại và nhắc hạn không phụ thuộc SMTP thành công.
+- Theo dõi email `/mail-deliveries/`: trạng thái thực, Message-ID, claim theo thế hệ lần thử, nội dung nhạy cảm không giữ trong lịch sử, thử lại có xác nhận khi kết quả chưa rõ; nội dung dùng thử lại hết hạn sau 90 ngày.
+- Câu trả lời dữ liệu mới của AI lưu nguồn, thời điểm, quy tắc và dấu nội dung; nguồn thuộc chủ chat và được kiểm tra lại quyền khi mở. Xem trước duyệt task hiện tên/MSSV người nhận và tác động thực thi.
+- Migration `0004` sửa lệch tên ràng buộc chat; `0005` theo dõi thư; `0006` bằng chứng AI.
+- CLI `backup-create`, `backup-verify`, `backup-restore` và job backup mỗi ngày 02:00 khi scheduler hoạt động. Backup gồm DB/avatar/minh chứng; phục hồi không ghi đè đường dẫn có sẵn.
+- Bổ sung test bảo mật, lỗi tranh chấp email, thông báo, nguồn AI, backup/restore và browser; sửa bước test UI còn tìm ô nhập số tiền đã bỏ.
+
+Hướng dẫn và giới hạn: [OPERATIONS_GUIDE.md](OPERATIONS_GUIDE.md).
+
 # Định dạng đăng ký, tài khoản Quản trị hệ thống, Kho mẫu (20/10/2026)
 
 ## Định dạng thông tin (đồng bộ form, REST API, CLI, migration)
