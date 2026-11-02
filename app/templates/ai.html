@@ -332,6 +332,16 @@
             const details = [providers[provider] || 'Trợ lý AI'];
             if (mode) details.push(modes[mode] || 'Chế độ agent');
             if (checked) details.push(verification[checked] || 'Trạng thái xác minh');
+            if (result.composed === true) details.push('Model viết câu trả lời');
+            const fallbackReasons = {
+                provider_unavailable: 'chưa cấu hình AI (kiểm tra AI_PROVIDER và API key trong .env)',
+                agent_disabled: 'agent đang tắt (AI_AGENT_ENABLED=false)',
+                provider_failure: 'không gọi được model (key, tên model, mạng hoặc hết lượt gọi)',
+                finish_without_tool: 'model không tìm thấy công cụ phù hợp',
+                time_budget: 'hết thời gian xử lý',
+                step_budget: 'hết số bước cho phép'
+            };
+            const reason = typeof result.agent_fallback_reason === 'string' ? result.agent_fallback_reason : '';
 
             details.forEach((label) => {
                 const badge = document.createElement('span');
@@ -345,7 +355,11 @@
                 note.textContent = 'Câu trả lời được tra cứu bằng quy tắc dữ liệu CLB; không gọi API model.';
                 note.hidden = false;
             } else if (provider === 'rules_fallback' || mode === 'rules_fallback') {
-                note.textContent = 'Model không tạo được kết quả dữ liệu; câu trả lời dùng quy tắc dự phòng có sẵn.';
+                note.textContent = 'Câu trả lời dùng quy tắc dự phòng (không qua model)'
+                    + (reason ? ': ' + (fallbackReasons[reason] || 'kế hoạch của model không hợp lệ') : '') + '.';
+                note.hidden = false;
+            } else if (result.composed === true) {
+                note.textContent = 'Model chọn công cụ và viết câu trả lời từ dữ liệu CLB; mọi con số đã được hệ thống đối chiếu.';
                 note.hidden = false;
             } else if (mode === 'model_tools' || mode === 'tool_loop') {
                 note.textContent = 'Câu trả lời dùng dữ liệu CLB; model chỉ chọn công cụ tra cứu.';

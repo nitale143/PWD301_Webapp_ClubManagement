@@ -1,3 +1,26 @@
+# Trợ lý AI trả lời đúng trọng tâm (03/11/2026)
+
+## Lỗi đã sửa
+- Hỏi "có bao nhiêu thành viên trong sự kiện sắp diễn ra" bị trả về danh sách sự kiện: luật cũ chỉ khớp từ "sự kiện" + "sắp". Nay câu hỏi về thành viên/người tham gia được nhận diện trước.
+- "Có bao nhiêu thành viên tích cực", "Ban X gồm những ai", "Sự kiện nào có nhiều người vắng nhất" trước đây không có truy vấn tương ứng.
+
+## Công cụ đọc dữ liệu mới (`services/club_data_tools.py`)
+- `member_stats`: đếm/liệt kê thành viên theo ban, mức hoạt động (Tích cực/Bình thường/Ít hoạt động/Không hoạt động), tạm nghỉ; mức hoạt động của một thành viên hoặc của chính mình.
+- `event_participation`: đăng ký, có mặt, vắng của một sự kiện (sắp diễn ra, vừa diễn ra, đang diễn ra, theo tên/mã) hoặc của chính mình trong sự kiện.
+- `event_list`: sự kiện sắp tới / đang diễn ra / đã diễn ra.
+- Phân quyền giữ nguyên ma trận cũ (mức hoạt động: Quản lý thành viên; điểm danh: Sự kiện & task hoặc BĐH; thành viên thường chỉ hỏi về chính mình).
+
+## Agent
+- Kế hoạch của model có thêm `args` (kiểm tra khóa, kiểu, enum). Server trích tham số từ câu gốc; gợi ý của model chỉ được nhận khi bám vào câu hỏi.
+- Prompt lập kế hoạch có ví dụ (few-shot) và quy tắc chọn tool theo trọng tâm câu hỏi.
+- `AI_AGENT_FAST_FINISH` (mặc định bật): câu hỏi một ý kết thúc sau 1 lượt lập kế hoạch.
+- `AI_AGENT_COMPOSE` (mặc định bật): model viết câu trả lời từ dữ liệu đã tra cứu; mọi con số và mã phải có trong dữ liệu, sai thì dùng bản server. Bản gốc lưu ở `verified_answer`.
+- Trang chat ghi lý do khi rơi về quy tắc dự phòng (chưa cấu hình AI, không gọi được model…).
+
+## Đo độ đúng
+- `scripts/ai_eval.py`: 30 câu hỏi mẫu, chấm theo intent + con số tính độc lập, theo đúng quyền của người hỏi.
+- Test mới: `tests/test_ai_data_tools.py` (12 test). Tổng 193 test.
+
 # Định dạng đăng ký, tài khoản Quản trị hệ thống, Kho mẫu (20/10/2026)
 
 ## Định dạng thông tin (đồng bộ form, REST API, CLI, migration)

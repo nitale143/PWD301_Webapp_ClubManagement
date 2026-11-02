@@ -137,8 +137,13 @@ class RulesProvider(AssistantProvider):
         }.get(intent, "database")
         if intent == "help" and current_app.config.get("AI_STRICT_FACTS", True):
             result["answer"] = (
-                "Tôi chưa có truy vấn đã xác minh cho câu hỏi này. "
-                "Hãy hỏi về dữ liệu thành viên, task, quỹ hoặc sự kiện mà hệ thống đang lưu."
+                "Tôi chưa có truy vấn đã xác minh cho câu hỏi này nên chưa trả lời để tránh sai số liệu.\n"
+                "Bạn có thể hỏi, ví dụ:\n"
+                "- Có bao nhiêu thành viên tích cực? / Ban Kỹ thuật có bao nhiêu thành viên?\n"
+                "- Có bao nhiêu người đăng ký sự kiện sắp diễn ra? / Ai vắng ở sự kiện vừa rồi?\n"
+                "- Sự kiện sắp diễn ra / đang diễn ra / đã diễn ra gần đây\n"
+                "- Task của SE180011 / Hồ sơ của SE180011\n"
+                "- Ai chưa đóng quỹ? / Tổng đã thu / Báo cáo tháng"
             )
         return {
             **result,
@@ -159,6 +164,13 @@ class RulesProvider(AssistantProvider):
         greeting = text.strip(" .,!?:;")
         if greeting in {"hello", "hi", "hey", "alo", "chao", "chao ban", "xin chao"}:
             return {"intent": "greeting", "answer": "Chào bạn, tôi có thể hỗ trợ gì cho CLB?"}
+
+        # Thống kê thành viên / tham gia sự kiện: chạy trước các luật cũ để câu hỏi về
+        # thành viên không bị nhánh "liệt kê sự kiện" bắt nhầm.
+        from .club_data_tools import answer_by_rules
+        data_answer = answer_by_rules(actor, question)
+        if data_answer is not None:
+            return data_answer
 
         matching_periods = _matching_periods(text)
         named_period = matching_periods[0] if len(matching_periods) == 1 else None
@@ -308,7 +320,7 @@ class RulesProvider(AssistantProvider):
             return {"intent": "inactive_members", "answer": label + ":\n" +
                     ("\n".join(rows[:100]) or "Không có.")}
 
-        if "vang" in text and "cao nhat" in text:
+        if "vang" in text and re.search(r"\b(?:cao nhat|nhieu nhat|vang nhat)\b", text):
             require(can_manage_events(actor))
             query = (
                 db.session.query(Event.ten_su_kien,

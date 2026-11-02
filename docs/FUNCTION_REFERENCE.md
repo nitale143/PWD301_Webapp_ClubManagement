@@ -546,44 +546,50 @@ Bounded, model-selected loop over deterministic club data tools.
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| class `_PlanError` | 83 | Lỗi nội bộ khi kế hoạch do model trả về không hợp lệ (sẽ chuyển sang phương án rules). |
-| `_PlanError.__init__(self, reason)` | 85 | Lưu lý do lỗi kế hoạch. |
-| `_bounded_setting(name, default, lower, upper)` | 91 | Đọc một cấu hình số nguyên và kẹp trong khoảng [lower, upper]. |
-| `_conversation_history(actor, message, conversation, message_id)` | 100 | Lấy lịch sử gần nhất của cuộc trò chuyện (trước tin nhắn hiện tại) để làm ngữ cảnh. |
-| `_user_history(history)` | 125 | Chỉ giữ tối đa 6 câu hỏi gần nhất của người dùng (không đưa câu trả lời AI vào ngữ cảnh). |
-| `_scope_markers(actor, text, members, bans, periods)` | 131 | Trích các "dấu phạm vi" (thành viên, ban, kỳ, thời gian, trạng thái) xuất hiện trong câu hỏi. |
-| `_tool_request(question, tool)` | 167 | Separate explicit business clauses, not conjunctions inside one operation. |
-| `_query_preserves_scope(actor, question, query)` | 193 | Kiểm tra truy vấn model viết lại vẫn giữ đúng phạm vi của câu hỏi gốc. |
-| `_parse_plan(raw, actor, question)` | 205 | Đọc và kiểm tra JSON kế hoạch của model (công cụ hợp lệ, số bước giới hạn, giữ phạm vi). |
-| `_unsupported_scope(message)` | 230 | Câu trả lời chuẩn khi câu hỏi lọc theo ban/thành viên mà công cụ chưa hỗ trợ. |
-| `_unsupported_event_scope()` | 241 | Câu trả lời chuẩn khi câu hỏi sự kiện có bộ lọc chưa hỗ trợ. |
-| `_unsupported_member_info_scope()` | 251 | Câu trả lời chuẩn khi hỏi hồ sơ theo ngày/trạng thái chưa hỗ trợ. |
-| `_unsupported_member_task_scope()` | 260 | Câu trả lời chuẩn khi hỏi task theo thời gian chưa hỗ trợ. |
-| `_clarify_member_target()` | 270 | Yêu cầu người dùng nêu rõ MSSV/họ tên khi không xác định được thành viên. |
-| `_task_query_for_original(actor, original)` | 280 | Resolve the human's target first, then copy only supported task filters. |
-| `_member_for_original(actor, original)` | 296 | Tìm thành viên được nhắc trong câu hỏi gốc (trong phạm vi được xem). |
-| `_visible_member_scope(actor)` | 301 | Ánh xạ id → {MSSV, họ tên chuẩn hóa} của thành viên trong phạm vi tra cứu. |
-| `_target_scope_was_revoked(original, prior_scope, current_members)` | 311 | True nếu thành viên được hỏi đã ra khỏi phạm vi quyền trong lúc xử lý. |
-| `_explicit_member_code(text)` | 326 | True nếu câu hỏi có ghi rõ một MSSV. |
-| `_unsupported_task_status(markers)` | 332 | True nếu câu hỏi chứa trạng thái task mà bộ đọc chưa hỗ trợ. |
-| `_wants_member_tasks(original)` | 343 | Nhận diện câu hỏi muốn xem task của một thành viên. |
-| `_safe_member_read(actor, message, conversation=None)` | 352 | Đọc hồ sơ/task thành viên bằng truy vấn đã kiểm chứng (không qua model). |
-| `_safe_briefing_read(actor, message)` | 362 | Trả lời tóm tắt ngày/báo cáo bằng dữ liệu kiểm chứng nếu câu hỏi phù hợp. |
-| `_safe_rules_answer(actor, message, history)` | 372 | Trả lời bằng RulesProvider (truy vấn cố định) khi không cần model. |
-| `_mentions_funds(text)` | 399 | Nhận diện câu hỏi liên quan quỹ. |
-| `_fund_result(result, markers)` | 405 | Chỉ chấp nhận kết quả tra cứu quỹ thuộc các intent quỹ đã hỗ trợ. |
-| `_read_filter_guard(message, tool, markers)` | 420 | Do not silently discard explicit filters the deterministic readers lack. |
-| `_read_before_pending(actor, message, conversation)` | 476 | Ưu tiên trả lời câu hỏi đọc dữ liệu trước khi xử lý đề xuất đang chờ bổ sung. |
-| `_scope_markers_for_actor(actor, text)` | 494 | Trích dấu phạm vi của câu hỏi dựa trên dữ liệu người dùng được xem. |
-| `_execute_tool(actor, tool, query, original, conversation, prior_scope=None)` | 504 | Chạy đúng một công cụ đọc dữ liệu đã kiểm chứng theo tên tool; text của model chỉ dùng làm truy vấn đã validate, không bao giờ làm SQL hay dữ liệu ghi. |
-| `_result_verification(result)` | 599 | Xác định mức kiểm chứng của kết quả: database &#124; clarification &#124; unsupported &#124; draft. |
-| `_combine_results(results, progress, mode, step_count, fallback_reason=None)` | 612 | Gộp kết quả nhiều bước thành một câu trả lời, bỏ trùng lặp, kèm tiến trình. |
-| `_error_result(exc)` | 673 | Chuyển DomainError thành kết quả trả lời an toàn. |
-| `_rules_fallback(actor, message, history, conversation, allow_prepare)` | 682 | Phương án dự phòng khi model lỗi: trả lời bằng rules/dữ liệu kiểm chứng, không gọi model. |
-| `_status(stage, label, tool=None)` | 709 | Tạo sự kiện tiến trình (status) gửi về trình duyệt qua SSE. |
-| `respond_events(actor, message, conversation=None, message_id=None)` | 717 | Yield fixed-label progress events and one server-composed result event. |
-| `_tool_description(name)` | 891 | Mô tả ngắn từng công cụ để đưa vào prompt lập kế hoạch. |
-| `_reauthorize(actor, conversation, permission_stamp=None)` | 903 | Kiểm tra lại tài khoản còn được duyệt và quyền không đổi trước khi trả kết quả. |
+| class `_PlanError` | 142 | Lỗi nội bộ khi kế hoạch do model trả về không hợp lệ (sẽ chuyển sang phương án rules). |
+| `_PlanError.__init__(self, reason)` | 144 | Lưu lý do lỗi kế hoạch. |
+| `_bounded_setting(name, default, lower, upper)` | 150 | Đọc một cấu hình số nguyên và kẹp trong khoảng [lower, upper]. |
+| `_conversation_history(actor, message, conversation, message_id)` | 159 | Lấy lịch sử gần nhất của cuộc trò chuyện (trước tin nhắn hiện tại) để làm ngữ cảnh. |
+| `_user_history(history)` | 184 | Chỉ giữ tối đa 6 câu hỏi gần nhất của người dùng (không đưa câu trả lời AI vào ngữ cảnh). |
+| `_scope_markers(actor, text, members, bans, periods)` | 190 | Trích các "dấu phạm vi" (thành viên, ban, kỳ, thời gian, trạng thái) xuất hiện trong câu hỏi. |
+| `_tool_request(question, tool)` | 226 | Separate explicit business clauses, not conjunctions inside one operation. |
+| `_query_preserves_scope(actor, question, query)` | 252 | Kiểm tra truy vấn model viết lại vẫn giữ đúng phạm vi của câu hỏi gốc. |
+| `_parse_plan(raw, actor, question)` | 264 | Đọc và kiểm tra JSON kế hoạch của model (công cụ hợp lệ, số bước giới hạn, giữ phạm vi). |
+| `_valid_args(args)` | 296 | args của model chỉ được là object gồm các khóa đã khai báo, giá trị chuỗi ngắn. |
+| `_unsupported_scope(message)` | 310 | Câu trả lời chuẩn khi câu hỏi lọc theo ban/thành viên mà công cụ chưa hỗ trợ. |
+| `_unsupported_event_scope()` | 321 | Câu trả lời chuẩn khi câu hỏi sự kiện có bộ lọc chưa hỗ trợ. |
+| `_unsupported_member_info_scope()` | 331 | Câu trả lời chuẩn khi hỏi hồ sơ theo ngày/trạng thái chưa hỗ trợ. |
+| `_unsupported_member_task_scope()` | 340 | Câu trả lời chuẩn khi hỏi task theo thời gian chưa hỗ trợ. |
+| `_clarify_member_target()` | 350 | Yêu cầu người dùng nêu rõ MSSV/họ tên khi không xác định được thành viên. |
+| `_task_query_for_original(actor, original)` | 360 | Resolve the human's target first, then copy only supported task filters. |
+| `_member_for_original(actor, original)` | 376 | Tìm thành viên được nhắc trong câu hỏi gốc (trong phạm vi được xem). |
+| `_visible_member_scope(actor)` | 381 | Ánh xạ id → {MSSV, họ tên chuẩn hóa} của thành viên trong phạm vi tra cứu. |
+| `_target_scope_was_revoked(original, prior_scope, current_members)` | 391 | True nếu thành viên được hỏi đã ra khỏi phạm vi quyền trong lúc xử lý. |
+| `_explicit_member_code(text)` | 406 | True nếu câu hỏi có ghi rõ một MSSV. |
+| `_unsupported_task_status(markers)` | 412 | True nếu câu hỏi chứa trạng thái task mà bộ đọc chưa hỗ trợ. |
+| `_wants_member_tasks(original)` | 423 | Nhận diện câu hỏi muốn xem task của một thành viên. |
+| `_safe_member_read(actor, message, conversation=None)` | 432 | Đọc hồ sơ/task thành viên bằng truy vấn đã kiểm chứng (không qua model). |
+| `_safe_briefing_read(actor, message)` | 442 | Trả lời tóm tắt ngày/báo cáo bằng dữ liệu kiểm chứng nếu câu hỏi phù hợp. |
+| `_safe_rules_answer(actor, message, history)` | 452 | Trả lời bằng RulesProvider (truy vấn cố định) khi không cần model. |
+| `_mentions_funds(text)` | 484 | Nhận diện câu hỏi liên quan quỹ. |
+| `_fund_result(result, markers)` | 490 | Chỉ chấp nhận kết quả tra cứu quỹ thuộc các intent quỹ đã hỗ trợ. |
+| `_read_filter_guard(message, tool, markers)` | 505 | Do not silently discard explicit filters the deterministic readers lack. |
+| `_read_before_pending(actor, message, conversation)` | 561 | Ưu tiên trả lời câu hỏi đọc dữ liệu trước khi xử lý đề xuất đang chờ bổ sung. |
+| `_scope_markers_for_actor(actor, text)` | 579 | Trích dấu phạm vi của câu hỏi dựa trên dữ liệu người dùng được xem. |
+| `_execute_tool(actor, tool, query, original, conversation, prior_scope=None, args=None)` | 589 | Chạy đúng một công cụ đọc dữ liệu đã kiểm chứng theo tên tool; text của model chỉ dùng làm truy vấn đã validate, không bao giờ làm SQL hay dữ liệu ghi. |
+| `_result_verification(result)` | 688 | Xác định mức kiểm chứng của kết quả: database &#124; clarification &#124; unsupported &#124; draft. |
+| `_combine_results(results, progress, mode, step_count, fallback_reason=None)` | 701 | Gộp kết quả nhiều bước thành một câu trả lời, bỏ trùng lặp, kèm tiến trình. |
+| `_error_result(exc)` | 762 | Chuyển DomainError thành kết quả trả lời an toàn. |
+| `_rules_fallback(actor, message, history, conversation, allow_prepare)` | 771 | Phương án dự phòng khi model lỗi: trả lời bằng rules/dữ liệu kiểm chứng, không gọi model. |
+| `_status(stage, label, tool=None)` | 798 | Tạo sự kiện tiến trình (status) gửi về trình duyệt qua SSE. |
+| `respond_events(actor, message, conversation=None, message_id=None)` | 806 | Yield fixed-label progress events and one server-composed result event. |
+| `_is_compound(question)` | 986 | Câu hỏi có nhiều ý (vd. "... và tổng đã thu") thì cần thêm lượt lập kế hoạch. |
+| `_numbers(text)` | 996 | Tập các con số trong chuỗi, bỏ dấu phân cách (1,234 ≡ 1.234 ≡ 1234). |
+| `_codes(text)` | 1001 | Các mã dạng MSSV/mã sự kiện (chữ + số) trong chuỗi, viết hoa. |
+| `compose_answer(complete, question, facts)` | 1006 | Nhờ model viết lại câu trả lời đúng trọng tâm từ dữ kiện đã kiểm chứng. Chốt chặn: mọi con số và mã (MSSV, mã sự kiện) trong câu trả lời phải xuất hiện nguyên văn trong dữ kiện hoặc câu hỏi; sai → ném _PlanError để dùng bản của server. |
+| `_finish(actor, conversation, permission_stamp, complete, message, completed, progress, deadline, fallback_reason=None)` | 1031 | Gộp kết quả tool; nếu được bật, nhờ model viết câu trả lời đúng trọng tâm (có đối chiếu số). |
+| `_tool_description(name)` | 1060 | Mô tả ngắn từng công cụ để đưa vào prompt lập kế hoạch. |
+| `_reauthorize(actor, conversation, permission_stamp=None)` | 1082 | Kiểm tra lại tài khoản còn được duyệt và quyền không đổi trước khi trả kết quả. |
 
 ### `app/services/assistant.py`
 
@@ -600,14 +606,14 @@ Bounded, model-selected loop over deterministic club data tools.
 | class `TemporaryAIError` | 119 | A transient provider failure; safe to answer from verified local rules. |
 | class `RulesProvider` | 123 | Câu hỏi chỉ ánh xạ tới các truy vấn ORM được định nghĩa trước. |
 | `RulesProvider.answer(self, actor, question, history=None)` | 126 | Trả lời bằng truy vấn cố định (không dùng model) và gắn mức kiểm chứng. |
-| `RulesProvider._answer(self, actor, question)` | 149 | Bộ luật nhận diện câu hỏi (quỹ, chưa đóng, tổng đã thu, không hoạt động, vắng nhiều nhất, báo cáo…) và truy vấn dữ liệu theo phạm vi quyền. |
-| class `AnthropicProvider` | 349 | Read-only Claude Messages API adapter; never gives the model write tools. |
-| `AnthropicProvider.complete(self, system, prompt, max_tokens=800, response_schema=None, purpose='chat')` | 354 | Gọi Claude API với giới hạn quota/timeout và ghi nhận usage. |
-| `AnthropicProvider.answer(self, actor, question, history=None)` | 394 | Ưu tiên dữ liệu kiểm chứng; chỉ dùng model cho câu hỏi chung khi AI_STRICT_FACTS tắt. |
-| class `GeminiProvider` | 460 | Gemini transport with the same scoped, read-only context as Claude. |
-| `GeminiProvider.complete(self, system, prompt, max_tokens=800, response_schema=None, purpose='chat')` | 465 | Gọi Gemini API với giới hạn quota/timeout và ghi nhận usage. |
-| `GeminiProvider.answer(self, actor, question, history=None)` | 521 | Như Anthropic; lỗi tạm thời thì quay về RulesProvider. |
-| `get_provider()` | 532 | Chọn nhà cung cấp theo AI_PROVIDER và API key đã cấu hình (mặc định RulesProvider). |
+| `RulesProvider._answer(self, actor, question)` | 154 | Bộ luật nhận diện câu hỏi (quỹ, chưa đóng, tổng đã thu, không hoạt động, vắng nhiều nhất, báo cáo…) và truy vấn dữ liệu theo phạm vi quyền. |
+| class `AnthropicProvider` | 361 | Read-only Claude Messages API adapter; never gives the model write tools. |
+| `AnthropicProvider.complete(self, system, prompt, max_tokens=800, response_schema=None, purpose='chat')` | 366 | Gọi Claude API với giới hạn quota/timeout và ghi nhận usage. |
+| `AnthropicProvider.answer(self, actor, question, history=None)` | 406 | Ưu tiên dữ liệu kiểm chứng; chỉ dùng model cho câu hỏi chung khi AI_STRICT_FACTS tắt. |
+| class `GeminiProvider` | 472 | Gemini transport with the same scoped, read-only context as Claude. |
+| `GeminiProvider.complete(self, system, prompt, max_tokens=800, response_schema=None, purpose='chat')` | 477 | Gọi Gemini API với giới hạn quota/timeout và ghi nhận usage. |
+| `GeminiProvider.answer(self, actor, question, history=None)` | 533 | Như Anthropic; lỗi tạm thời thì quay về RulesProvider. |
+| `get_provider()` | 544 | Chọn nhà cung cấp theo AI_PROVIDER và API key đã cấu hình (mặc định RulesProvider). |
 
 ### `app/services/briefings.py`
 
@@ -646,6 +652,36 @@ Owned, persistent conversations with bounded keyset message pages.
 | `conversation_list(actor, page=1, archived=False)` | 156 | Danh sách cuộc trò chuyện theo trang (20 mục/trang), mới cập nhật trước. |
 | `message_page(actor, conversation, before=None, after=None)` | 165 | Tin nhắn của cuộc trò chuyện theo trang dạng keyset (before/after theo id). |
 | `conversation_json(conversation)` | 191 | Chuyển cuộc trò chuyện thành JSON. |
+
+### `app/services/club_data_tools.py`
+
+Công cụ đọc dữ liệu CÓ THAM SỐ cho trợ lý AI.
+
+| Hàm / class | Dòng | Mô tả |
+|---|---|---|
+| `is_highest_absence(text)` | 81 | Câu hỏi "sự kiện nào vắng nhiều nhất" (luật cũ trong RulesProvider xử lý). |
+| `_has(pattern, text)` | 86 | Tìm cụm từ trọn vẹn (không khớp giữa chừng một từ khác). |
+| `_empty_args()` | 91 | Bộ tham số rỗng (mọi khóa đều có mặt). |
+| `_bans_in(text)` | 97 | Các ban có tên xuất hiện trong câu (đã chuẩn hóa). |
+| `_events_in(text)` | 107 | Các sự kiện (không tính nháp) có mã hoặc tên xuất hiện trong câu. Bỏ khớp nằm gọn trong khớp dài hơn của sự kiện khác (vd. "CTF" trong "FIA CTF Fall"). |
+| `parse_args(question)` | 123 | Trích tham số từ câu hỏi gốc bằng luật (không dùng model). |
+| `merge_args(question, model_args)` | 174 | Gộp tham số luật trích được với gợi ý của model. - Giá trị luật trích được từ chính câu chữ luôn thắng (không để model bỏ bộ lọc). - Giá trị liệt kê (enum) của model chỉ được dùng khi luật không thấy gì (model hiểu cách nói khác, vd. "chăm đi sự kiện" = tích cực). - Ban / sự kiện do model nêu chỉ được dùng nếu thực sự xuất hiện trong câu hỏi. |
+| `_member_target(actor, question, scope)` | 212 | Một thành viên được nhắc đích danh (MSSV/họ tên) hoặc chính người hỏi; None nếu không có. |
+| `detect_tool(question)` | 228 | Đoán công cụ phù hợp chỉ bằng luật; None nếu không chắc (để luật cũ xử lý). |
+| `_result(intent, answer, sources=None, verification='database', facts=None)` | 267 | Kết quả chuẩn cho chat/agent. |
+| `_clarify(answer)` | 278 | Câu hỏi cần nói rõ thêm (không đoán). |
+| `_unsupported(answer)` | 283 | Bộ lọc chưa hỗ trợ: báo rõ thay vì trả dữ liệu rộng hơn câu hỏi. |
+| `_criteria_note()` | 293 | Giải thích ngắn quy tắc xếp loại hoạt động hiện tại của CLB. |
+| `member_stats(actor, args, question)` | 301 | Đếm/liệt kê thành viên theo ban, mức hoạt động, trạng thái (trong phạm vi được xem). |
+| `_one_member_activity(member)` | 359 | Mức hoạt động của một thành viên kèm số liệu để người đọc tự kiểm. |
+| `_timing_label(event, now)` | 373 | Nhãn theo thời gian thực (cột trạng thái có thể chưa được cập nhật). |
+| `_live_events()` | 384 | Sự kiện không phải nháp và chưa hủy. |
+| `_has_attendance(event)` | 389 | Sự kiện đã có ít nhất một kết quả điểm danh (khác "pending"). |
+| `_pick_event(args)` | 395 | Chọn đúng MỘT sự kiện theo selector; trả (event, câu hỏi lại nếu chưa chọn được). |
+| `event_participation(actor, args, question)` | 435 | Đăng ký và điểm danh của một sự kiện (hoặc của một thành viên trong sự kiện đó). |
+| `event_list(actor, args, question)` | 523 | Sự kiện sắp tới / đang diễn ra / đã diễn ra gần đây (thông tin chung, ai cũng xem được). |
+| `run_tool(actor, tool, question, model_args=None)` | 546 | Chạy một công cụ có tham số; tham số được gộp và kiểm tra theo câu hỏi gốc. |
+| `answer_by_rules(actor, question)` | 558 | Đường dự phòng không dùng model: nhận diện bằng luật rồi chạy công cụ. |
 
 ### `app/services/common.py`
 

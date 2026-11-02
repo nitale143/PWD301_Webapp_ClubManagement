@@ -190,6 +190,12 @@ Vào **Trợ lý AI**. Trợ lý trả lời các câu hỏi về dữ liệu CL
 | `Tóm tắt dữ liệu của tôi` | Hồ sơ hiện tại của bạn |
 | `Tôi còn khoản quỹ nào chưa đóng?` | Các khoản chưa đóng hoặc quá hạn của bạn |
 | `Các sự kiện sắp diễn ra` | Sự kiện sắp tới |
+| `Ban Kỹ thuật có bao nhiêu thành viên?` / `Ban Truyền thông gồm những ai?` | Số lượng và danh sách thành viên của ban |
+| `Tôi có tích cực không?` | Mức hoạt động của bạn kèm số sự kiện đã tham gia |
+| `Tôi đã đăng ký FIA CTF Fall chưa?` | Tình trạng đăng ký và điểm danh của bạn ở sự kiện đó |
+| `Sự kiện nào đang diễn ra?` / `Các sự kiện đã diễn ra gần đây` | Danh sách sự kiện theo thời gian |
+
+Dưới mỗi câu trả lời có dòng chú thích nguồn: *Model chọn công cụ và viết câu trả lời…* nghĩa là AI đang hoạt động; *Quy tắc dự phòng* kèm lý do (vd. chưa cấu hình AI, không gọi được model) nghĩa là lượt đó không dùng AI nhưng số liệu vẫn lấy từ database.
 
 Khi câu hỏi nằm ngoài phạm vi hỗ trợ, trợ lý nói rõ là chưa hỗ trợ thay vì đoán. Không nên dùng câu trả lời AI làm căn cứ duy nhất cho quyết định quan trọng.
 
@@ -354,6 +360,11 @@ Các thao tác nằm trong nút **Thao tác** ở góc phải trang Quỹ: Mở 
 - **Tóm tắt hôm nay và báo cáo có nguồn**: task quá hạn hoặc sắp hạn, sự kiện 7 ngày tới, khoản thu quá hạn, đề xuất và nháp email đang chờ.
 - **Xem trước báo cáo tuần/tháng** → **Lưu bản xem trước** để cố định số liệu. Từ bản đã lưu, có thể **Tải Excel** đúng bản đó hoặc **Tạo nháp email báo cáo cho tôi**.
 - Có thể hỏi trong chat: `Hôm nay cần xử lý gì?`, `Báo cáo tuần này`, `Báo cáo tháng này`.
+- Thống kê nhanh trong chat:
+  - `Có bao nhiêu thành viên tích cực?`, `Liệt kê thành viên ít hoạt động`, `Ai đang tạm nghỉ?` *(quyền Quản lý thành viên)*
+  - `Có bao nhiêu thành viên trong sự kiện sắp diễn ra?`, `Ai vắng ở sự kiện vừa rồi?`, `Bao nhiêu người đăng ký CTF-FALL?` *(quyền Sự kiện & task hoặc BĐH)*
+
+  "Sự kiện gần nhất/vừa rồi" khi hỏi vắng/có mặt là sự kiện gần nhất **đã điểm danh**; câu trả lời luôn ghi tên sự kiện được chọn. Câu hỏi kèm mốc ngày/tháng hoặc nhiều ban/sự kiện cùng lúc sẽ được yêu cầu hỏi lại cho rõ.
 
 ### 12.2. Đề xuất sự kiện và task *(người có quyền Sự kiện & task)*
 

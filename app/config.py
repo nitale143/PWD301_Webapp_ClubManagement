@@ -145,6 +145,10 @@ class Config:
     AI_AGENT_ENABLED = os.environ.get("AI_AGENT_ENABLED", "true").lower() == "true"
     AI_AGENT_MAX_STEPS = int(os.environ.get("AI_AGENT_MAX_STEPS", 3))
     AI_AGENT_MAX_SECONDS = int(os.environ.get("AI_AGENT_MAX_SECONDS", 90))
+    # Câu hỏi một ý đã có dữ liệu thì kết thúc ngay, không tốn thêm lượt gọi model.
+    AI_AGENT_FAST_FINISH = os.environ.get("AI_AGENT_FAST_FINISH", "true").lower() == "true"
+    # Model viết câu trả lời đúng trọng tâm từ dữ liệu đã tra cứu; mọi con số được đối chiếu.
+    AI_AGENT_COMPOSE = os.environ.get("AI_AGENT_COMPOSE", "true").lower() == "true"
 
     # --- Upload avatar (lưu trực tiếp trên server) ---
     UPLOAD_FOLDER = os.path.join(BASE_DIR, "app", "static", "uploads", "avatars")

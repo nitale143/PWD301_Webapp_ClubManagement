@@ -85,6 +85,10 @@ class AgentOrchestratorTests(unittest.TestCase):
             "AI_AGENT_MAX_STEPS": 3,
             "AI_AGENT_MAX_SECONDS": 10,
             "AI_CHAT_MESSAGES_PER_MINUTE": 100,
+            # Các test này đếm chính xác số lượt lập kế hoạch của vòng agent gốc;
+            # bước kết thúc sớm và bước viết câu trả lời được test riêng.
+            "AI_AGENT_FAST_FINISH": False,
+            "AI_AGENT_COMPOSE": False,
         })
         self.client = self.app.test_client()
         self.context = self.app.app_context()

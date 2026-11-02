@@ -426,6 +426,7 @@ await fetch('/api/v1/funds', {
 | Provider | `services/assistant.py` | `RulesProvider` (không dùng model, truy vấn cố định), `GeminiProvider`, `AnthropicProvider`. `get_provider()` chọn theo `AI_PROVIDER` + key. |
 | Agent | `services/agent_orchestrator.py` | Vòng lặp: model lập kế hoạch JSON → backend kiểm tra tên tool và phạm vi → chạy **reader đã kiểm chứng** → tối đa `AI_AGENT_MAX_STEPS` bước. Tiến trình stream qua SSE `/ai/stream`. |
 | Truy vấn kiểm chứng | `verified_queries.py`, `briefings.py` | Hồ sơ/task thành viên, digest ngày, báo cáo tuần/tháng. |
+| Công cụ có tham số | `club_data_tools.py` | `member_stats`, `event_participation`, `event_list` (xem 12.2). |
 | Đề xuất | `proposals.py`, `natural_proposals.py`, `natural_datetime.py` | Tạo `AIProposal` (event/task). Duyệt mới ghi dữ liệu thật (MANAGE_EVENTS). |
 | Email | `email_proposals.py`, `email_templates.py` | Tạo `EmailProposal` nháp. BĐH duyệt mới gửi. Nội dung: mẫu trong kho → mẫu chung (xem 12.1). |
 | Kho mẫu | `email_templates.py`, `proposal_templates.py`, `routes/kho_mau.py` | Lưu/sửa mẫu, chọn mẫu cho AI. |
@@ -438,6 +439,7 @@ await fetch('/api/v1/funds', {
 3. Ngữ cảnh gửi model chỉ gồm câu hỏi của người dùng (tối đa 6 câu), không gồm câu trả lời AI cũ.
 4. Trước khi trả kết quả, gọi lại `_reauthorize`. Quyền đổi giữa chừng thì hủy lượt đó.
 5. Quota: `AI_MAX_CALLS_PER_MINUTE`, `AI_DAILY_TOKEN_LIMIT`, `AI_CHAT_MESSAGES_PER_MINUTE`. Usage được ghi vào `ai_usage_log` (không lưu prompt).
+6. Câu trả lời do model viết (bước compose) chỉ được dùng khi **mọi con số và mã** (MSSV, mã sự kiện) trong đó có nguyên văn trong dữ liệu đã tra cứu hoặc trong câu hỏi; sai một số là dùng bản server dựng.
 
 ### 12.1. Kho mẫu
 
@@ -458,6 +460,37 @@ Trang `/kho-mau` (blueprint `kho_mau`), 3 tab: Mẫu email (MANAGE_TEMPLATES), M
 - Payload lưu `template` và `template_source`; `proposal_preview` in dòng "Khung: …".
 
 ---
+
+### 12.2. Luồng một câu hỏi và công cụ có tham số
+
+```
+câu hỏi ──► [model] lập kế hoạch JSON {action, tool, query, args}
+              │  _parse_plan: đúng khóa, tool có trong danh sách, args đúng kiểu/enum
+              ▼
+           server chạy tool: club_data_tools.run_tool(actor, tool, câu gốc, args)
+              │  merge_args: luật trích tham số từ câu gốc; gợi ý của model chỉ dùng khi
+              │  luật không thấy (enum) hoặc ban/sự kiện thật sự có trong câu
+              │  quyền: access.py (MANAGE_MEMBERS cho mức hoạt động, MANAGE_EVENTS/BĐH cho điểm danh)
+              ▼
+           câu hỏi một ý (AI_AGENT_FAST_FINISH) → kết thúc; câu ghép → lập kế hoạch tiếp
+              ▼
+           [model] compose_answer (AI_AGENT_COMPOSE): viết câu trả lời đúng trọng tâm
+              │  đối chiếu số + mã; sai → giữ bản server; luôn lưu verified_answer
+              ▼
+           _reauthorize → trả kết quả (SSE)
+```
+
+Model lỗi/hết quota/kế hoạch sai → `_rules_fallback`: `club_data_tools.answer_by_rules` (luật nhận diện `detect_tool`) chạy **trước** các luật cũ, để câu hỏi về thành viên không bị nhánh "liệt kê sự kiện" bắt nhầm.
+
+| Tool | Tham số (`args`) | Quyền |
+|---|---|---|
+| `member_stats` | `ban`, `activity` (tich_cuc · binh_thuong · it_hoat_dong · khong_hoat_dong), `state` (paused/active), `output` | Đếm/liệt kê cơ bản: mọi thành viên (danh bạ). Mức hoạt động, tạm nghỉ: MANAGE_MEMBERS (hoặc hỏi về chính mình). |
+| `event_participation` | `selector` (next · latest · ongoing · named), `event`, `detail` (registered · present · absent), `ban` | MANAGE_EVENTS hoặc BĐH; thành viên thường chỉ hỏi được về chính mình. |
+| `event_list` | `window` (upcoming · ongoing · past) | Mọi thành viên. |
+
+Bộ lọc chưa hỗ trợ (ngày/tháng, nhiều ban, nhiều sự kiện) → trả `unsupported`/`clarification`, **không** trả số liệu rộng hơn câu hỏi.
+
+**Đo độ đúng:** `python scripts/ai_eval.py` (30 câu mẫu, chế độ luật) hoặc `--provider env` (dùng AI trong `.env`), `--as <MSSV>` để thử theo vai trò. Câu hỏi được điền tên ban/sự kiện/MSSV lấy từ database đang dùng; con số đúng được tính bằng truy vấn độc lập trong script. Thêm câu mới vào `build_cases()` mỗi khi gặp câu trả lời sai.
 
 ## 13. Email, scheduler, file upload
 
@@ -536,7 +569,7 @@ python scripts/gen_function_reference.py                   # cập nhật FUNCTI
 | `test_core_flows.py` | Quỹ theo kỳ, sự kiện → task → tính hoạt động, trang/xuất thành viên, lệnh CLI |
 | `test_auth_hardening.py` | CSRF mọi method, đăng nhập (khóa, xoay session, open redirect), đăng ký, avatar |
 | `test_workflows.py` | Luồng nghiệp vụ rộng: quỹ khoản thu, sự kiện, AI, email |
-| `test_agent_orchestrator.py`, `test_ai_reliability.py`, `test_chat_conversations.py`, `test_natural_datetime.py` | Trợ lý AI |
+| `test_agent_orchestrator.py`, `test_ai_data_tools.py`, `test_ai_reliability.py`, `test_chat_conversations.py`, `test_natural_datetime.py` | Trợ lý AI |
 | `test_security_boundaries.py`, `test_ctftime.py`, `test_real_ui.py` | Biên bảo mật, CTFtime, giao diện |
 
 **Viết test mới:**
