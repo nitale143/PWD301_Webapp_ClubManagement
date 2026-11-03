@@ -229,3 +229,9 @@
 .kho-mau .template-form .field { margin-bottom:10px; }
 .kho-mau .template-var { display:inline-block; margin:2px 4px 2px 0; padding:1px 6px; border-radius:5px; background:var(--primary-soft); color:var(--primary); font-size:11px; }
 .kho-mau .checkbox-row { display:flex; align-items:center; gap:8px; font-size:12px; margin:4px 0 10px; }
+
+/* Logo CLB ở khung chào của Tổng quan (thay khối tròn "CLB FIA") */
+.ops-preview .hero-logo { position:absolute; right:5%; top:50%; transform:translateY(-50%); width:200px; height:200px; pointer-events:none; }
+.ops-preview .hero-logo img { display:block; width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 14px 30px #00000066); }
+@media (max-width:1000px) { .ops-preview .hero-logo { right:3%; width:160px; height:160px; } }
+@media (max-width:680px) { .ops-preview .hero-logo { right:8px; top:12px; transform:none; width:96px; height:96px; opacity:.9; } .ops-preview .hero-copy { padding-right:100px; } }

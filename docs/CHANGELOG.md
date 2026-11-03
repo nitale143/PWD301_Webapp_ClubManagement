@@ -1,3 +1,9 @@
+# Giao diện: logo mới, favicon, bỏ tìm nhanh (03/11/2026)
+
+- Logo CLB mới (`static/assets/fia-club-logo.png`), dùng cho thanh bên, trang giới thiệu và khung chào trang Tổng quan (thay khối tròn "CLB FIA").
+- Bộ favicon tạo từ logo mới: `favicon.ico` (16/32/48 px), `favicon-32.png`, `apple-touch-icon.png`.
+- Bỏ ô "Tìm nhanh trong workspace" và phím tắt Ctrl K. Nút "Các chức năng" vẫn mở danh sách trang.
+
 # Trợ lý AI trả lời đúng trọng tâm (03/11/2026)
 
 ## Lỗi đã sửa

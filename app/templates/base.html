@@ -24,7 +24,10 @@
     <meta name="color-scheme" content="dark">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}FIA Workspace{% endblock %} · FIA</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='assets/fia-club-logo.png') }}">
+    {# Favicon: thay các file trong static/assets/ (favicon.ico, favicon-32.png, apple-touch-icon.png) #}
+    <link rel="icon" href="{{ url_for('static', filename='assets/favicon.ico') }}" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='assets/favicon-32.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='assets/apple-touch-icon.png') }}">
     {% for name in ['preview-style', 'preview-reference-theme', 'preview-landing', 'preview-fia-brand', 'preview-events-sources', 'live-ui', 'parity-ai', 'parity-finance', 'parity-operations', 'parity-public'] %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/' ~ name ~ '.css') }}">
     {% endfor %}

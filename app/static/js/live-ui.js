@@ -9,10 +9,7 @@
   menu?.addEventListener('click',()=>{const open=!sidebar.classList.contains('is-open');sidebar.classList.toggle('is-open',open);menu.setAttribute('aria-expanded',String(open));overlay.hidden=!open;});
   overlay?.addEventListener('click',closeMenu);sidebar?.querySelectorAll('a').forEach(link=>link.addEventListener('click',closeMenu));
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&sidebar?.classList.contains('is-open'))closeMenu({restoreFocus:true});});
-  function showDialog(id){const dialog=document.getElementById(id);if(dialog instanceof HTMLDialogElement){if(!dialog.open)dialog.showModal();if(id==='workspace-links')dialog.querySelector('[data-search-links]')?.focus();}}
+  function showDialog(id){const dialog=document.getElementById(id);if(dialog instanceof HTMLDialogElement){if(!dialog.open)dialog.showModal();}}
   document.addEventListener('click',event=>{const trigger=event.target.closest('[data-open-dialog]');if(trigger)showDialog(trigger.dataset.openDialog);const close=event.target.closest('[data-close-dialog]');if(close)close.closest('dialog')?.close();});
   document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}));
-  document.getElementById('global-search')?.addEventListener('click',()=>showDialog('workspace-links'));
-  document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'&&document.getElementById('workspace-links')){event.preventDefault();showDialog('workspace-links');}});
-  document.querySelector('[data-search-links]')?.addEventListener('input',event=>{const text=event.target.value.trim().toLocaleLowerCase('vi');document.querySelectorAll('.live-quick-links a').forEach(link=>link.hidden=!link.textContent.toLocaleLowerCase('vi').includes(text));});
 })();

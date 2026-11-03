@@ -1,8 +1,7 @@
-{# Hộp "Các chức năng" (Ctrl K) – liệt kê nhanh các trang người dùng được vào #}
+{# Hộp "Các chức năng" – liệt kê các trang người dùng được vào #}
 <dialog id="workspace-links" class="dialog">
-    <div class="dialog-heading"><h2>Tìm nhanh trong workspace</h2><button class="icon-button" type="button" data-close-dialog aria-label="Đóng">{{ icon('close') }}</button></div>
+    <div class="dialog-heading"><h2>Các chức năng</h2><button class="icon-button" type="button" data-close-dialog aria-label="Đóng">{{ icon('close') }}</button></div>
     <div class="dialog-body">
-        <label class="field"><span class="field-label">Tìm chức năng</span><input class="input" type="search" data-search-links placeholder="Thành viên, sự kiện, quỹ…"></label>
         <div class="live-quick-links">
             {% for endpoint, glyph, label, prefix in nav %}<a class="quick-link" href="{{ url_for(endpoint) }}">{{ icon(glyph) }}{{ label }}{{ icon('chevron') }}</a>{% endfor %}
             {% if can_approve %}<a class="quick-link" href="{{ url_for('admin.approve_list') }}">{{ icon('shield') }}Phê duyệt</a>{% endif %}

@@ -347,6 +347,11 @@ Template dùng `can(Permission.X)` (từ context processor) để ẩn/hiện n�
 - Context processor `services/ui_context.workspace_context` cung cấp `workspace_title`, `workspace_today`, thông báo, `Permission`, `can(perm)`.
 - Jinja tự escape mọi biến. **Không dùng `|safe` cho dữ liệu người dùng.** Nếu sau này cho nhập rich-text/Markdown, phải lọc bằng Bleach theo whitelist (Ch8).
 - Script inline phải có `nonce="{{ csp_nonce }}"`, vì CSP chặn script inline không có nonce. Ưu tiên đặt JS trong `static/js/`.
+- **Logo và favicon** nằm trong `app/static/assets/`:
+  - `fia-club-logo.png` (512×512, nền trong suốt): logo ở thanh bên, khung chào trang Tổng quan, trang giới thiệu.
+  - `favicon.ico` (16/32/48 px), `favicon-32.png`: biểu tượng tab trình duyệt. `apple-touch-icon.png` (180×180, nền tối): biểu tượng khi lưu web ra màn hình điện thoại. Khai báo trong `<head>` của `base.html`.
+  - Đổi logo: thay các file trên, **giữ nguyên tên**. Có thể tạo lại cả bộ từ một ảnh PNG nền trong suốt bằng Pillow: cắt sát viền (`getchannel('A').getbbox()`), đặt vào khung vuông, rồi `resize` về từng kích thước; `.ico` lưu với `sizes=[(16,16),(32,32),(48,48)]`.
+  - Trình duyệt lưu favicon rất lâu: sau khi đổi, tải lại bằng Ctrl+Shift+R hoặc mở tab ẩn danh để thấy ngay.
 
 ---
 

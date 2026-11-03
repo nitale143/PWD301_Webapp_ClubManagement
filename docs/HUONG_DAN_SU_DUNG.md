@@ -84,7 +84,7 @@ Một số thao tác nhạy cảm như đổi mật khẩu, gán chức vụ, nh
 
 - **Thanh bên trái**: Tổng quan, Thành viên, Sự kiện, Công việc, Quỹ câu lạc bộ, Trợ lý AI. Người có quyền sẽ thấy thêm mục **ĐIỀU HÀNH** (Phê duyệt; Vai trò & phân quyền). Bên dưới là tên của bạn và nút **Đăng xuất**.
 - **Thanh trên cùng**: chuông 🔔 hiện thông báo của bạn (nhắc deadline, nhắc kỳ quỹ…). Biểu tượng tròn bên phải mở Hồ sơ.
-- **Các chức năng / Ctrl K**: hộp tìm nhanh để nhảy tới mọi trang bạn được phép vào.
+- **Các chức năng**: danh sách các trang bạn được phép vào.
 - **Thông báo màu** ở đầu trang: xanh là thành công, đỏ là lỗi hoặc cảnh báo.
 - Trên điện thoại, bấm biểu tượng lưới ở góc trái để mở menu.
 
