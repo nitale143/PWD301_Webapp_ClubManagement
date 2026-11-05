@@ -2,7 +2,6 @@
 {% from "_ui.html" import icon, badge, avatar, stat %}
 {% block title %}{{ event.ten_su_kien }}{% endblock %}
 {% block content %}
-{% set event_status_labels = {'sap_dien_ra': 'Sắp diễn ra', 'dang_dien_ra': 'Đang diễn ra', 'da_ket_thuc': 'Đã kết thúc'} %}
 {% set accent = ['indigo', 'orange', 'violet', 'teal'][event.id % 4] %}
 {% set visible_tasks = event.tasks if can(Permission.MANAGE_EVENTS) else event.tasks|selectattr('assignee_id', 'equalto', current_user.id)|list %}
 {% set registered_count = registrations|selectattr('trang_thai', 'equalto', 'registered')|list|length %}
@@ -13,7 +12,7 @@
 <div class="page-stack ops-preview ops-event-detail">
     <div class="toolbar detail-back-toolbar">
         <div class="toolbar-left"><a class="btn btn-ghost btn-sm" href="{{ url_for('event.event_list') }}">{{ icon('arrow') }} Tất cả sự kiện</a><span class="muted small">/ {{ event.ma_su_kien }}</span></div>
-        <div class="toolbar-right">{% if is_bdh and event.trang_thai not in ['da_ket_thuc', 'cancelled'] %}<form method="post" action="{{ url_for('event.event_end', event_id=event.id) }}" data-confirm="Đánh dấu sự kiện đã kết thúc? Tình trạng hoạt động liên quan sẽ được cập nhật."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn btn-secondary btn-sm">{{ icon('check') }} Kết thúc sự kiện</button></form>{% endif %}</div>
+        <div class="toolbar-right event-status-actions">{% set status_confirms = {'dang_dien_ra': ('Mở lại sự kiện? Task và điểm danh sẽ sửa được tiếp; tình trạng hoạt động sẽ được tính lại.' if event.trang_thai == 'da_ket_thuc' else 'Bắt đầu sự kiện ngay bây giờ?'), 'da_ket_thuc': 'Kết thúc sự kiện? Task bị khóa và tình trạng hoạt động được tính lại.', 'cancelled': 'Hủy sự kiện? Không thể hoàn tác.'} %}{% set status_icons = {'dang_dien_ra': 'clock', 'da_ket_thuc': 'check', 'cancelled': 'close'} %}{% for target, label in status_actions.items() %}<form method="post" action="{{ url_for('event.event_change_status', event_id=event.id) }}" data-confirm="{{ status_confirms[target] }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="trang_thai" value="{{ target }}"><button type="submit" class="btn {{ 'btn-danger' if target == 'cancelled' else 'btn-secondary' }} btn-sm">{{ icon(status_icons[target]) }} {{ label }}</button></form>{% endfor %}</div>
     </div>
 
     <section class="event-detail-hero cover-{{ accent }}">
@@ -21,8 +20,9 @@
             <span class="eyebrow">{{ (detail.loai if detail and detail.loai else 'Sự kiện FIA')|upper }} · {{ event.ma_su_kien }}</span>
             <h2>{{ event.ten_su_kien }}</h2>
             <p class="detail-meta-line">{{ icon('calendar') }} {{ event.thoi_gian_bat_dau.strftime('%d/%m/%Y %H:%M') }} – {{ event.thoi_gian_ket_thuc.strftime('%d/%m/%Y %H:%M') }} <span>·</span> {{ icon('location') }} {{ detail.dia_diem if detail and detail.dia_diem else 'Chưa cập nhật địa điểm' }}</p>
+            {% if event.trang_thai in ['sap_dien_ra', 'dang_dien_ra'] %}<p class="small muted event-status-note">{% if event.trang_thai == 'sap_dien_ra' %}Tự chuyển "Đang diễn ra" lúc {{ event.thoi_gian_bat_dau.strftime('%H:%M %d/%m') }}. {% endif %}Tự chuyển "Đã kết thúc" lúc {{ auto_close_at.strftime('%H:%M %d/%m') }} nếu chưa ai kết thúc.</p>{% endif %}
             {% if detail and detail.loai == 'ctftime' and event.ma_su_kien.startswith('CTF-') %}<p class="small"><a class="event-source-link" href="https://ctftime.org/event/{{ event.ma_su_kien[4:] }}/" target="_blank" rel="noopener noreferrer">Nguồn: CTFtime ↗</a></p>{% endif %}
-            <div class="toolbar"><div class="toolbar-left">{% if event.trang_thai == 'dang_dien_ra' %}{{ badge('Đang diễn ra', 'success') }}{% elif event.trang_thai == 'sap_dien_ra' %}{{ badge('Sắp diễn ra', 'indigo') }}{% else %}{{ badge(event_status_labels.get(event.trang_thai, event.trang_thai), 'neutral') }}{% endif %}{{ badge(registered_count|string ~ ' đăng ký' ~ (' · ' ~ waitlist_count|string ~ ' chờ' if waitlist_count else ''), 'neutral') }}</div></div>
+            <div class="toolbar"><div class="toolbar-left">{{ badge(status.label, status.tone) }}{{ badge(registered_count|string ~ ' đăng ký' ~ (' · ' ~ waitlist_count|string ~ ' chờ' if waitlist_count else ''), 'neutral') }}</div></div>
         </div>
         <div class="event-detail-art" aria-hidden="true">{{ icon('calendar') }}</div>
     </section>

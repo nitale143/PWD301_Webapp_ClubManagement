@@ -235,3 +235,7 @@
 .ops-preview .hero-logo img { display:block; width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 14px 30px #00000066); }
 @media (max-width:1000px) { .ops-preview .hero-logo { right:3%; width:160px; height:160px; } }
 @media (max-width:680px) { .ops-preview .hero-logo { right:8px; top:12px; transform:none; width:96px; height:96px; opacity:.9; } .ops-preview .hero-copy { padding-right:100px; } }
+
+/* Nút chuyển trạng thái sự kiện (event_detail) */
+.ops-preview .event-status-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.ops-preview .event-status-note { margin:4px 0 0; }

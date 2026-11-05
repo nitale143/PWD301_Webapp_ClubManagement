@@ -372,7 +372,8 @@ def load_user(user_id):
 # ---------------------------------------------------------------------------
 class Event(db.Model):
     """Sự kiện của CLB; `tasks` là các task con. Trạng thái: sap_dien_ra | dang_dien_ra |
-    da_ket_thuc | cancelled.
+    da_ket_thuc | cancelled – chỉ được đổi qua app/services/event_status.py (BĐH chuyển tay hoặc
+    hệ thống tự chuyển theo giờ).
     """
     __tablename__ = "event"
     id = db.Column(db.Integer, primary_key=True)
@@ -381,10 +382,18 @@ class Event(db.Model):
     thoi_gian_bat_dau = db.Column(db.DateTime, nullable=False)
     thoi_gian_ket_thuc = db.Column(db.DateTime, nullable=False)
     # sap_dien_ra | dang_dien_ra | da_ket_thuc | cancelled
-    trang_thai = db.Column(db.String(20), default="sap_dien_ra")
+    trang_thai = db.Column(db.String(20), nullable=False, default="sap_dien_ra")
+    # Lần gần nhất BĐH đổi trạng thái bằng tay (giờ CLB). Mở lại sự kiện thì hệ thống chỉ tự
+    # kết thúc sau EVENT_AUTO_CLOSE_HOURS tính từ lúc mở lại. NULL = chưa đổi tay lần nào.
+    trang_thai_doi_tay_luc = db.Column(db.DateTime)
     tao_boi_id = db.Column(db.Integer, db.ForeignKey("user.id"))
 
     tasks = db.relationship("Task", backref="event", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        db.CheckConstraint("trang_thai IN ('sap_dien_ra','dang_dien_ra','da_ket_thuc','cancelled')",
+                           name="ck_event_status"),
+    )
 
 
 class Task(db.Model):

@@ -15,8 +15,8 @@ Công thức cho một thành viên trong một kỳ (FundPeriod):
   - Thành viên đang tạm nghỉ (MemberRecord.tinh_trang = paused) hiển thị "Tạm nghỉ".
 
 Kết quả được lưu ở bảng MemberActivity (một dòng cho mỗi thành viên mỗi kỳ) và được tính lại
-khi: BĐH kết thúc sự kiện, sửa điểm danh của sự kiện đã kết thúc, hoặc chạy
-`flask recompute-activity`. Trang hiển thị dùng kỳ hiện tại (FundPeriod.is_current).
+khi: sự kiện vào hoặc rời trạng thái đã kết thúc (BĐH bấm hoặc hệ thống tự chuyển, xem
+event_status.py), sửa điểm danh của sự kiện đã kết thúc, hoặc chạy `flask recompute-activity`. Trang hiển thị dùng kỳ hiện tại (FundPeriod.is_current).
 """
 from app import db
 from app.config import Config
@@ -171,9 +171,8 @@ def refresh_period(period):
 
 
 def refresh_for_event(event):
-    """Gọi khi sự kiện đã kết thúc thay đổi dữ liệu: tính lại kỳ chứa ngày kết thúc của sự kiện."""
-    if event.trang_thai != "da_ket_thuc":
-        return 0
+    """Tính lại kỳ chứa ngày kết thúc của sự kiện. Gọi khi sự kiện vào/rời trạng thái đã kết thúc
+    hoặc khi dữ liệu của sự kiện đã kết thúc thay đổi (vd. sửa điểm danh)."""
     return refresh_period(period_of(event.thoi_gian_ket_thuc.date()))
 
 

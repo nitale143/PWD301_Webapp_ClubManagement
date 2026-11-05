@@ -12,7 +12,10 @@ from app.permissions import approved_required, permission_required
 from app.security import require_csrf
 from app.mail import send_email
 from app.services.email_templates import render_system_email
-from app.services.activities import refresh_for_event
+from app.services.event_status import (
+    ENDED, allowed_targets, auto_close_at, change_status, display, initial_status,
+    refresh as refresh_event_status,
+)
 from app.services.common import DomainError, club_now, parse_datetime
 from app.services.access import can_manage_events
 from app.services.events import (
@@ -98,7 +101,7 @@ def ctftime_import():
         ma_su_kien=code,
         thoi_gian_bat_dau=starts,
         thoi_gian_ket_thuc=ends,
-        trang_thai="dang_dien_ra" if starts <= now else "sap_dien_ra",
+        trang_thai=initial_status(starts, ends, now),
         tao_boi_id=current_user.id,
     )
     source_url = f"https://ctftime.org/event/{source_id}/"
@@ -147,7 +150,7 @@ def event_new():
             ma_su_kien=form.ma_su_kien.data,
             thoi_gian_bat_dau=form.thoi_gian_bat_dau.data,
             thoi_gian_ket_thuc=form.thoi_gian_ket_thuc.data,
-            trang_thai="sap_dien_ra",
+            trang_thai=initial_status(form.thoi_gian_bat_dau.data),
             tao_boi_id=current_user.id,
         )
         db.session.add(ev)
@@ -176,6 +179,7 @@ def event_detail(event_id):
     task của mình).
     """
     ev = db.get_or_404(Event, event_id)
+    refresh_event_status(ev)
     bans = Ban.query.all()
     registration = EventRegistration.query.filter_by(event_id=event_id, user_id=current_user.id).first()
     registrations = EventRegistration.query.filter_by(event_id=event_id).order_by(EventRegistration.dang_ky_luc).all()
@@ -188,6 +192,9 @@ def event_detail(event_id):
         registration=registration, registrations=registrations, detail=detail,
         can_register=registration_open(ev, detail) and eligible(ev, current_user),
         prior_feedback=prior_feedback,
+        status=display(ev),
+        status_actions=allowed_targets(ev) if can_manage_events(current_user) else {},
+        auto_close_at=auto_close_at(ev),
     )
 
 
@@ -428,18 +435,40 @@ def task_update_status(task_id):
     return redirect(url_for("event.event_detail", event_id=task.event_id))
 
 
+_STATUS_MESSAGES = {
+    "dang_dien_ra": "Sự kiện đang diễn ra.",
+    "da_ket_thuc": "Đã kết thúc sự kiện và cập nhật lại tình trạng hoạt động.",
+    "cancelled": "Đã hủy sự kiện.",
+}
+
+
+def _change_event_status(event_id, new_status):
+    ev = db.get_or_404(Event, event_id)
+    reopened = ev.trang_thai == ENDED
+    try:
+        change_status(current_user, ev, new_status)
+    except DomainError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+    else:
+        flash("Đã mở lại sự kiện; tình trạng hoạt động đã được tính lại." if reopened
+              else _STATUS_MESSAGES[new_status], "success")
+    return redirect(url_for("event.event_detail", event_id=ev.id))
+
+
+@event_bp.route("/event/<int:event_id>/trang-thai", methods=["POST"])
+@login_required
+@permission_required(Permission.MANAGE_EVENTS)
+def event_change_status(event_id):
+    """BĐH chuyển trạng thái bằng tay: bắt đầu sớm, kết thúc, hủy, mở lại (xem event_status.MANUAL)."""
+    require_csrf()
+    return _change_event_status(event_id, request.form.get("trang_thai", ""))
+
+
 @event_bp.route("/event/<int:event_id>/ket-thuc", methods=["POST"])
 @login_required
 @permission_required(Permission.MANAGE_EVENTS)
 def event_end(event_id):
-    """Đánh dấu sự kiện đã kết thúc rồi tính lại tình trạng hoạt động (task + điểm danh) của mọi
-    thành viên trong kỳ chứa ngày kết thúc sự kiện."""
-    ev = db.get_or_404(Event, event_id)
-    if event_is_terminal(ev):
-        abort(400)
-    ev.trang_thai = "da_ket_thuc"
-    refresh_for_event(ev)
-    db.session.commit()
-
-    flash("Đã đánh dấu sự kiện kết thúc và cập nhật lại tình trạng hoạt động liên quan.", "success")
-    return redirect(url_for("event.event_detail", event_id=ev.id))
+    """Kết thúc sự kiện (giữ đường dẫn cũ). Tình trạng hoạt động của kỳ được tính lại."""
+    require_csrf()
+    return _change_event_status(event_id, ENDED)

@@ -173,7 +173,7 @@ Mỗi kỳ (Spring, Summer, Fall…), hệ thống chấm cho mỗi thành viên
 | chưa có task và chưa có sự kiện phải tham gia, hoặc kỳ bạn mới vào CLB | Chưa xếp loại |
 | BĐH ghi bạn đang tạm nghỉ | Tạm nghỉ |
 
-Điểm được tính lại khi BĐH bấm **Kết thúc sự kiện** hoặc sửa điểm danh của sự kiện đã kết thúc. Xem điểm của bạn ở **Hồ sơ**, hoặc hỏi Trợ lý AI "Tôi có tích cực không?".
+Điểm được tính lại khi sự kiện kết thúc (BĐH bấm, hoặc hệ thống tự kết thúc 24 giờ sau giờ kết thúc), khi sự kiện được mở lại, hoặc khi sửa điểm danh của sự kiện đã kết thúc. Xem điểm của bạn ở **Hồ sơ**, hoặc hỏi Trợ lý AI "Tôi có tích cực không?".
 
 ---
 
@@ -335,9 +335,29 @@ Dùng khi bàn giao nhiệm kỳ.
 - **Điểm danh thủ công**: ở bảng người tham gia, chọn Có mặt / Đi muộn / Có phép / Vắng, ghi chú nếu cần → **Lưu**.
 - Mẹo: mở web bằng địa chỉ mà điện thoại truy cập được (tên miền thật). Mã QR sinh từ `127.0.0.1` chỉ dùng được trên chính máy đó.
 
-### 10.4. Kết thúc sự kiện
+### 10.4. Trạng thái sự kiện: tự động và chuyển tay
 
-Bấm **Kết thúc sự kiện** khi sự kiện xong. Đây là lúc hệ thống **tính lại tình trạng hoạt động** (task + điểm danh) của mọi thành viên trong kỳ chứa ngày kết thúc. Hãy duyệt hết task và hoàn tất điểm danh trước khi bấm. Sửa điểm danh sau khi kết thúc vẫn được, hệ thống tự tính lại.
+Sự kiện có 4 trạng thái: **Sắp diễn ra**, **Đang diễn ra**, **Đã kết thúc**, **Đã hủy**. Hệ thống tự chuyển theo giờ, BĐH vẫn chuyển tay được bất cứ lúc nào.
+
+**Hệ thống tự chuyển** (rà soát 5 phút/lần và mỗi khi có người mở web):
+- Tới giờ bắt đầu → **Đang diễn ra**.
+- Qua giờ kết thúc → nhãn **Chờ kết thúc** (vẫn duyệt task, sửa điểm danh được).
+- 24 giờ sau giờ kết thúc → **Đã kết thúc**. Thời gian chờ đổi được bằng `EVENT_AUTO_CLOSE_HOURS`.
+
+Trang chi tiết sự kiện ghi rõ giờ hệ thống sẽ tự chuyển.
+
+**BĐH chuyển tay** (nút ở góc phải trang chi tiết sự kiện):
+
+| Đang ở | Nút | Dùng khi |
+|---|---|---|
+| Sắp diễn ra | **Bắt đầu ngay** | Sự kiện bắt đầu sớm hơn giờ đã đặt |
+| Sắp diễn ra / Đang diễn ra | **Kết thúc sự kiện** | Đã xong, muốn chốt ngay không chờ 24 giờ |
+| Sắp diễn ra / Đang diễn ra | **Hủy sự kiện** | Sự kiện không tổ chức nữa (không hủy được khi đã có người điểm danh) |
+| Đã kết thúc | **Mở lại sự kiện** | Chốt nhầm, cần duyệt thêm task hoặc sửa điểm danh. Hệ thống tự kết thúc lại sau 24 giờ tính từ lúc mở. |
+
+Muốn dời sự kiện thì sửa giờ của sự kiện; trạng thái tự tính lại theo giờ mới.
+
+Khi sự kiện **kết thúc** (tự động hay bấm tay) hoặc được **mở lại**, hệ thống tính lại tình trạng hoạt động (task + điểm danh) của mọi thành viên trong kỳ. Sau khi kết thúc: task bị khóa, thành viên đánh giá được sự kiện, điểm danh vẫn sửa được và được tính lại.
 
 ---
 

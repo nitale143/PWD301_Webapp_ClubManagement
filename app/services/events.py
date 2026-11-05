@@ -11,6 +11,7 @@ from app.models import (
 )
 from .access import approved, can_manage_events, require
 from .activities import refresh_for_event
+from .event_status import ENDED, OPEN, is_terminal
 from .common import DomainError, audit, club_now
 from app.timeutil import utcnow
 
@@ -18,7 +19,6 @@ from app.timeutil import utcnow
 QR_TTL_SECONDS = 15 * 60
 REGISTRATION_STATES = {"registered", "waitlist", "cancelled"}
 ATTENDANCE_STATES = {"on_time", "late", "excused", "absent", "pending"}
-TERMINAL_EVENT_STATES = frozenset({"da_ket_thuc", "cancelled"})
 
 
 def _serializer():
@@ -28,7 +28,7 @@ def _serializer():
 
 def event_is_terminal(event):
     """Sự kiện đã kết thúc hoặc bị hủy (không cho sửa task/đăng ký)."""
-    return bool(event and event.trang_thai in TERMINAL_EVENT_STATES)
+    return is_terminal(event)
 
 
 def registration_open(event, detail, now=None):
@@ -40,7 +40,7 @@ def registration_open(event, detail, now=None):
     now = now or club_now()
     deadline = detail.han_dang_ky if detail and detail.han_dang_ky else event.thoi_gian_ket_thuc
     return (not event_is_terminal(event)
-            and event.trang_thai in {"sap_dien_ra", "dang_dien_ra", "open"}
+            and event.trang_thai in OPEN
             and now <= deadline)
 
 
@@ -167,7 +167,8 @@ def manual_attendance(actor, registration, state, note=""):
     attendance.ghi_chu = str(note or "").strip()
     db.session.flush()
     # Sửa điểm danh sau khi sự kiện đã kết thúc → tính lại tình trạng hoạt động của kỳ.
-    refresh_for_event(registration.event)
+    if registration.event.trang_thai == ENDED:
+        refresh_for_event(registration.event)
     audit(actor, "attendance_manual", attendance, {"state": state})
     db.session.commit()
     return attendance
@@ -176,7 +177,7 @@ def manual_attendance(actor, registration, state, note=""):
 def feedback(actor, event, rating, comment=""):
     """Lưu/cập nhật đánh giá 1–5 sao của người đã tham gia, sau khi sự kiện kết thúc."""
     require(approved(actor))
-    if event.trang_thai not in {"da_ket_thuc", "completed"}:
+    if event.trang_thai != ENDED:
         raise DomainError("Chỉ phản hồi sau khi sự kiện kết thúc.")
     registration = EventRegistration.query.filter_by(event_id=event.id, user_id=actor.id, trang_thai="registered").first()
     if not registration:

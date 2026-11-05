@@ -66,14 +66,14 @@ Nginx (TLS, static) ──► Gunicorn ──► ProxyFix (WSGI middleware)
 ├── gunicorn.conf.py        # cấu hình Gunicorn
 ├── Dockerfile, docker-compose.yml, .dockerignore
 ├── deploy/                 # nginx.conf, systemd units
-├── migrations/             # Flask-Migrate (Alembic): 0001 baseline, 0002 roles/auth, 0003 admin/kho mẫu/định dạng, 0004 tình trạng hoạt động
+├── migrations/             # Flask-Migrate (Alembic): 0001 baseline, 0002 roles/auth, 0003 admin/kho mẫu/định dạng, 0004 tình trạng hoạt động, 0005 trạng thái sự kiện
 ├── scripts/gen_function_reference.py
 ├── docs/                   # tài liệu
 ├── tests/                  # unittest (+ support.py) và script Playwright (.cjs)
 └── app/
     ├── __init__.py         # create_app(): app factory
     ├── config.py           # Config đọc biến môi trường
-    ├── cli.py              # lệnh flask: init-db, create-admin, reset-admin-password, seed-templates, sync-roles, run-scheduler, migrate-*
+    ├── cli.py              # lệnh flask: init-db, create-admin, reset-admin-password, seed-templates, sync-roles, recompute-activity, sync-event-status, run-scheduler, migrate-*
     ├── models.py           # ORM models + Permission/Role
     ├── forms.py            # Flask-WTF forms
     ├── validators.py       # định dạng MSSV/SĐT/Facebook (regex + normalize_*), mật khẩu mạnh
@@ -169,6 +169,8 @@ Mọi cấu hình nằm trong `app/config.py` (class `Config`) và đọc từ b
 | `API_RATE_LIMIT`, `AUTH_RATE_LIMIT` | `120/min`, `20/min` | Cú pháp của Flask-Limiter. |
 | `MAIL_*`, `MAIL_OUTBOX` | tắt | SMTP bắt buộc TLS/SSL. |
 | `SCHEDULER_ENABLED`, `SCHEDULER_IN_WEB` | `true`, `true` | Xem [mục 13](#13-email-scheduler-file-upload). |
+| `EVENT_AUTO_CLOSE_HOURS` | `24` | Sự kiện tự kết thúc sau giờ kết thúc bấy nhiêu giờ ([mục 5.2](#52-trạng-thái-sự-kiện)). |
+| `EVENT_STATUS_AUTO_SYNC`, `EVENT_STATUS_SYNC_SECONDS` | `true`, `60` | Rà soát trạng thái sự kiện khi có người mở web. |
 | `AI_*`, `GEMINI_*` | | Xem [mục 12](#12-trợ-lý-ai). |
 
 Khi `TESTING=True`, `create_app()` tự đặt `AUTO_CREATE_TABLES=True`, `RATELIMIT_ENABLED=False`, `SESSION_PROTECTION=None`, trừ khi test truyền giá trị khác qua `config_override`.
@@ -228,6 +230,25 @@ Mọi nơi hiển thị hoặc lọc tình trạng hoạt động (trang Thành 
 | `rules_note()` | Câu giải thích công thức, hiện ở hồ sơ và câu trả lời AI |
 
 Đổi trọng số hoặc ngưỡng: sửa `ACTIVITY_WEIGHTS` / `ACTIVITY_THRESHOLDS` trong `app/config.py`, rồi chạy `recompute-activity`.
+
+### 5.2. Trạng thái sự kiện
+
+`event.trang_thai` (`sap_dien_ra` · `dang_dien_ra` · `da_ket_thuc` · `cancelled`, có CheckConstraint) **chỉ được đổi qua `app/services/event_status.py`**. Không gán trực tiếp ở route hay service khác.
+
+| Cách đổi | Hàm | Quy tắc |
+|---|---|---|
+| Lúc tạo | `initial_status(start)` | Chưa tới giờ bắt đầu → `sap_dien_ra`, ngược lại `dang_dien_ra`. Dùng cho form, CTFtime, đề xuất AI, API tạo/nhân bản. |
+| Tự động | `sync_statuses()`, `refresh(event)` | Chỉ đi tới: tới giờ bắt đầu → `dang_dien_ra`; tới `auto_close_at(event)` → `da_ket_thuc`. Không bao giờ tự hủy hay tự lùi. |
+| Bằng tay (MANAGE_EVENTS) | `change_status(actor, event, new)` | Bảng `MANUAL`: sắp → đang/kết thúc/hủy; đang → kết thúc/hủy; đã kết thúc → đang (mở lại). Không hủy khi đã có điểm danh. |
+| Đổi giờ (API PATCH) | `reschedule(event)` | Sự kiện đang mở được đặt lại trạng thái theo giờ mới. |
+
+- `auto_close_at = max(giờ kết thúc, trang_thai_doi_tay_luc) + EVENT_AUTO_CLOSE_HOURS` (mặc định 24 giờ). Cột `trang_thai_doi_tay_luc` ghi lần BĐH đổi tay gần nhất, nên sự kiện mở lại chỉ tự đóng sau 24 giờ tính từ lúc mở.
+- Mọi lần đổi dùng `UPDATE ... WHERE trang_thai = <cũ>` (hai tiến trình không đổi trùng), ghi `audit_log` action `event_status` với `source` = `manual` / `auto`.
+- Vào hoặc rời `da_ket_thuc` → `activities.refresh_for_event` tính lại tình trạng hoạt động của kỳ.
+- Hiển thị: `display(event)` → `{code, label, tone}`; có thêm mã chỉ để hiển thị `cho_ket_thuc` ("Chờ kết thúc") khi `dang_dien_ra` mà đã qua giờ kết thúc. Template dùng global `event_status(event)`; nhãn ở `Config.EVENT_STATUS_LABELS`.
+- Trợ lý AI đọc cùng trạng thái đã lưu: "sắp diễn ra" = `sap_dien_ra`; "đang diễn ra" = `dang_dien_ra` và chưa qua giờ kết thúc; "đã diễn ra" = `da_ket_thuc` hoặc chờ kết thúc.
+
+**Ai chạy rà soát:** job scheduler `sync_event_statuses` (5 phút/lần), hook `before_request` (`sync_if_due`, tối đa 1 lần / `EVENT_STATUS_SYNC_SECONDS` mỗi tiến trình; tắt bằng `EVENT_STATUS_AUTO_SYNC=false`), trang chi tiết sự kiện và `change_status` (áp ngay cho sự kiện đó), lệnh `flask --app run.py sync-event-status`. Test đóng băng đồng hồ nên đặt `EVENT_STATUS_AUTO_SYNC: False`.
 
 ### Ràng buộc quan trọng
 
@@ -429,6 +450,7 @@ Template dùng `can(Permission.X)` (từ context processor) để ẩn/hiện n�
 | GET/POST | `/events` | đã duyệt / MANAGE_EVENTS | Liệt kê / tạo sự kiện |
 | GET/PATCH | `/events/<id>` | đã duyệt / MANAGE_EVENTS | Chi tiết / sửa |
 | POST | `/events/<id>/copy`, `/events/<id>/cancel` | MANAGE_EVENTS | Nhân bản / hủy |
+| POST | `/events/<id>/status` | MANAGE_EVENTS | Chuyển tay `{status: dang_dien_ra|da_ket_thuc|cancelled}` (xem mục 5.2) |
 | GET/POST | `/events/<id>/registrations` | MANAGE_EVENTS hoặc phụ trách / đã duyệt | Danh sách / đăng ký |
 | POST | `/registrations/<id>/cancel` | chủ đăng ký / MANAGE_EVENTS | Hủy đăng ký |
 | GET | `/events/<id>/qr`, `/events/<id>/qr.png` | MANAGE_EVENTS | Token / ảnh QR (15 phút) |
@@ -533,7 +555,7 @@ Bộ lọc chưa hỗ trợ (ngày/tháng, nhiều ban, nhiều sự kiện) →
 
 - **`mail.send_email(to, subject, body) -> bool`**: không ném lỗi. Bắt buộc TLS/SSL, chặn header injection. `MAIL_ENABLED=false` thì không gửi (trả False), trừ chế độ outbox khi dev. Địa chỉ `*.invalid` (tài khoản Quản trị hệ thống) luôn bị bỏ qua.
 - Nội dung mọi email tự động lấy từ **Kho mẫu** qua `render_system_email(key, **values)` (mục 12.1).
-- **Scheduler** (`app/scheduler.py`): `check_deadlines` chạy 07:00, `check_period_reminder` chạy 07:05 (giờ `APP_TIMEZONE`).
+- **Scheduler** (`app/scheduler.py`): `check_deadlines` chạy 07:00, `check_period_reminder` chạy 07:05 (giờ `APP_TIMEZONE`), `sync_event_statuses` 5 phút/lần (mục 5.2).
   - Chạy 1 process: để mặc định (`SCHEDULER_IN_WEB=true`).
   - Gunicorn nhiều worker: đặt `SCHEDULER_IN_WEB=false` cho web và chạy riêng `flask --app run.py run-scheduler` (đã có service `scheduler` trong `docker-compose.yml` và `deploy/club-scheduler.service`). Nếu không, mỗi worker chạy job một lần và mail bị gửi trùng.
 - **Upload:**
@@ -553,6 +575,7 @@ Schema do **Flask-Migrate (Alembic)** quản lý trong thư mục `migrations/`:
 | `0002` | Bảng `role` (+ seed quyền), cột xác thực trên `user`, email unique |
 | `0003` | Role `ADMIN`; `email_template` thêm `system_key`/`keywords`/`description`; bảng `proposal_template`; chuẩn hóa SĐT (`+84…`) và link Facebook cũ |
 | `0004` | `member_activity` tạo lại theo (thành viên, kỳ) với số task, số sự kiện có mặt, điểm; xóa `user.hoat_dong_status`, bảng `activity_point`, `club_setting` |
+| `0005` | `event.trang_thai` NOT NULL + CheckConstraint; thêm `event.trang_thai_doi_tay_luc`; đổi giá trị cũ `completed` → `da_ket_thuc`, `open`/`draft`/lạ → `sap_dien_ra` |
 
 **Quy trình thay đổi schema** (Ch5.2):
 
@@ -592,6 +615,14 @@ flask --app run.py db upgrade
 flask --app run.py recompute-activity   # tính lại tình trạng hoạt động mọi kỳ
 ```
 
+**Nâng cấp lên 0005:**
+
+```bash
+flask --app run.py db upgrade
+flask --app run.py sync-event-status    # chuyển ngay các sự kiện đã qua giờ
+flask --app run.py recompute-activity
+```
+
 MSSV cũ không đúng định dạng mới vẫn đăng nhập được (định dạng chỉ kiểm tra khi đăng ký/nhập mới).
 
 Nếu migration 0002 báo email trùng, sửa email của một trong các tài khoản trùng (SQLite: `UPDATE user SET email=... WHERE id=...`) rồi chạy lại `db upgrade`.
@@ -612,6 +643,7 @@ python scripts/gen_function_reference.py                   # cập nhật FUNCTI
 | `test_two_role_security.py` | Ma trận quyền theo chức vụ, quy tắc gán vai trò, nhường chức vụ, BĐH cuối cùng |
 | `test_account_security.py` | Mật khẩu mạnh, xác minh email, quên/đặt lại, đổi mật khẩu vô hiệu phiên cũ, fresh login, remember me, mật khẩu tạm, Flask-Limiter, ProxyFix, scheduler, migration up/down |
 | `test_core_flows.py` | Quỹ theo kỳ, sự kiện → task → tính hoạt động, trang/xuất thành viên, lệnh CLI |
+| `test_event_status.py` | Quy tắc theo giờ, rà soát tự động chỉ đi tới, chuyển tay (bắt đầu sớm, kết thúc, hủy, mở lại), quyền, tính lại hoạt động khi tự kết thúc, trang/API/AI cùng một trạng thái |
 | `test_activity.py` | Công thức 50 % task + 50 % điểm danh, tạm nghỉ, chưa xếp loại, lọc SQL khớp Python, tính lại khi kết thúc sự kiện/sửa điểm danh, trang/Excel/API/AI cùng một số |
 | `test_auth_hardening.py` | CSRF mọi method, đăng nhập (khóa, xoay session, open redirect), đăng ký, avatar |
 | `test_workflows.py` | Luồng nghiệp vụ rộng: quỹ khoản thu, sự kiện, AI, email |

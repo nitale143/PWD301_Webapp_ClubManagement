@@ -43,7 +43,7 @@ def daily_digest(actor, today=None):
     overdue = [task for task in tasks if task.deadline.date() < today]
     due_soon = [task for task in tasks if today <= task.deadline.date() < week_end]
     events = _event_scope(actor, Event.query.filter(
-        Event.trang_thai.notin_(["cancelled", "da_ket_thuc", "draft"]),
+        Event.trang_thai.notin_(["cancelled", "da_ket_thuc"]),
         Event.thoi_gian_bat_dau >= datetime.combine(today, time.min),
         Event.thoi_gian_bat_dau < datetime.combine(week_end, time.min))
         ).order_by(Event.thoi_gian_bat_dau, Event.id).all()

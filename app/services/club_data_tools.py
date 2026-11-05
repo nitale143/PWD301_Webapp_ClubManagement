@@ -27,6 +27,7 @@ from .access import (
 from .activities import LABELS as _ACTIVITY_LABELS, levels_for, rules_note, summary as activity_summary
 from .assistant import _normalize
 from .common import club_now
+from .event_status import CANCELLED, ENDED, ONGOING, UPCOMING, display as event_display
 
 TOOLS = ("member_stats", "event_participation", "event_list")
 
@@ -108,7 +109,7 @@ def _events_in(text):
     Bỏ khớp nằm gọn trong khớp dài hơn của sự kiện khác (vd. "CTF" trong "FIA CTF Fall").
     """
     matches = []
-    for event in Event.query.filter(Event.trang_thai != "draft").order_by(Event.id).all():
+    for event in Event.query.order_by(Event.id).all():
         for value in (event.ten_su_kien, event.ma_su_kien):
             candidate = _normalize(value).strip()
             if len(candidate) >= 3 and _has(candidate, text):
@@ -361,19 +362,28 @@ def _one_member_activity(member):
 
 # ---------------------------------------------------------------- sự kiện
 def _timing_label(event, now):
-    """Nhãn theo thời gian thực (cột trạng thái có thể chưa được cập nhật)."""
-    if event.trang_thai == "cancelled":
-        return "đã hủy"
-    if event.thoi_gian_bat_dau > now:
-        return "sắp diễn ra"
-    if event.thoi_gian_ket_thuc < now:
-        return "đã kết thúc"
-    return "đang diễn ra"
+    """Nhãn trạng thái giống hệt trang Sự kiện (event_status.display)."""
+    return event_display(event, now)["label"].lower()
 
 
 def _live_events():
-    """Sự kiện không phải nháp và chưa hủy."""
-    return Event.query.filter(Event.trang_thai.notin_(["cancelled", "draft"]))
+    """Sự kiện chưa hủy."""
+    return Event.query.filter(Event.trang_thai != CANCELLED)
+
+
+def _upcoming_events():
+    return _live_events().filter(Event.trang_thai == UPCOMING)
+
+
+def _ongoing_events(now):
+    """Đang diễn ra (kể cả BĐH bắt đầu sớm), chưa qua giờ kết thúc."""
+    return _live_events().filter(Event.trang_thai == ONGOING, Event.thoi_gian_ket_thuc >= now)
+
+
+def _past_events(now):
+    """Đã kết thúc hoặc đã qua giờ kết thúc (chờ kết thúc)."""
+    return _live_events().filter(db.or_(Event.trang_thai == ENDED, db.and_(
+        Event.trang_thai == ONGOING, Event.thoi_gian_ket_thuc < now)))
 
 
 def _has_attendance(event):
@@ -392,19 +402,16 @@ def _pick_event(args):
             return None, "Câu hỏi nhắc nhiều sự kiện. Hãy hỏi từng sự kiện một (ghi tên hoặc mã)."
         return Event.query.filter_by(ma_su_kien=codes[0]).first(), None
     if selector == "next":
-        event = (_live_events().filter(Event.thoi_gian_bat_dau >= now)
-                 .order_by(Event.thoi_gian_bat_dau, Event.id).first())
+        event = _upcoming_events().order_by(Event.thoi_gian_bat_dau, Event.id).first()
         return event, None if event else "Hiện chưa có sự kiện nào sắp diễn ra."
     if selector == "ongoing":
-        events = (_live_events().filter(Event.thoi_gian_bat_dau <= now, Event.thoi_gian_ket_thuc >= now)
-                  .order_by(Event.thoi_gian_bat_dau.desc()).all())
+        events = _ongoing_events(now).order_by(Event.thoi_gian_bat_dau.desc()).all()
         if len(events) > 1:
             return None, ("Đang có nhiều sự kiện diễn ra: " + ", ".join(f"{e.ten_su_kien} ({e.ma_su_kien})" for e in events)
                           + ". Hãy ghi tên hoặc mã sự kiện.")
         return (events[0], None) if events else (None, "Hiện không có sự kiện nào đang diễn ra.")
     if selector == "latest":
-        ended = (_live_events().filter(Event.thoi_gian_ket_thuc <= now)
-                 .order_by(Event.thoi_gian_ket_thuc.desc(), Event.id.desc()))
+        ended = _past_events(now).order_by(Event.thoi_gian_ket_thuc.desc(), Event.id.desc())
         event = ended.first()
         if event is None:
             return None, "Chưa có sự kiện nào đã diễn ra."
@@ -415,7 +422,7 @@ def _pick_event(args):
                                 "nhưng chưa có điểm danh; dưới đây là sự kiện gần nhất đã điểm danh.")
                 return checked, None
         return event, None
-    candidates = (_live_events().filter(Event.thoi_gian_ket_thuc >= now)
+    candidates = (_live_events().filter(Event.trang_thai.in_((UPCOMING, ONGOING)))
                   .order_by(Event.thoi_gian_bat_dau).limit(5).all())
     names = ", ".join(f"{e.ten_su_kien} ({e.ma_su_kien})" for e in candidates)
     return None, ("Bạn hỏi sự kiện nào? Hãy ghi tên/mã sự kiện, hoặc nói \"sắp diễn ra\", "
@@ -516,16 +523,13 @@ def event_list(actor, args, question):
     now = club_now()
     window = args["window"] or "upcoming"
     if window == "ongoing":
-        query = (_live_events().filter(Event.thoi_gian_bat_dau <= now, Event.thoi_gian_ket_thuc >= now)
-                 .order_by(Event.thoi_gian_bat_dau))
+        query = _ongoing_events(now).order_by(Event.thoi_gian_bat_dau)
         title = "Sự kiện đang diễn ra"
     elif window == "past":
-        query = (_live_events().filter(Event.thoi_gian_ket_thuc < now)
-                 .order_by(Event.thoi_gian_ket_thuc.desc()).limit(10))
+        query = _past_events(now).order_by(Event.thoi_gian_ket_thuc.desc()).limit(10)
         title = "Sự kiện đã diễn ra gần đây (tối đa 10)"
     else:
-        query = (_live_events().filter(Event.thoi_gian_bat_dau >= now)
-                 .order_by(Event.thoi_gian_bat_dau).limit(20))
+        query = _upcoming_events().order_by(Event.thoi_gian_bat_dau).limit(20)
         title = "Sự kiện sắp diễn ra"
     events = query.all()
     rows = [f"- {e.ten_su_kien} ({e.ma_su_kien}) - {e.thoi_gian_bat_dau:%d/%m/%Y %H:%M}" for e in events]

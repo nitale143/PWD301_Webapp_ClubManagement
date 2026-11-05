@@ -62,6 +62,8 @@ def create_app(config_override=None):
     app.context_processor(workspace_context)
     from app.validators import facebook_id_part, phone_local_part
     app.jinja_env.globals.update(phone_local_part=phone_local_part, facebook_id_part=facebook_id_part)
+    from app.services.event_status import display as event_status_display
+    app.jinja_env.globals.update(event_status=event_status_display)   # {code, label, tone}
 
     from app import models  # noqa: F401  (đăng ký models với SQLAlchemy)
 
@@ -85,6 +87,15 @@ def create_app(config_override=None):
     install_hardening(app)
     from app.security import install_account_guards
     install_account_guards(app)
+
+    # Tự rà soát trạng thái sự kiện khi có người mở web (giới hạn tần suất trong event_status)
+    from flask import request as _request
+    from app.services.event_status import sync_if_due
+
+    @app.before_request
+    def _sync_event_statuses():
+        if _request.endpoint not in (None, "static"):
+            sync_if_due(app)
 
     from app.cli import register_cli
     register_cli(app)

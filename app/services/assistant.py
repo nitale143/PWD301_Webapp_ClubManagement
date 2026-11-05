@@ -316,7 +316,7 @@ class RulesProvider(AssistantProvider):
             since = club_now() - timedelta(days=30)
             event_query = Event.query.filter(Event.thoi_gian_bat_dau >= since,
                                              Event.thoi_gian_bat_dau <= club_now(),
-                                             Event.trang_thai.notin_(["cancelled", "draft"]))
+                                             Event.trang_thai != "cancelled")
             events = event_query.count()
             attendance_query = (Attendance.query.join(EventRegistration)
                                 .filter(Attendance.checkin_luc >= utcnow() - timedelta(days=30),
@@ -328,8 +328,7 @@ class RulesProvider(AssistantProvider):
             return {"intent": "monthly_report", "preview": True, "answer": f"Bản xem trước 30 ngày: {events} sự kiện, {present} lượt có mặt. Truy cập báo cáo để xuất dữ liệu."}
 
         if "su kien" in text and any(word in text for word in ["sap", "dien ra", "liet ke"]):
-            events = (Event.query.filter(Event.thoi_gian_bat_dau >= club_now(),
-                                         Event.trang_thai.notin_(["cancelled", "draft"]))
+            events = (Event.query.filter(Event.trang_thai == "sap_dien_ra")
                       .order_by(Event.thoi_gian_bat_dau.asc(), Event.id.asc()).limit(20))
             rows = [f"{e.ten_su_kien} - {e.thoi_gian_bat_dau:%d/%m/%Y %H:%M}" for e in events]
             return {"intent": "upcoming_events", "answer": "Sự kiện sắp diễn ra:\n" + ("\n".join(rows) or "Chưa có sự kiện.")}
@@ -420,8 +419,7 @@ class AnthropicProvider(AssistantProvider):
             "upcoming_events": [{"name": event.ten_su_kien,
                                   "start": event.thoi_gian_bat_dau.isoformat()}
                                  for event in Event.query.filter(
-                                     Event.thoi_gian_bat_dau >= club_now(),
-                                     Event.trang_thai.notin_(["cancelled", "draft"])
+                                     Event.trang_thai == "sap_dien_ra"
                                  ).order_by(Event.thoi_gian_bat_dau).limit(20)],
             "open_funds": [
                 {"name": fund.ten_khoan_thu, "due": fund.han_dong.isoformat(),

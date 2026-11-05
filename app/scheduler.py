@@ -40,9 +40,20 @@ def init_scheduler(app, force=False):
                        id="check_deadlines", replace_existing=True)
     _scheduler.add_job(func=lambda: check_period_reminder(app), trigger="cron", hour=7, minute=5,
                        id="check_period_reminder", replace_existing=True)
+    _scheduler.add_job(func=lambda: sync_event_statuses(app), trigger="interval", minutes=5,
+                       id="sync_event_statuses", replace_existing=True)
     _scheduler.start()
-    app.logger.info("Scheduler started: deadline check 07:00, period reminder 07:05")
+    app.logger.info("Scheduler started: deadline check 07:00, period reminder 07:05, "
+                    "event status sync every 5 minutes")
     return _scheduler
+
+
+def sync_event_statuses(app):
+    """Tự chuyển trạng thái sự kiện theo giờ (xem app/services/event_status.py). Trả về số sự kiện đã đổi."""
+    from app.services.event_status import sync_statuses
+
+    with app.app_context():
+        return sync_statuses()
 
 
 def check_deadlines(app):

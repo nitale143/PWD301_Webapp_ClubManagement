@@ -110,7 +110,15 @@ class Config:
         "tam_nghi": "Tạm nghỉ",
     }
     TASK_STATUS = ["dang_lam", "cho_duyet", "lam_lai", "hoan_thanh", "huy"]
-    EVENT_STATUS = ["sap_dien_ra", "dang_dien_ra", "da_ket_thuc", "cancelled"]
+    # Trạng thái sự kiện (app/services/event_status.py). "cho_ket_thuc" chỉ để hiển thị: đã qua giờ
+    # kết thúc nhưng chưa chốt (vẫn lưu là dang_dien_ra cho tới khi BĐH hoặc hệ thống kết thúc).
+    EVENT_STATUS_LABELS = {
+        "sap_dien_ra": "Sắp diễn ra",
+        "dang_dien_ra": "Đang diễn ra",
+        "cho_ket_thuc": "Chờ kết thúc",
+        "da_ket_thuc": "Đã kết thúc",
+        "cancelled": "Đã hủy",
+    }
 
     # --- Cấu hình gửi mail (SMTP) ---
     # Mặc định MAIL_ENABLED=False: webapp vẫn chạy, email không được gửi.
@@ -133,6 +141,13 @@ class Config:
     DEADLINE_WARNING_DAYS = 7
     # Số ngày trước khi kỳ hiện tại kết thúc thì bắt đầu nhắc BĐH nhập kỳ mới
     PERIOD_REMINDER_DAYS = 30
+    # Tự chuyển trạng thái sự kiện: tới giờ bắt đầu → Đang diễn ra; quá giờ kết thúc bấy nhiêu giờ
+    # (để BĐH duyệt task, sửa điểm danh) → Đã kết thúc. 0 = kết thúc ngay khi hết giờ.
+    EVENT_AUTO_CLOSE_HOURS = max(0, int(os.environ.get("EVENT_AUTO_CLOSE_HOURS", 24)))
+    # Rà soát trạng thái khi có người mở web, tối đa 1 lần / bấy nhiêu giây mỗi tiến trình
+    # (ngoài job scheduler 5 phút/lần). false = chỉ rà soát bằng scheduler hoặc CLI.
+    EVENT_STATUS_AUTO_SYNC = _env_bool("EVENT_STATUS_AUTO_SYNC", True)
+    EVENT_STATUS_SYNC_SECONDS = max(5, int(os.environ.get("EVENT_STATUS_SYNC_SECONDS", 60)))
 
     # --- AI Agent ---
     # Dùng 1 API key CHUNG do CLB quản lý (không cho từng user tự nhập key

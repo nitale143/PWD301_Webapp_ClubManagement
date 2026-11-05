@@ -14,6 +14,7 @@ from .access import approved, can_manage_events, require
 from .assistant import AnthropicProvider, _normalize, get_provider
 from .common import DomainError, audit, club_now, parse_datetime
 from .events import event_is_terminal
+from .event_status import initial_status
 from .proposal_templates import find_proposal_template
 from app.timeutil import utcnow
 
@@ -277,7 +278,7 @@ def review_proposal(actor, proposal, decision):
             code = "AI" + secrets.token_hex(6).upper()
             event = Event(ten_su_kien=payload["name"], ma_su_kien=code,
                           thoi_gian_bat_dau=start, thoi_gian_ket_thuc=end,
-                          trang_thai="sap_dien_ra", tao_boi_id=actor.id)
+                          trang_thai=initial_status(start), tao_boi_id=actor.id)
             db.session.add(event)
             db.session.flush()
             db.session.add(EventDetail(event_id=event.id, loai=payload["type"],

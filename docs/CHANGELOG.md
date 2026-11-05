@@ -1,3 +1,30 @@
+# Trạng thái sự kiện: chuyển tay + hệ thống tự rà soát (05/11/2026)
+
+## Lỗi đã sửa
+- Trạng thái chỉ được ghi một lần lúc tạo, nên sự kiện đã tới giờ vẫn hiện "Sắp diễn ra", và sự kiện xong rồi mà BĐH quên bấm kết thúc thì không đánh giá được, task vẫn mở, không được tính vào tình trạng hoạt động. Mỗi trang và trợ lý AI lại đọc trạng thái theo một kiểu, nên lệch nhau.
+- Sự kiện tạo từ CTFtime, đề xuất AI, API luôn bị ghi "Sắp diễn ra" kể cả khi đã bắt đầu.
+- Trang danh sách sự kiện hiển thị sự kiện đã hủy là "Đã kết thúc" hoặc chữ "cancelled".
+
+## Cách hoạt động mới (`app/services/event_status.py`)
+- **Tự động** (chỉ đi tới): tới giờ bắt đầu → Đang diễn ra; qua giờ kết thúc hiện nhãn "Chờ kết thúc"; sau `EVENT_AUTO_CLOSE_HOURS` (mặc định 24 giờ) → Đã kết thúc. Rà soát bởi job scheduler 5 phút/lần, khi có người mở web (tối đa 1 lần/phút mỗi tiến trình), khi mở trang chi tiết sự kiện, và lệnh `flask sync-event-status`.
+- **Bằng tay** (quyền Sự kiện & task): Bắt đầu ngay, Kết thúc sự kiện, Hủy sự kiện, Mở lại sự kiện đã kết thúc. Nút ở trang chi tiết sự kiện; API mới `POST /api/v1/events/<id>/status`. Mở lại thì hệ thống tự kết thúc lại sau 24 giờ tính từ lúc mở.
+- Sự kiện vào hoặc rời "Đã kết thúc" → tính lại tình trạng hoạt động của kỳ.
+- Sửa giờ sự kiện qua API → trạng thái tính lại theo giờ mới.
+- Một nhãn chung cho trang, API (`status_label`) và trợ lý AI (`Config.EVENT_STATUS_LABELS`). Trợ lý AI đọc trạng thái đã lưu thay vì tự tính lại theo giờ.
+- Mọi lần đổi trạng thái ghi `audit_log` (`event_status`, nguồn `manual`/`auto`) và dùng UPDATE có điều kiện để hai tiến trình không đổi trùng.
+
+## Database
+- Migration `0005`: `event.trang_thai` NOT NULL + CheckConstraint 4 giá trị; thêm `event.trang_thai_doi_tay_luc`; đổi giá trị cũ `completed` → `da_ket_thuc`, `open`/`draft` → `sap_dien_ra`. Xóa các chỗ code còn kiểm tra `open`, `draft`, `completed`.
+
+## Nâng cấp
+```bash
+flask --app run.py db upgrade
+flask --app run.py sync-event-status
+flask --app run.py recompute-activity
+```
+
+- Test mới: `tests/test_event_status.py` (10 test). Tổng 216 test.
+
 # Tình trạng hoạt động: một nguồn, 50% task + 50% điểm danh (05/11/2026)
 
 ## Lỗi đã sửa

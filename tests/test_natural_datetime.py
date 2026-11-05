@@ -42,6 +42,8 @@ class NaturalDateTimeTests(unittest.TestCase):
             "AI_STRICT_FACTS": True,
             "AI_CHAT_MESSAGES_PER_MINUTE": 100,
             "APP_TIMEZONE": "Asia/Ho_Chi_Minh",
+            # Test đóng băng đồng hồ ở tháng 10/2026; rà soát theo giờ thật sẽ kết thúc sự kiện mẫu.
+            "EVENT_STATUS_AUTO_SYNC": False,
         })
         self.client = self.app.test_client()
         self.context = self.app.app_context()

@@ -24,7 +24,7 @@ from sqlalchemy import or_
 
 from app import db
 from app.models import (
-    AIProposal, Attendance, Ban, Event, EventDetail, EventRegistration, EventTargetBan,
+    AIProposal, Ban, Event, EventDetail, EventRegistration, EventTargetBan,
     FundCollection, FundPayment, MemberRecord, PaymentEvidence, Permission,
     User, UserBan,
 )
@@ -34,6 +34,7 @@ from app.services.access import (
     set_member_left_safely,
 )
 from app.services.activities import FOLLOW_UP_LEVELS, summary as activity_summary
+from app.services.event_status import CANCELLED, change_status, display as event_display, initial_status, reschedule
 from app.services.agent import check_chat_rate, respond, respond_events
 from app.services.chat_conversations import (append_exchange, checked_title,
     conversation_json, conversation_list, create_conversation, message_page,
@@ -211,6 +212,7 @@ def event_json(event):
     return {"id": event.id, "code": event.ma_su_kien, "name": event.ten_su_kien,
             "start_at": event.thoi_gian_bat_dau.isoformat(),
             "end_at": event.thoi_gian_ket_thuc.isoformat(), "status": event.trang_thai,
+            "status_label": event_display(event)["label"],
             "type": detail.loai if detail else "other",
             "content": detail.noi_dung if detail else "",
             "location": detail.dia_diem if detail else "",
@@ -548,7 +550,7 @@ def event_create():
     if fund_id:
         db.get_or_404(FundCollection, fund_id)
     event = Event(ten_su_kien=name, ma_su_kien=code, thoi_gian_bat_dau=start,
-                  thoi_gian_ket_thuc=end, trang_thai="sap_dien_ra", tao_boi_id=current_user.id)
+                  thoi_gian_ket_thuc=end, trang_thai=initial_status(start), tao_boi_id=current_user.id)
     db.session.add(event)
     db.session.flush()
     detail = EventDetail(event_id=event.id, loai=str(data.get("type", "other"))[:100],
@@ -592,7 +594,9 @@ def event_update(event_id):
     deadline = parse_datetime(data["registration_deadline"], "Hạn đăng ký") if data.get("registration_deadline") else detail.han_dang_ky
     if end <= start or (deadline and not start <= deadline <= end):
         raise DomainError("Thời gian sự kiện hoặc hạn đăng ký không hợp lệ.")
-    event.thoi_gian_bat_dau, event.thoi_gian_ket_thuc = start, end
+    if (start, end) != (event.thoi_gian_bat_dau, event.thoi_gian_ket_thuc):
+        event.thoi_gian_bat_dau, event.thoi_gian_ket_thuc = start, end
+        reschedule(event)   # đổi giờ → trạng thái tính lại theo giờ mới
     if "registration_deadline" in data:
         detail.han_dang_ky = deadline
     for key, attribute, limit in (("type", "loai", 100), ("content", "noi_dung", None),
@@ -620,7 +624,7 @@ def event_copy(event_id):
         raise DomainError("Thời gian sự kiện không hợp lệ.")
     copy = Event(ten_su_kien=source.ten_su_kien, ma_su_kien=code,
                  thoi_gian_bat_dau=start, thoi_gian_ket_thuc=end,
-                 trang_thai="sap_dien_ra", tao_boi_id=current_user.id)
+                 trang_thai=initial_status(start), tao_boi_id=current_user.id)
     db.session.add(copy)
     db.session.flush()
     if source.detail:
@@ -638,17 +642,20 @@ def event_copy(event_id):
 
 @api_bp.post("/events/<int:event_id>/cancel")
 def event_cancel(event_id):
-    """POST /events/<id>/cancel – hủy sự kiện."""
+    """POST /events/<id>/cancel – hủy sự kiện (không hủy được sự kiện đã điểm danh)."""
     event = db.get_or_404(Event, event_id)
     require(can_manage_event(event))
-    if event_is_terminal(event):
-        raise DomainError("Sự kiện đã kết thúc hoặc đã hủy.")
-    if Attendance.query.join(EventRegistration).filter(EventRegistration.event_id == event.id,
-                                                         Attendance.trang_thai != "pending").first():
-        raise DomainError("Không thể hủy sự kiện đã điểm danh.")
-    event.trang_thai = "cancelled"
-    audit(current_user, "event_cancel", event)
-    db.session.commit()
+    change_status(current_user, event, CANCELLED)
+    return jsonify(event_json(event))
+
+
+@api_bp.post("/events/<int:event_id>/status")
+def event_status_change(event_id):
+    """POST /events/<id>/status – chuyển trạng thái bằng tay {status}: dang_dien_ra (bắt đầu sớm /
+    mở lại), da_ket_thuc (kết thúc), cancelled (hủy)."""
+    event = db.get_or_404(Event, event_id)
+    require(can_manage_event(event))
+    change_status(current_user, event, str(body().get("status", "")))
     return jsonify(event_json(event))
 
 
