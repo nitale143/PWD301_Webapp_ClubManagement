@@ -487,8 +487,13 @@ def draft_intent(message):
     return None
 
 
+_SCHEDULE_GLUE = re.compile(r"(?i)(?:\b(?:từ|đến|tới|lúc|vào|ngày|hôm)\s*|[-–]\s*)*\x00")
+
+
 def _guess_name(message, spans):
-    text = _strip(message, spans)
+    for start, end in sorted(spans, reverse=True):      # bỏ ngày giờ cùng chữ nối đi kèm ("từ … đến …")
+        message = message[:start] + "\x00" + message[end:]
+    text = _SCHEDULE_GLUE.sub(" ", message).replace("\x00", " ")
     text = _LOCATION.sub(" ", text)
     text = _LEAD.sub("", text.strip())
     text = _NOISE.sub(" ", text)

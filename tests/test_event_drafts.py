@@ -192,6 +192,14 @@ class EventDraftTests(unittest.TestCase):
         self.assertEqual(event_drafts.missing(draft), [])
         return draft
 
+    def test_name_drops_the_schedule_words_but_keeps_real_words(self):
+        timed = event_drafts.create_draft(self.user(MANAGER), f"Workshop Git cơ bản ngày {self.day_text} "
+                                                              "từ 18h đến 21h ở Lab 304")
+        self.assertEqual((timed.data["name"], timed.data["start"], timed.data["end"], timed.data["location"]),
+                         ("Workshop Git cơ bản", "18:00", "21:00", "Lab 304"))
+        self.assertEqual(event_drafts.create_draft(self.user(MANAGER), f"Ngày hội CLB ngày {self.day_text}")
+                         .data["name"], "Ngày hội CLB")
+
     def test_approval_needs_complete_information(self):
         draft = event_drafts.create_draft(self.user(MANAGER), "Workshop Git")
         with self.assertRaises(DomainError) as error:
