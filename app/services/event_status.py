@@ -4,7 +4,7 @@ Bốn trạng thái lưu trong database:
 
     sap_dien_ra ──(tới giờ bắt đầu)──► dang_dien_ra ──(giờ kết thúc + EVENT_AUTO_CLOSE_HOURS)──► da_ket_thuc
          │                                  │
-         └────────────── cancelled ◄────────┘          (chỉ BĐH hủy, không tự động)
+         └────────────── cancelled ◄────────┘          (chỉ người quản lý sự kiện hủy, không tự động)
 
 Hai cách chuyển:
   - Tự động (`sync_statuses`): chỉ đi tới, theo giờ. Chạy bởi job scheduler 5 phút/lần, khi có
@@ -128,7 +128,7 @@ def refresh(event, now=None):
 
 
 def change_status(actor, event, new_status):
-    """BĐH (MANAGE_EVENTS) chuyển trạng thái bằng tay. Commit và trả về sự kiện."""
+    """Người quản lý sự kiện (MANAGE_EVENTS) chuyển trạng thái bằng tay. Commit và trả về sự kiện."""
     require(can_manage_events(actor))
     refresh(event)   # trạng thái theo giờ phải đúng trước khi xét chuyển tay
     if new_status not in allowed_targets(event):

@@ -62,14 +62,14 @@ def member_list():
     active_members = visible.filter(level_filter(ACTIVE_LEVELS)).count()
     follow_up_members = visible.filter(level_filter(FOLLOW_UP_LEVELS)).count()
     period = current_period()
-    is_bdh = can_view_all_members(current_user)
+    can_view_members = can_view_all_members(current_user)   # MANAGE_MEMBERS: liên hệ, tình trạng
     # Người có quyền quản lý thành viên xem đầy đủ; thành viên thường chỉ thấy chính mình
     return render_template(
         "member.html",
         members=members,
         bans=bans,
-        is_bdh=is_bdh,
-        activity_levels=levels_for(members, period) if is_bdh else {},
+        can_view_members=can_view_members,
+        activity_levels=levels_for(members, period) if can_view_members else {},
         activity_labels=LABELS,
         activity_period=period,
         selected_q=q,

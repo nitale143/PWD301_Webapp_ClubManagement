@@ -15,7 +15,7 @@ from app.models import Permission
 from app.permissions import approved_required, bdh_required, permission_required
 from app.security import require_csrf
 from app.services.agent import check_chat_rate, respond, respond_events
-from app.services.access import is_board, actor_scope_stamp
+from app.services.access import can_manage_events, is_board, actor_scope_stamp
 from app.services.common import audit, DomainError
 from app.services.chat_conversations import (append_exchange, checked_title,
     conversation_list, create_conversation, message_page, owned_conversation,
@@ -121,8 +121,9 @@ def ai_stream():
 @login_required
 @approved_required
 def ai_chat():
-    """Trang Trợ lý AI: lịch sử hội thoại, danh sách cuộc trò chuyện; với BĐH thêm tóm tắt ngày,
-    báo cáo, đề xuất và nháp email chờ duyệt.
+    """Trang Trợ lý AI: lịch sử hội thoại, danh sách cuộc trò chuyện. BĐH (BOARD) thấy thêm tóm tắt
+    ngày, báo cáo, nháp email chờ duyệt; người quản lý sự kiện (MANAGE_EVENTS) thấy form và danh
+    sách đề xuất sự kiện/task.
     """
     if request.method == "POST":
         require_csrf()
@@ -173,15 +174,18 @@ def ai_chat():
     digest = None
     reports = []
     report_previews = {}
-    if is_board(current_user):
+    board = is_board(current_user)
+    event_manager = can_manage_events(current_user)
+    if event_manager:
+        query = AIProposal.query.filter_by(status="pending").order_by(AIProposal.created_at.desc())
+        proposals = [proposal for proposal in query.limit(30) if can_review(current_user, proposal)]
+    if board:
         digest = daily_digest(current_user)
         reports = [row for row in (AIReportSnapshot.query.filter_by(user_id=current_user.id)
                    .order_by(AIReportSnapshot.id.desc()).limit(30).all())
                    if can_access_report(current_user, row)][:10]
         report_previews = {period: report_text(report_data(current_user, period))
                            for period in ("week", "month")}
-        query = AIProposal.query.filter_by(status="pending").order_by(AIProposal.created_at.desc())
-        proposals = [proposal for proposal in query.limit(30) if can_review(current_user, proposal)]
         email_query = EmailProposal.query.filter(
             EmailProposal.status.in_(["pending", "failed", "sending"])
         ).order_by(EmailProposal.created_at.desc())
@@ -204,17 +208,18 @@ def ai_chat():
                                                 EmailTemplate.system_key.is_(None),
                                                 EmailTemplate.active.is_(True))
                                             .order_by(EmailTemplate.name).all()
-                                            if is_board(current_user) else []),
+                                            if board else []),
                            proposal_templates=(ProposalTemplate.query.filter_by(active=True)
                                                .order_by(ProposalTemplate.kind,
                                                          ProposalTemplate.name).all()
-                                               if is_board(current_user) else []),
+                                               if event_manager else []),
                            digest=digest, reports=reports, report_previews=report_previews,
                            report_text=report_text,
                            proposal_preview=proposal_preview,
-                           bans=Ban.query.all() if is_board(current_user) else [],
+                           bans=Ban.query.all() if event_manager else [],
                            events=Event.query.filter(Event.trang_thai.notin_(["da_ket_thuc", "cancelled"])).all()
-                           if is_board(current_user) else [])
+                           if event_manager else [],
+                           is_board=board, can_manage_events=event_manager)
 
 
 @ai_bp.post("/ai/conversations/new")
@@ -389,7 +394,7 @@ def proposal_new():
     require_csrf()
     try:
         create_proposal(current_user, request.form)
-        flash("Đã tạo bản xem trước. Cần BDH duyệt trước khi áp dụng.", "success")
+        flash("Đã tạo bản xem trước. Cần người quản lý sự kiện duyệt trước khi áp dụng.", "success")
     except DomainError as exc:
         db.session.rollback()
         flash(str(exc), "error")

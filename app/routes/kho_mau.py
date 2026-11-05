@@ -1,7 +1,7 @@
 """Kho mẫu: mẫu email (hệ thống + của CLB), mẫu sự kiện và mẫu chia task cho AI.
 
 - Mẫu email: quyền MANAGE_TEMPLATES (Quản trị hệ thống, CN, PCN).
-- Mẫu sự kiện / mẫu chia task: quyền MANAGE_EVENTS (4 chức vụ BĐH + Quản trị hệ thống).
+- Mẫu sự kiện / mẫu chia task: quyền MANAGE_EVENTS (người quản lý sự kiện; theo bảng mặc định: 4 chức vụ BĐH + Quản trị hệ thống).
 
 Nháp email / đề xuất đã tạo trước đó KHÔNG bị đổi khi sửa mẫu (nháp giữ nội dung đã xem trước).
 """

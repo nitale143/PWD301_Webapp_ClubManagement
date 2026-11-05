@@ -194,52 +194,52 @@ Các model SQLAlchemy của webapp CLB (Ch5 – Database & ORM, Ch7 – RBAC).
 | `User.generate_token(self, purpose)` | 239 | Token ký bằng SECRET_KEY. purpose: 'confirm' hoặc 'reset'. Token reset gắn với hash mật khẩu hiện tại nên chỉ dùng được một lần: đổi mật khẩu xong thì token cũ tự mất hiệu lực. |
 | `User.from_token(token, purpose, max_age)` | 254 | Trả về User nếu token hợp lệ, còn hạn và đúng mục đích; ngược lại None. |
 | `User.confirm_email(self)` | 269 | Đánh dấu email đã xác minh và ghi thời điểm xác minh. |
-| `User.permissions(self)` | 279 | Tổng bit quyền của chức vụ hiện tại. |
-| `User.can(self, perm)` | 283 | True nếu chức vụ hiện tại có quyền `perm` (chưa xét trạng thái duyệt). |
-| `User.is_administrator(self)` | 287 | True nếu chức vụ có quyền phân vai trò (CN/PCN theo bảng mặc định). |
-| `User.rank(self)` | 292 | Cấp bậc của chức vụ hiện tại (số nhỏ = cấp cao). |
-| `User.role_label(self)` | 297 | Tên hiển thị tiếng Việt của chức vụ. |
-| `User.outranks(self, other_user)` | 301 | True khi người BĐH nhường chức vụ cho một thành viên thường. |
-| `User.is_bdh(self)` | 306 | Thuộc Ban điều hành (có quyền BOARD). |
-| `User.is_system_admin(self)` | 311 | Tài khoản quản trị hệ thống (không phải thành viên CLB). |
-| `User.quan_ly_ban_ids(self)` | 315 | Các ban_id mà Trưởng ban này quản lý (rỗng nếu không phải TB). |
-| `User.__repr__(self)` | 321 | Chuỗi mô tả user khi debug. |
-| class `AnonymousUser` | 326 | Người chưa đăng nhập: không có quyền nào (để template gọi can() an toàn). |
-| `AnonymousUser.can(self, perm)` | 332 | Người chưa đăng nhập không có quyền nào. |
-| `AnonymousUser.is_bdh(self)` | 336 | Người chưa đăng nhập không thuộc BĐH. |
-| `AnonymousUser.is_administrator(self)` | 340 | Người chưa đăng nhập không phải quản trị. |
-| `load_user(user_id)` | 351 | Nạp user từ session/cookie. Định dạng id: "<id>:<session_marker>". Nếu marker không khớp (mật khẩu đã đổi sau khi phiên được tạo) → coi như chưa đăng nhập. Dạng cũ chỉ có "<id>" chỉ được chấp nhận khi TESTING. |
-| class `Event` | 373 | Sự kiện của CLB; `tasks` là các task con. Trạng thái: sap_dien_ra &#124; dang_dien_ra &#124; da_ket_thuc &#124; cancelled – chỉ được đổi qua app/services/event_status.py (BĐH chuyển tay hoặc hệ thống tự chuyển theo giờ). |
-| class `Task` | 399 | Đầu việc thuộc một sự kiện, giao cho một người phụ trách (assignee) thuộc một ban. Trạng thái: dang_lam → cho_duyet → lam_lai/hoan_thanh, hoặc huy. |
-| class `FundPeriod` | 430 | Kỳ quỹ / kỳ hoạt động (Spring, Summer, Fall…). Chỉ một kỳ `is_current`; chứa sổ thu chi và trạng thái đóng quỹ theo kỳ. |
-| class `FundTransaction` | 449 | Một dòng trong sổ thu chi của kỳ: thu (số dương) hoặc chi (số âm). |
-| class `FundDue` | 461 | Trạng thái đóng quỹ của từng thành viên trong 1 kỳ (sổ quỹ theo kỳ). |
-| class `MemberActivity` | 477 | Tình trạng hoạt động của một thành viên trong một kỳ (tính bởi app/services/activities.py). Điểm = 50% tỉ lệ task hoàn thành + 50% tỉ lệ có mặt, chỉ trên sự kiện đã kết thúc trong kỳ. |
-| class `ChatMessage` | 507 | Một tin nhắn trong lịch sử chat AI (role 'user' hoặc 'ai'), thuộc một cuộc trò chuyện. |
-| class `ChatConversation` | 522 | A bounded, user-owned tab in the AI chat history. |
-| class `Notification` | 543 | Thông báo hiện ở chuông trên thanh trên cùng (nhắc deadline, nhắc kỳ mới…). |
-| class `MemberRecord` | 554 | Hồ sơ thành viên mở rộng: ngày gia nhập, tình trạng (active/paused/left), ghi chú, thời điểm lưu trữ. |
-| class `FundCollection` | 570 | Khoản thu (thu theo tháng/kỳ/năm/sự kiện/tự nguyện…), có số tiền, hạn đóng và trạng thái draft/open/closed/cancelled. |
-| class `FundTargetBan` | 595 | Ban áp dụng của một khoản thu (khi khoản thu không áp dụng cho tất cả thành viên). |
-| class `FundAdjustment` | 602 | Miễn (exempt) hoặc giảm (reduce) khoản thu cho một thành viên, bắt buộc có lý do. |
-| class `FundPayment` | 621 | Một lần đóng tiền cho khoản thu; chờ người quản lý quỹ xác nhận (pending → confirmed/rejected). |
-| class `PaymentEvidence` | 645 | Ảnh minh chứng thanh toán, lưu trong instance/payment_evidence với tên ngẫu nhiên. |
-| class `EventDetail` | 654 | Thông tin chi tiết của sự kiện: loại, nội dung, địa điểm, hạn đăng ký, người phụ trách (cột so_nguoi_toi_da giữ lại cho dữ liệu cũ, không còn dùng), khoản thu liên quan. |
-| class `EventTargetBan` | 675 | Ban được phép đăng ký sự kiện (khi sự kiện không mở cho tất cả). |
-| class `EventRegistration` | 682 | Đăng ký tham gia sự kiện: registered &#124; waitlist &#124; cancelled. |
-| class `Attendance` | 700 | Điểm danh của một lượt đăng ký: on_time &#124; late &#124; excused &#124; absent &#124; pending. |
-| class `QRCheckinLog` | 715 | Nhật ký mỗi lần quét QR điểm danh (phục vụ đối soát). |
-| class `EventFeedback` | 725 | Đánh giá 1–5 sao và bình luận của thành viên sau sự kiện. |
-| class `AuditLog` | 740 | Nhật ký thao tác: ai làm gì, trên đối tượng nào, lúc nào (không lưu mật khẩu/nội dung nhạy cảm). |
-| class `AIProposal` | 754 | An AI suggestion is inert until a board member explicitly approves it. |
-| class `EmailProposal` | 776 | Email draft: chat creation never sends; a separate BDH action does. |
-| class `EmailTemplate` | 799 | Mẫu email trong kho mẫu. - `system_key` có giá trị: mẫu của email tự động (xác minh email, giao task…) và mẫu chung `general`; chỉ sửa nội dung, không xóa/đổi tên. - `system_key` rỗng: mẫu do BĐH tạo, AI tìm theo tên/từ khóa khi soạn nháp. |
-| class `ProposalTemplate` | 822 | Mẫu sự kiện / mẫu chia task trong kho mẫu, AI dùng khi lập đề xuất. `content` (JSON): - kind="event": {"name", "content", "type", "location", "duration_hours"} - kind="task": {"tasks": [{"name", "description", "days_before"}]} `is_default=True`: mẫu chung, dùng khi không tìm thấy mẫu phù hợp hơn. |
-| class `AssistantPending` | 849 | The incomplete natural-language proposal currently being clarified. |
-| class `ConversationPending` | 860 | A pending clarification scoped to one conversation tab. |
-| class `AIReportSnapshot` | 872 | Immutable reviewed numbers and source rows for export/email. |
-| class `MemberPlanningProfile` | 883 | Member-provided task preferences; absent rows use conservative defaults. |
-| class `AIUsageLog` | 899 | Successful model calls, without prompts, replies, secrets or price guesses. |
+| `User.permissions(self)` | 277 | Tổng bit quyền của chức vụ hiện tại. |
+| `User.can(self, perm)` | 281 | True nếu chức vụ hiện tại có quyền `perm` (chưa xét trạng thái duyệt). |
+| `User.is_administrator(self)` | 285 | True nếu chức vụ có quyền phân vai trò (CN/PCN theo bảng mặc định). |
+| `User.rank(self)` | 290 | Cấp bậc của chức vụ hiện tại (số nhỏ = cấp cao). |
+| `User.role_label(self)` | 295 | Tên hiển thị tiếng Việt của chức vụ. |
+| `User.outranks(self, other_user)` | 299 | True khi người BĐH (quyền BOARD) nhường chức vụ cho một thành viên thường. |
+| `User.is_bdh(self)` | 303 | Thuộc Ban điều hành (có quyền BOARD). |
+| `User.is_system_admin(self)` | 308 | Tài khoản quản trị hệ thống (không phải thành viên CLB). |
+| `User.quan_ly_ban_ids(self)` | 312 | Các ban_id mà Trưởng ban này quản lý (rỗng nếu không phải TB). |
+| `User.__repr__(self)` | 318 | Chuỗi mô tả user khi debug. |
+| class `AnonymousUser` | 323 | Người chưa đăng nhập: không có quyền nào (để template gọi can() an toàn). |
+| `AnonymousUser.can(self, perm)` | 329 | Người chưa đăng nhập không có quyền nào. |
+| `AnonymousUser.is_bdh(self)` | 333 | Người chưa đăng nhập không thuộc BĐH. |
+| `AnonymousUser.is_administrator(self)` | 337 | Người chưa đăng nhập không phải quản trị. |
+| `load_user(user_id)` | 348 | Nạp user từ session/cookie. Định dạng id: "<id>:<session_marker>". Nếu marker không khớp (mật khẩu đã đổi sau khi phiên được tạo) → coi như chưa đăng nhập. Dạng cũ chỉ có "<id>" chỉ được chấp nhận khi TESTING. |
+| class `Event` | 370 | Sự kiện của CLB; `tasks` là các task con. Trạng thái: sap_dien_ra &#124; dang_dien_ra &#124; da_ket_thuc &#124; cancelled – chỉ được đổi qua app/services/event_status.py (BĐH chuyển tay hoặc hệ thống tự chuyển theo giờ). |
+| class `Task` | 396 | Đầu việc thuộc một sự kiện, giao cho một người phụ trách (assignee) thuộc một ban. Trạng thái: dang_lam → cho_duyet → lam_lai/hoan_thanh, hoặc huy. |
+| class `FundPeriod` | 427 | Kỳ quỹ / kỳ hoạt động (Spring, Summer, Fall…). Chỉ một kỳ `is_current`; chứa sổ thu chi và trạng thái đóng quỹ theo kỳ. |
+| class `FundTransaction` | 446 | Một dòng trong sổ thu chi của kỳ: thu (số dương) hoặc chi (số âm). |
+| class `FundDue` | 458 | Trạng thái đóng quỹ của từng thành viên trong 1 kỳ (sổ quỹ theo kỳ). |
+| class `MemberActivity` | 474 | Tình trạng hoạt động của một thành viên trong một kỳ (tính bởi app/services/activities.py). Điểm = 50% tỉ lệ task hoàn thành + 50% tỉ lệ có mặt, chỉ trên sự kiện đã kết thúc trong kỳ. |
+| class `ChatMessage` | 504 | Một tin nhắn trong lịch sử chat AI (role 'user' hoặc 'ai'), thuộc một cuộc trò chuyện. |
+| class `ChatConversation` | 519 | A bounded, user-owned tab in the AI chat history. |
+| class `Notification` | 540 | Thông báo hiện ở chuông trên thanh trên cùng (nhắc deadline, nhắc kỳ mới…). |
+| class `MemberRecord` | 551 | Hồ sơ thành viên mở rộng: ngày gia nhập, tình trạng (active/paused/left), ghi chú, thời điểm lưu trữ. |
+| class `FundCollection` | 567 | Khoản thu (thu theo tháng/kỳ/năm/sự kiện/tự nguyện…), có số tiền, hạn đóng và trạng thái draft/open/closed/cancelled. |
+| class `FundTargetBan` | 592 | Ban áp dụng của một khoản thu (khi khoản thu không áp dụng cho tất cả thành viên). |
+| class `FundAdjustment` | 599 | Miễn (exempt) hoặc giảm (reduce) khoản thu cho một thành viên, bắt buộc có lý do. |
+| class `FundPayment` | 618 | Một lần đóng tiền cho khoản thu; chờ người quản lý quỹ xác nhận (pending → confirmed/rejected). |
+| class `PaymentEvidence` | 642 | Ảnh minh chứng thanh toán, lưu trong instance/payment_evidence với tên ngẫu nhiên. |
+| class `EventDetail` | 651 | Thông tin chi tiết của sự kiện: loại, nội dung, địa điểm, hạn đăng ký, người phụ trách (cột so_nguoi_toi_da giữ lại cho dữ liệu cũ, không còn dùng), khoản thu liên quan. |
+| class `EventTargetBan` | 672 | Ban được phép đăng ký sự kiện (khi sự kiện không mở cho tất cả). |
+| class `EventRegistration` | 679 | Đăng ký tham gia sự kiện: registered &#124; waitlist &#124; cancelled. |
+| class `Attendance` | 697 | Điểm danh của một lượt đăng ký: on_time &#124; late &#124; excused &#124; absent &#124; pending. |
+| class `QRCheckinLog` | 712 | Nhật ký mỗi lần quét QR điểm danh (phục vụ đối soát). |
+| class `EventFeedback` | 722 | Đánh giá 1–5 sao và bình luận của thành viên sau sự kiện. |
+| class `AuditLog` | 737 | Nhật ký thao tác: ai làm gì, trên đối tượng nào, lúc nào (không lưu mật khẩu/nội dung nhạy cảm). |
+| class `AIProposal` | 751 | An AI suggestion is inert until a board member explicitly approves it. |
+| class `EmailProposal` | 773 | Email draft: chat creation never sends; a separate BDH action does. |
+| class `EmailTemplate` | 796 | Mẫu email trong kho mẫu. - `system_key` có giá trị: mẫu của email tự động (xác minh email, giao task…) và mẫu chung `general`; chỉ sửa nội dung, không xóa/đổi tên. - `system_key` rỗng: mẫu do BĐH tạo, AI tìm theo tên/từ khóa khi soạn nháp. |
+| class `ProposalTemplate` | 819 | Mẫu sự kiện / mẫu chia task trong kho mẫu, AI dùng khi lập đề xuất. `content` (JSON): - kind="event": {"name", "content", "type", "location", "duration_hours"} - kind="task": {"tasks": [{"name", "description", "days_before"}]} `is_default=True`: mẫu chung, dùng khi không tìm thấy mẫu phù hợp hơn. |
+| class `AssistantPending` | 846 | The incomplete natural-language proposal currently being clarified. |
+| class `ConversationPending` | 857 | A pending clarification scoped to one conversation tab. |
+| class `AIReportSnapshot` | 869 | Immutable reviewed numbers and source rows for export/email. |
+| class `MemberPlanningProfile` | 880 | Member-provided task preferences; absent rows use conservative defaults. |
+| class `AIUsageLog` | 896 | Successful model calls, without prompts, replies, secrets or price guesses. |
 
 ### `app/legacy_sqlite.py`
 
@@ -360,18 +360,18 @@ Khu vực Ban điều hành: duyệt thành viên, phân vai trò, nhường ch�
 | `ctftime_import()` | 64 | Create an FIA event from a server-verified public CTFtime calendar row.<br>route: `event_bp.post('/event/import/ctftime')` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
 | `event_new()` | 141 | Tạo sự kiện bằng EventForm (Flask-WTF). Validate xong mới ghi database.<br>route: `event_bp.route('/event/new', methods=['GET', 'POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
 | `event_detail(event_id)` | 177 | Trang chi tiết sự kiện: đăng ký, điểm danh, phản hồi, danh sách task (thành viên chỉ thấy task của mình).<br>route: `event_bp.route('/event/<int:event_id>')` · bảo vệ: `login_required`, `approved_required` |
-| `event_register(event_id)` | 204 | Thành viên tự đăng ký tham gia sự kiện.<br>route: `event_bp.post('/event/<int:event_id>/register')` · bảo vệ: `login_required`, `approved_required` |
-| `event_cancel_registration(event_id)` | 220 | Thành viên hủy đăng ký của mình.<br>route: `event_bp.post('/event/<int:event_id>/cancel-registration')` · bảo vệ: `login_required`, `approved_required` |
-| `event_qr_checkin(event_id, token)` | 236 | Trang xác nhận và xử lý điểm danh bằng link QR.<br>route: `event_bp.route('/event/<int:event_id>/checkin/<token>', methods=['GET', 'POST'])` · bảo vệ: `login_required`, `approved_required` |
-| `event_manual_attendance(event_id, registration_id)` | 254 | Người quản lý sự kiện điểm danh thủ công cho một lượt đăng ký.<br>route: `event_bp.post('/event/<int:event_id>/attendance/<int:registration_id>')` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
-| `event_feedback(event_id)` | 270 | Thành viên gửi đánh giá sự kiện đã tham gia.<br>route: `event_bp.post('/event/<int:event_id>/feedback')` · bảo vệ: `login_required`, `approved_required` |
-| `task_new(event_id)` | 286 | Tạo task con. Người phụ trách BẮT BUỘC được chỉ định ngay từ đầu (không có cơ chế thành viên tự xung phong).<br>route: `event_bp.route('/event/<int:event_id>/task/new', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
-| `task_reassign(task_id)` | 341 | Đổi người phụ trách một task đã tồn tại (vẫn là chỉ định, không phải xung phong).<br>route: `event_bp.route('/task/<int:task_id>/chi-dinh-lai', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
-| `task_submit(task_id)` | 372 | Chỉ người được giao task mới được nộp; nộp xong trạng thái chuyển sang cho_duyet.<br>route: `event_bp.route('/task/<int:task_id>/nop-san-pham', methods=['POST'])` · bảo vệ: `login_required`, `approved_required` |
-| `task_update_status(task_id)` | 406 | Duyệt task: lam_lai (bắt buộc nhận xét) / hoan_thanh / huy. Không được đặt 'dang_lam' hay 'cho_duyet'.<br>route: `event_bp.route('/task/<int:task_id>/cap-nhat-trang-thai', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
-| `_change_event_status(event_id, new_status)` | 445 | — |
-| `event_change_status(event_id)` | 462 | BĐH chuyển trạng thái bằng tay: bắt đầu sớm, kết thúc, hủy, mở lại (xem event_status.MANUAL).<br>route: `event_bp.route('/event/<int:event_id>/trang-thai', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
-| `event_end(event_id)` | 471 | Kết thúc sự kiện (giữ đường dẫn cũ). Tình trạng hoạt động của kỳ được tính lại.<br>route: `event_bp.route('/event/<int:event_id>/ket-thuc', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
+| `event_register(event_id)` | 203 | Thành viên tự đăng ký tham gia sự kiện.<br>route: `event_bp.post('/event/<int:event_id>/register')` · bảo vệ: `login_required`, `approved_required` |
+| `event_cancel_registration(event_id)` | 219 | Thành viên hủy đăng ký của mình.<br>route: `event_bp.post('/event/<int:event_id>/cancel-registration')` · bảo vệ: `login_required`, `approved_required` |
+| `event_qr_checkin(event_id, token)` | 235 | Trang xác nhận và xử lý điểm danh bằng link QR.<br>route: `event_bp.route('/event/<int:event_id>/checkin/<token>', methods=['GET', 'POST'])` · bảo vệ: `login_required`, `approved_required` |
+| `event_manual_attendance(event_id, registration_id)` | 253 | Người quản lý sự kiện điểm danh thủ công cho một lượt đăng ký.<br>route: `event_bp.post('/event/<int:event_id>/attendance/<int:registration_id>')` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
+| `event_feedback(event_id)` | 269 | Thành viên gửi đánh giá sự kiện đã tham gia.<br>route: `event_bp.post('/event/<int:event_id>/feedback')` · bảo vệ: `login_required`, `approved_required` |
+| `task_new(event_id)` | 285 | Tạo task con. Người phụ trách BẮT BUỘC được chỉ định ngay từ đầu (không có cơ chế thành viên tự xung phong).<br>route: `event_bp.route('/event/<int:event_id>/task/new', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
+| `task_reassign(task_id)` | 340 | Đổi người phụ trách một task đã tồn tại (vẫn là chỉ định, không phải xung phong).<br>route: `event_bp.route('/task/<int:task_id>/chi-dinh-lai', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
+| `task_submit(task_id)` | 371 | Chỉ người được giao task mới được nộp; nộp xong trạng thái chuyển sang cho_duyet.<br>route: `event_bp.route('/task/<int:task_id>/nop-san-pham', methods=['POST'])` · bảo vệ: `login_required`, `approved_required` |
+| `task_update_status(task_id)` | 405 | Duyệt task: lam_lai (bắt buộc nhận xét) / hoan_thanh / huy. Không được đặt 'dang_lam' hay 'cho_duyet'.<br>route: `event_bp.route('/task/<int:task_id>/cap-nhat-trang-thai', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
+| `_change_event_status(event_id, new_status)` | 444 | — |
+| `event_change_status(event_id)` | 461 | Người quản lý sự kiện (MANAGE_EVENTS) chuyển trạng thái bằng tay: bắt đầu sớm, kết thúc, hủy, mở lại (xem event_status.MANUAL).<br>route: `event_bp.route('/event/<int:event_id>/trang-thai', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
+| `event_end(event_id)` | 470 | Kết thúc sự kiện (giữ đường dẫn cũ). Tình trạng hoạt động của kỳ được tính lại.<br>route: `event_bp.route('/event/<int:event_id>/ket-thuc', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
 
 ### `app/routes/funds.py`
 
@@ -394,20 +394,20 @@ Khu vực Ban điều hành: duyệt thành viên, phân vai trò, nhường ch�
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
 | `ai_stream()` | 37 | Actual operational progress; never a model's private reasoning trace.<br>route: `ai_bp.post('/ai/stream')` · bảo vệ: `login_required`, `approved_required` |
-| `ai_chat()` | 123 | Trang Trợ lý AI: lịch sử hội thoại, danh sách cuộc trò chuyện; với BĐH thêm tóm tắt ngày, báo cáo, đề xuất và nháp email chờ duyệt.<br>route: `ai_bp.route('/ai', methods=['GET', 'POST'])` · bảo vệ: `login_required`, `approved_required` |
-| `conversation_new()` | 223 | Tạo cuộc trò chuyện AI mới cho người đang đăng nhập.<br>route: `ai_bp.post('/ai/conversations/new')` · bảo vệ: `login_required`, `approved_required` |
-| `_change_conversation(conversation_id, action)` | 236 | Đổi tên / lưu trữ / khôi phục một cuộc trò chuyện thuộc sở hữu của người dùng. |
-| `conversation_rename(conversation_id)` | 261 | Đổi tên cuộc trò chuyện.<br>route: `ai_bp.post('/ai/conversations/<int:conversation_id>/rename')` · bảo vệ: `login_required`, `approved_required` |
-| `conversation_archive(conversation_id)` | 269 | Lưu trữ (ẩn) cuộc trò chuyện.<br>route: `ai_bp.post('/ai/conversations/<int:conversation_id>/archive')` · bảo vệ: `login_required`, `approved_required` |
-| `conversation_restore(conversation_id)` | 277 | Khôi phục cuộc trò chuyện đã lưu trữ.<br>route: `ai_bp.post('/ai/conversations/<int:conversation_id>/restore')` · bảo vệ: `login_required`, `approved_required` |
-| `report_save(period)` | 285 | Lưu bản chụp báo cáo tuần/tháng (AIReportSnapshot) để tải Excel hoặc tạo nháp email.<br>route: `ai_bp.post('/ai/reports/<period>/save')` · bảo vệ: `login_required`, `bdh_required` |
-| `report_export(report_id)` | 300 | Tải file Excel của đúng bản báo cáo đã lưu.<br>route: `ai_bp.get('/ai/reports/<int:report_id>.xlsx')` · bảo vệ: `login_required`, `bdh_required` |
-| `report_draft_email(report_id)` | 314 | Tạo nháp email chứa báo cáo gửi tới email hồ sơ của chính người dùng (chưa gửi).<br>route: `ai_bp.post('/ai/reports/<int:report_id>/email-draft')` · bảo vệ: `login_required`, `bdh_required` |
-| `email_proposal_review(draft_id, decision)` | 332 | Duyệt và gửi (approved) hoặc từ chối (rejected) một nháp email do AI tạo.<br>route: `ai_bp.route('/ai/email-proposals/<int:draft_id>/<decision>', methods=['POST'])` · bảo vệ: `login_required`, `bdh_required` |
-| `email_proposal_edit(draft_id)` | 354 | Sửa tiêu đề/nội dung nháp email trước khi gửi.<br>route: `ai_bp.route('/ai/email-proposals/<int:draft_id>/edit', methods=['POST'])` · bảo vệ: `login_required`, `bdh_required` |
-| `email_proposal_reconcile(draft_id, outcome)` | 371 | Xác nhận thủ công kết quả một lần gửi email bị gián đoạn (sent/failed), không tự gửi lại.<br>route: `ai_bp.route('/ai/email-proposals/<int:draft_id>/reconcile/<outcome>', methods=['POST'])` · bảo vệ: `login_required`, `bdh_required` |
-| `proposal_new()` | 387 | Tạo đề xuất AI (sự kiện/task) từ form; chỉ là bản xem trước, chưa ghi dữ liệu thật.<br>route: `ai_bp.route('/ai/proposals/new', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
-| `proposal_review(proposal_id, decision)` | 402 | Duyệt đề xuất AI (tạo sự kiện/task thật) hoặc từ chối (quyền MANAGE_EVENTS).<br>route: `ai_bp.route('/ai/proposals/<int:proposal_id>/<decision>', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
+| `ai_chat()` | 123 | Trang Trợ lý AI: lịch sử hội thoại, danh sách cuộc trò chuyện. BĐH (BOARD) thấy thêm tóm tắt ngày, báo cáo, nháp email chờ duyệt; người quản lý sự kiện (MANAGE_EVENTS) thấy form và danh sách đề xuất sự kiện/task.<br>route: `ai_bp.route('/ai', methods=['GET', 'POST'])` · bảo vệ: `login_required`, `approved_required` |
+| `conversation_new()` | 228 | Tạo cuộc trò chuyện AI mới cho người đang đăng nhập.<br>route: `ai_bp.post('/ai/conversations/new')` · bảo vệ: `login_required`, `approved_required` |
+| `_change_conversation(conversation_id, action)` | 241 | Đổi tên / lưu trữ / khôi phục một cuộc trò chuyện thuộc sở hữu của người dùng. |
+| `conversation_rename(conversation_id)` | 266 | Đổi tên cuộc trò chuyện.<br>route: `ai_bp.post('/ai/conversations/<int:conversation_id>/rename')` · bảo vệ: `login_required`, `approved_required` |
+| `conversation_archive(conversation_id)` | 274 | Lưu trữ (ẩn) cuộc trò chuyện.<br>route: `ai_bp.post('/ai/conversations/<int:conversation_id>/archive')` · bảo vệ: `login_required`, `approved_required` |
+| `conversation_restore(conversation_id)` | 282 | Khôi phục cuộc trò chuyện đã lưu trữ.<br>route: `ai_bp.post('/ai/conversations/<int:conversation_id>/restore')` · bảo vệ: `login_required`, `approved_required` |
+| `report_save(period)` | 290 | Lưu bản chụp báo cáo tuần/tháng (AIReportSnapshot) để tải Excel hoặc tạo nháp email.<br>route: `ai_bp.post('/ai/reports/<period>/save')` · bảo vệ: `login_required`, `bdh_required` |
+| `report_export(report_id)` | 305 | Tải file Excel của đúng bản báo cáo đã lưu.<br>route: `ai_bp.get('/ai/reports/<int:report_id>.xlsx')` · bảo vệ: `login_required`, `bdh_required` |
+| `report_draft_email(report_id)` | 319 | Tạo nháp email chứa báo cáo gửi tới email hồ sơ của chính người dùng (chưa gửi).<br>route: `ai_bp.post('/ai/reports/<int:report_id>/email-draft')` · bảo vệ: `login_required`, `bdh_required` |
+| `email_proposal_review(draft_id, decision)` | 337 | Duyệt và gửi (approved) hoặc từ chối (rejected) một nháp email do AI tạo.<br>route: `ai_bp.route('/ai/email-proposals/<int:draft_id>/<decision>', methods=['POST'])` · bảo vệ: `login_required`, `bdh_required` |
+| `email_proposal_edit(draft_id)` | 359 | Sửa tiêu đề/nội dung nháp email trước khi gửi.<br>route: `ai_bp.route('/ai/email-proposals/<int:draft_id>/edit', methods=['POST'])` · bảo vệ: `login_required`, `bdh_required` |
+| `email_proposal_reconcile(draft_id, outcome)` | 376 | Xác nhận thủ công kết quả một lần gửi email bị gián đoạn (sent/failed), không tự gửi lại.<br>route: `ai_bp.route('/ai/email-proposals/<int:draft_id>/reconcile/<outcome>', methods=['POST'])` · bảo vệ: `login_required`, `bdh_required` |
+| `proposal_new()` | 392 | Tạo đề xuất AI (sự kiện/task) từ form; chỉ là bản xem trước, chưa ghi dữ liệu thật.<br>route: `ai_bp.route('/ai/proposals/new', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
+| `proposal_review(proposal_id, decision)` | 407 | Duyệt đề xuất AI (tạo sự kiện/task thật) hoặc từ chối (quyền MANAGE_EVENTS).<br>route: `ai_bp.route('/ai/proposals/<int:proposal_id>/<decision>', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
 
 ### `app/routes/api.py`
 
@@ -482,32 +482,33 @@ Chính sách phân quyền tập trung (Ch7 – RBAC).
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
 | `approved(user)` | 14 | Tài khoản đã được duyệt và vẫn đang là thành viên (không rời CLB/lưu trữ). |
-| `has_permission(user, perm)` | 28 | Kiểm tra quyền chuẩn: approved + chức vụ có bit `perm`. |
-| `is_admin(user)` | 33 | Thuộc BĐH (có quyền BOARD). |
-| `is_board(user)` | 38 | Bí danh của is_admin (thuộc BĐH). |
-| `can_approve_members(user)` | 43 | Có quyền xem danh sách chờ và duyệt đăng ký (APPROVE_MEMBERS). |
-| `can_manage_members(user)` | 48 | Có quyền quản lý thành viên (MANAGE_MEMBERS). |
-| `can_manage_events(user)` | 53 | Có quyền quản lý sự kiện & task (MANAGE_EVENTS). |
-| `can_manage_funds(user)` | 58 | Có quyền ghi/duyệt quỹ (MANAGE_FUNDS). |
-| `is_treasurer(user)` | 63 | Giữ tên cũ cho tương thích: người có quyền quản lý quỹ. |
-| `can_view_all_members(user)` | 68 | Xem đầy đủ hồ sơ/liên hệ của mọi thành viên. |
-| `can_manage_member(actor, target)` | 73 | Sửa/lưu trữ/cộng điểm cho một thành viên khác (không áp dụng cho chính mình). |
-| `can_issue_temp_password(actor, target)` | 78 | Cấp mật khẩu tạm: cần quyền quản lý thành viên và cấp cao hơn người nhận (Trưởng ban không thể chiếm tài khoản Chủ nhiệm bằng cách đặt lại mật khẩu). |
-| `can_assign_role_to(actor, target, new_role)` | 86 | Quy tắc phân vai trò theo cấp bậc (rank: số nhỏ = cấp cao). - Cần quyền ASSIGN_ROLES và không tự đổi vai trò của mình. - Chỉ đổi vai trò của người có cấp THẤP hơn mình. - Vai trò mới phải thấp hơn cấp của mình (PCN không gán PCN/CN). - Chủ nhiệm: chỉ Quản trị hệ thống gán được (lần đầu / khi CN cũ không còn); giữa các thành viên, CN đổi qua quy trình nhường quyền. - Không ai gán hoặc đổi vai trò Quản trị hệ thống qua giao diện. |
-| `_active_admin_count()` | 109 | Subquery đếm số thành viên BĐH còn hoạt động (dùng trong câu UPDATE có điều kiện). |
-| `_active_member_row(user_id)` | 120 | Điều kiện SQL: thành viên chưa rời CLB / chưa lưu trữ. |
-| `set_member_role_safely(target, new_role)` | 131 | Atomically update a role without removing the last active admin. |
-| `set_member_left_safely(target, record, archived_at=None)` | 147 | Mark a member left while atomically preserving one active admin. |
-| `can_view_member(actor, target)` | 168 | Xem hồ sơ: chính mình, hoặc người có quyền quản lý thành viên. |
-| `require(condition, message='Bạn không có quyền thực hiện thao tác này.')` | 173 | Ném DomainError 403 nếu điều kiện sai – dùng trong service để chặn thao tác không đủ quyền. |
-| `require_current_approval(actor)` | 179 | Re-read account and membership after a potentially slow external call. |
-| `actor_scope_stamp(actor)` | 191 | "Dấu" phạm vi quyền hiện tại (chức vụ) để phát hiện quyền bị đổi giữa chừng khi AI xử lý lâu. |
-| `require_unchanged_scope(actor, stamp)` | 198 | Chặn nếu chức vụ đã thay đổi kể từ khi bắt đầu xử lý yêu cầu. |
-| `active_members()` | 204 | Mọi thành viên đã duyệt và chưa bị lưu trữ (dùng nội bộ cho quỹ/sự kiện). Không gồm tài khoản Quản trị hệ thống (không phải thành viên CLB). |
-| `visible_members(actor)` | 214 | Thành viên mà `actor` được xem hồ sơ: tất cả nếu có MANAGE_MEMBERS, ngược lại chỉ bản thân. |
-| `directory_members(actor)` | 222 | Danh bạ CLB: mọi thành viên đã duyệt đều thấy danh sách thành viên đang hoạt động. Chỉ dùng cho thông tin CƠ BẢN (tên, MSSV, ban, vai trò). Liên hệ, tình trạng hoạt động và hồ sơ chi tiết vẫn chỉ dành cho người có MANAGE_MEMBERS (visible_members). |
-| `board_members(actor)` | 233 | Phạm vi tra cứu tên/MSSV cho AI và nháp email: mọi thành viên nếu thuộc BĐH, ngược lại chỉ bản thân. Không bao gồm quyền xem thông tin liên hệ. |
-| `scoped_members(actor, perm)` | 239 | Thành viên trong phạm vi một nghiệp vụ: tất cả nếu có quyền `perm`, ngược lại chỉ bản thân. Ví dụ thủ quỹ (MANAGE_FUNDS) xem tình trạng đóng quỹ của mọi người dù không có quyền quản lý hồ sơ thành viên. |
+| `board_role_names()` | 22 | Các chức vụ thuộc Ban điều hành (BĐH) = các role có bit BOARD trong bảng `role` (chưa seed bảng role thì dùng DEFAULT_ROLES). Dùng để chống mất BĐH cuối cùng. |
+| `has_permission(user, perm)` | 33 | Kiểm tra quyền chuẩn: approved + chức vụ có bit `perm`. |
+| `is_admin(user)` | 38 | Thuộc BĐH (có quyền BOARD). |
+| `is_board(user)` | 43 | Bí danh của is_admin (thuộc BĐH). |
+| `can_approve_members(user)` | 48 | Có quyền xem danh sách chờ và duyệt đăng ký (APPROVE_MEMBERS). |
+| `can_manage_members(user)` | 53 | Có quyền quản lý thành viên (MANAGE_MEMBERS). |
+| `can_manage_events(user)` | 58 | Có quyền quản lý sự kiện & task (MANAGE_EVENTS). |
+| `can_manage_funds(user)` | 63 | Có quyền ghi/duyệt quỹ (MANAGE_FUNDS). |
+| `is_treasurer(user)` | 68 | Giữ tên cũ cho tương thích: người có quyền quản lý quỹ. |
+| `can_view_all_members(user)` | 73 | Xem đầy đủ hồ sơ/liên hệ của mọi thành viên. |
+| `can_manage_member(actor, target)` | 78 | Sửa/lưu trữ/cộng điểm cho một thành viên khác (không áp dụng cho chính mình). |
+| `can_issue_temp_password(actor, target)` | 83 | Cấp mật khẩu tạm: cần quyền quản lý thành viên và cấp cao hơn người nhận (Trưởng ban không thể chiếm tài khoản Chủ nhiệm bằng cách đặt lại mật khẩu). |
+| `can_assign_role_to(actor, target, new_role)` | 91 | Quy tắc phân vai trò theo cấp bậc (rank: số nhỏ = cấp cao). - Cần quyền ASSIGN_ROLES và không tự đổi vai trò của mình. - Chỉ đổi vai trò của người có cấp THẤP hơn mình. - Vai trò mới phải thấp hơn cấp của mình (PCN không gán PCN/CN). - Chủ nhiệm: chỉ Quản trị hệ thống gán được (lần đầu / khi CN cũ không còn); giữa các thành viên, CN đổi qua quy trình nhường quyền. - Không ai gán hoặc đổi vai trò Quản trị hệ thống qua giao diện. |
+| `_active_admin_count()` | 114 | Subquery đếm số thành viên BĐH còn hoạt động (dùng trong câu UPDATE có điều kiện). |
+| `_active_member_row(user_id)` | 125 | Điều kiện SQL: thành viên chưa rời CLB / chưa lưu trữ. |
+| `set_member_role_safely(target, new_role)` | 136 | Atomically update a role without removing the last active admin. |
+| `set_member_left_safely(target, record, archived_at=None)` | 153 | Mark a member left while atomically preserving one active admin. |
+| `can_view_member(actor, target)` | 174 | Xem hồ sơ: chính mình, hoặc người có quyền quản lý thành viên. |
+| `require(condition, message='Bạn không có quyền thực hiện thao tác này.')` | 179 | Ném DomainError 403 nếu điều kiện sai – dùng trong service để chặn thao tác không đủ quyền. |
+| `require_current_approval(actor)` | 185 | Re-read account and membership after a potentially slow external call. |
+| `actor_scope_stamp(actor)` | 197 | "Dấu" phạm vi quyền hiện tại (chức vụ) để phát hiện quyền bị đổi giữa chừng khi AI xử lý lâu. |
+| `require_unchanged_scope(actor, stamp)` | 204 | Chặn nếu chức vụ đã thay đổi kể từ khi bắt đầu xử lý yêu cầu. |
+| `active_members()` | 210 | Mọi thành viên đã duyệt và chưa bị lưu trữ (dùng nội bộ cho quỹ/sự kiện). Không gồm tài khoản Quản trị hệ thống (không phải thành viên CLB). |
+| `visible_members(actor)` | 220 | Thành viên mà `actor` được xem hồ sơ: tất cả nếu có MANAGE_MEMBERS, ngược lại chỉ bản thân. |
+| `directory_members(actor)` | 228 | Danh bạ CLB: mọi thành viên đã duyệt đều thấy danh sách thành viên đang hoạt động. Chỉ dùng cho thông tin CƠ BẢN (tên, MSSV, ban, vai trò). Liên hệ, tình trạng hoạt động và hồ sơ chi tiết vẫn chỉ dành cho người có MANAGE_MEMBERS (visible_members). |
+| `board_members(actor)` | 239 | Phạm vi tra cứu tên/MSSV cho AI và nháp email: mọi thành viên nếu thuộc BĐH, ngược lại chỉ bản thân. Không bao gồm quyền xem thông tin liên hệ. |
+| `scoped_members(actor, perm)` | 245 | Thành viên trong phạm vi một nghiệp vụ: tất cả nếu có quyền `perm`, ngược lại chỉ bản thân. Ví dụ thủ quỹ (MANAGE_FUNDS) xem tình trạng đóng quỹ của mọi người dù không có quyền quản lý hồ sơ thành viên. |
 
 ### `app/services/activities.py`
 
@@ -684,7 +685,7 @@ Công cụ đọc dữ liệu CÓ THAM SỐ cho trợ lý AI.
 | `_timing_label(event, now)` | 364 | Nhãn trạng thái giống hệt trang Sự kiện (event_status.display). |
 | `_live_events()` | 369 | Sự kiện chưa hủy. |
 | `_upcoming_events()` | 374 | — |
-| `_ongoing_events(now)` | 378 | Đang diễn ra (kể cả BĐH bắt đầu sớm), chưa qua giờ kết thúc. |
+| `_ongoing_events(now)` | 378 | Đang diễn ra (kể cả được bắt đầu sớm bằng tay), chưa qua giờ kết thúc. |
 | `_past_events(now)` | 383 | Đã kết thúc hoặc đã qua giờ kết thúc (chờ kết thúc). |
 | `_has_attendance(event)` | 389 | Sự kiện đã có ít nhất một kết quả điểm danh (khác "pending"). |
 | `_pick_event(args)` | 395 | Chọn đúng MỘT sự kiện theo selector; trả (event, câu hỏi lại nếu chưa chọn được). |
@@ -775,7 +776,7 @@ Trạng thái sự kiện – nơi DUY NHẤT được đổi `Event.trang_thai`
 | `_apply(event, new_status, actor, source)` | 95 | Ghi trạng thái bằng UPDATE có điều kiện (hai tiến trình không chuyển trùng) rồi xử lý hệ quả. |
 | `allowed_targets(event)` | 115 | {trạng thái mới: nhãn nút} người quản lý sự kiện được chọn. |
 | `refresh(event, now=None)` | 120 | Áp ngay chuyển trạng thái tự động đang đến hạn của MỘT sự kiện (không chờ lượt rà soát). Commit nếu có thay đổi; trả về True khi đã đổi. |
-| `change_status(actor, event, new_status)` | 130 | BĐH (MANAGE_EVENTS) chuyển trạng thái bằng tay. Commit và trả về sự kiện. |
+| `change_status(actor, event, new_status)` | 130 | Người quản lý sự kiện (MANAGE_EVENTS) chuyển trạng thái bằng tay. Commit và trả về sự kiện. |
 | `reschedule(event, now=None)` | 146 | Gọi sau khi sửa giờ một sự kiện đang mở: đặt lại trạng thái theo giờ mới (chưa commit). |
 | `sync_statuses(now=None)` | 153 | Rà soát mọi sự kiện đang mở và tự chuyển theo giờ. Commit; trả về số sự kiện đã đổi. |
 | `sync_if_due(app)` | 170 | Rà soát khi có request, tối đa 1 lần mỗi EVENT_STATUS_SYNC_SECONDS cho mỗi tiến trình. Lỗi không làm hỏng request (chỉ ghi log). |

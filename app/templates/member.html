@@ -18,7 +18,7 @@
                             {% for ban in bans %}<option value="{{ ban.id }}" {% if selected_ban_id == ban.id %}selected{% endif %}>{{ ban.ten_ban }}</option>{% endfor %}
                         </select>
                     </label>
-                    {% if is_bdh %}
+                    {% if can_view_members %}
                     <label class="field">
                         <span class="field-label">Tình trạng hoạt động</span>
                         <select class="select" name="status">
@@ -37,7 +37,7 @@
                 </div>
                 <div class="toolbar-right">
                     <button type="submit" class="btn btn-primary">{{ icon('filter') }} Áp dụng</button>
-                    {% if is_bdh %}<a class="btn btn-secondary" href="{{ url_for('member.export_excel', **request.args) }}">{{ icon('download') }} Xuất danh sách</a>{% endif %}
+                    {% if can_view_members %}<a class="btn btn-secondary" href="{{ url_for('member.export_excel', **request.args) }}">{{ icon('download') }} Xuất danh sách</a>{% endif %}
                 </div>
             </form>
         </div>
@@ -45,7 +45,7 @@
 
     <div class="grid-12">
         <div class="span-4">{{ stat('Thành viên trong phạm vi xem', total_members, 'users', 'Theo quyền truy cập hiện tại', 'indigo') }}</div>
-        {% if is_bdh %}
+        {% if can_view_members %}
         <div class="span-4">{{ stat('Đang hoạt động', active_members, 'check', 'Tích cực hoặc hoạt động' ~ (' · ' ~ activity_period.ten_ky if activity_period else ''), 'green') }}</div>
         <div class="span-4">{{ stat('Cần theo dõi', follow_up_members, 'clock', 'Ít hoạt động hoặc không hoạt động', 'orange') }}</div>
         {% else %}
@@ -60,25 +60,25 @@
         </div>
         <div class="table-wrap">
             <table class="data-table">
-                <thead><tr><th>Thành viên</th><th>MSSV</th><th>Ban hoạt động</th><th>Vai trò</th>{% if is_bdh %}<th>Tình trạng</th><th>Liên hệ</th>{% endif %}</tr></thead>
+                <thead><tr><th>Thành viên</th><th>MSSV</th><th>Ban hoạt động</th><th>Vai trò</th>{% if can_view_members %}<th>Tình trạng</th><th>Liên hệ</th>{% endif %}</tr></thead>
                 <tbody>
                     {% for member in members %}
                     {% set status = activity_levels.get(member.id, 'chua_xep_loai') %}
                     {% if status in ['tich_cuc', 'hoat_dong'] %}{% set status_tone = 'success' %}{% elif status == 'it_hoat_dong' %}{% set status_tone = 'warning' %}{% elif status == 'khong_hoat_dong' %}{% set status_tone = 'danger' %}{% else %}{% set status_tone = 'neutral' %}{% endif %}
                     <tr>
-                        <td>{% if is_bdh or member.id == current_user.id %}<a class="member-cell member-profile-link" href="{{ url_for('profile.view_profile', user_id=member.id) }}">{% else %}<span class="member-cell">{% endif %}{{ avatar(member.ho_ten, ['indigo', 'blue', 'violet', 'teal', 'rose', 'amber'][member.id % 6]) }}<span><strong>{{ member.ho_ten }}</strong><span class="small muted">{{ member.email if is_bdh else ('Hồ sơ của bạn' if member.id == current_user.id else 'Thành viên FIA') }}</span></span>{% if is_bdh or member.id == current_user.id %}</a>{% else %}</span>{% endif %}</td>
+                        <td>{% if can_view_members or member.id == current_user.id %}<a class="member-cell member-profile-link" href="{{ url_for('profile.view_profile', user_id=member.id) }}">{% else %}<span class="member-cell">{% endif %}{{ avatar(member.ho_ten, ['indigo', 'blue', 'violet', 'teal', 'rose', 'amber'][member.id % 6]) }}<span><strong>{{ member.ho_ten }}</strong><span class="small muted">{{ member.email if can_view_members else ('Hồ sơ của bạn' if member.id == current_user.id else 'Thành viên FIA') }}</span></span>{% if can_view_members or member.id == current_user.id %}</a>{% else %}</span>{% endif %}</td>
                         <td><span class="member-id">{{ member.mssv }}</span></td>
                         <td>{{ member.ban_links|map(attribute='ban.ten_ban')|join(', ') or 'Chưa gắn ban' }}</td>
                         <td>{{ {'CN': 'Chủ nhiệm', 'PCN': 'Phó chủ nhiệm', 'TB': 'Trưởng ban', 'THUKY_THUQUY': 'Thư ký / Thủ quỹ', 'THANH_VIEN': 'Thành viên'}.get(member.chuc_vu, member.chuc_vu) }}</td>
-                        {% if is_bdh %}<td>{{ badge(activity_labels[status], status_tone) }}</td><td><div class="member-contact"><span class="small">{{ member.sdt or '—' }}</span>{% if member.facebook_link %}<a class="small" href="{{ member.facebook_link }}" target="_blank" rel="noopener noreferrer">Facebook</a>{% endif %}</div></td>{% endif %}
+                        {% if can_view_members %}<td>{{ badge(activity_labels[status], status_tone) }}</td><td><div class="member-contact"><span class="small">{{ member.sdt or '—' }}</span>{% if member.facebook_link %}<a class="small" href="{{ member.facebook_link }}" target="_blank" rel="noopener noreferrer">Facebook</a>{% endif %}</div></td>{% endif %}
                     </tr>
                     {% else %}
-                    <tr><td colspan="{{ 6 if is_bdh else 4 }}"><div class="empty-state"><span class="empty-state-icon">{{ icon('search') }}</span><strong>Chưa tìm thấy thành viên</strong><span class="small muted">Thử đổi từ khóa hoặc bộ lọc của bạn.</span></div></td></tr>
+                    <tr><td colspan="{{ 6 if can_view_members else 4 }}"><div class="empty-state"><span class="empty-state-icon">{{ icon('search') }}</span><strong>Chưa tìm thấy thành viên</strong><span class="small muted">Thử đổi từ khóa hoặc bộ lọc của bạn.</span></div></td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-        <div class="card-body table-foot"><span class="small muted">Hiển thị {{ members|length }} thành viên theo bộ lọc hiện tại</span><span class="small muted">{{ 'Thông tin liên hệ chỉ dành cho vai trò được phép xem.' if not is_bdh else 'Thông tin lấy từ hồ sơ thành viên.' }}</span></div>
+        <div class="card-body table-foot"><span class="small muted">Hiển thị {{ members|length }} thành viên theo bộ lọc hiện tại</span><span class="small muted">{{ 'Thông tin liên hệ chỉ dành cho vai trò được phép xem.' if not can_view_members else 'Thông tin lấy từ hồ sơ thành viên.' }}</span></div>
     </section>
 </div>
 {% endblock %}

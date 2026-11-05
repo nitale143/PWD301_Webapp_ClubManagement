@@ -67,7 +67,7 @@
             <div class="span-4">{{ stat('Đã điểm danh', attended_count, 'check', '', 'green') }}</div>
             <div class="span-4">{{ stat('Hạn đăng ký', (detail.han_dang_ky if detail and detail.han_dang_ky else event.thoi_gian_ket_thuc).strftime('%d/%m %H:%M'), 'calendar', '', 'orange') }}</div>
         </div>
-        {% if is_board %}
+        {% if can_manage_events %}
         <section class="card">
             <div class="card-header"><div><h3>Điểm danh sự kiện</h3><p class="small muted">Mã QR có hiệu lực trong 15 phút; tải lại trang để lấy mã mới.</p></div></div>
             <div class="card-body event-checkin-qr"><img src="{{ url_for('api.event_qr_png', event_id=event.id) }}" alt="Mã QR điểm danh" width="180" height="180"><p class="small muted">Thành viên đã đăng ký có thể quét mã trong thời gian sự kiện.</p></div>
@@ -85,7 +85,7 @@
     </section>
 
     <section class="page-stack detail-panel event-tab-panel" id="event-panel-tasks" role="tabpanel" data-event-panel="tasks" aria-labelledby="event-tab-tasks" {% if event_tab != 'tasks' %}hidden{% endif %}>
-        {% if is_bdh %}
+        {% if can_manage_events %}
         <details class="card event-task-create">
             <summary class="card-header"><div><h3>Giao nhiệm vụ mới</h3><p class="small muted">Mỗi nhiệm vụ cần ban và người phụ trách hợp lệ.</p></div>{{ icon('plus') }}</summary>
             <div class="card-body"><form method="post" action="{{ url_for('event.task_new', event_id=event.id) }}" class="modal-form">
@@ -119,14 +119,14 @@
                         {% if task.assignee_id == current_user.id and task.trang_thai in ['dang_lam', 'lam_lai'] and event.trang_thai not in ['da_ket_thuc', 'cancelled'] %}
                         <form method="post" action="{{ url_for('event.task_submit', task_id=task.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="field"><span class="field-label">Nội dung sản phẩm</span><textarea class="textarea" name="noi_dung_nop" maxlength="10000" placeholder="Dán liên kết hoặc mô tả sản phẩm">{{ task.noi_dung_nop or '' }}</textarea></label><button type="submit" class="btn btn-primary btn-sm">Nộp sản phẩm</button></form>
                         {% elif task.noi_dung_nop %}<p class="small">{{ task.noi_dung_nop }}</p>{% else %}<p class="small muted">Chưa có sản phẩm được nộp.</p>{% endif %}
-                        {% if task.nhan_xet_bdh %}<p class="small"><strong>Nhận xét Ban điều hành:</strong> {{ task.nhan_xet_bdh }}</p>{% endif %}
+                        {% if task.nhan_xet_bdh %}<p class="small"><strong>Nhận xét của người duyệt:</strong> {{ task.nhan_xet_bdh }}</p>{% endif %}
                         {% if can_manage_task and task.trang_thai == 'cho_duyet' and event.trang_thai not in ['da_ket_thuc', 'cancelled'] %}
                         <form method="post" action="{{ url_for('event.task_update_status', task_id=task.id) }}" class="inline-form task-review-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="field task-review-comment"><span class="field-label">Nhận xét (bắt buộc khi yêu cầu làm lại)</span><textarea class="textarea" name="nhan_xet_bdh" maxlength="2000" rows="3" placeholder="Nhận xét về sản phẩm trước khi quyết định"></textarea></label><label class="field"><span class="field-label">Quyết định</span><select class="select" name="trang_thai"><option value="hoan_thanh">Hoàn thành</option><option value="lam_lai">Yêu cầu làm lại</option><option value="huy">Hủy nhiệm vụ</option></select></label><button type="submit" class="btn btn-secondary btn-sm">Cập nhật</button></form>
                         {% endif %}
                     </div>
                 </div>
             </details>
-            {% else %}<div class="empty-state"><strong>Chưa có nhiệm vụ cho sự kiện này</strong><span class="small muted">{% if is_bdh %}Giao nhiệm vụ mới để cùng chuẩn bị.{% else %}Nhiệm vụ sẽ xuất hiện ở đây khi được giao.{% endif %}</span></div>{% endfor %}
+            {% else %}<div class="empty-state"><strong>Chưa có nhiệm vụ cho sự kiện này</strong><span class="small muted">{% if can_manage_events %}Giao nhiệm vụ mới để cùng chuẩn bị.{% else %}Nhiệm vụ sẽ xuất hiện ở đây khi được giao.{% endif %}</span></div>{% endfor %}
         </div>
     </section>
 

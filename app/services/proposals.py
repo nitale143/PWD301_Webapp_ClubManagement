@@ -354,4 +354,4 @@ def maybe_create_chat_proposal(actor, message, provider=None):
     proposal = create_proposal(actor, data, provider=provider)
     return {"intent": "ai_proposal", "preview": True, "provider": proposal.provider,
             "proposal_id": proposal.id,
-            "answer": f"Đã tạo đề xuất #{proposal.id}; chưa áp dụng. BDH cần xem trước rồi bấm Duyệt và áp dụng."}
+            "answer": f"Đã tạo đề xuất #{proposal.id}; chưa áp dụng. Người quản lý sự kiện cần xem trước rồi bấm Duyệt và áp dụng."}

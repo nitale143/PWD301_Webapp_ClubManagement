@@ -7,7 +7,7 @@ Một người có quyền khi: tài khoản đã được duyệt (approved), c
 trữ, VÀ chức vụ của họ có bit quyền tương ứng.
 """
 from app import db
-from app.models import DEFAULT_ROLES, SYSTEM_ADMIN_ROLE, MemberRecord, Permission, User, UserBan
+from app.models import DEFAULT_ROLES, SYSTEM_ADMIN_ROLE, MemberRecord, Permission, Role, User, UserBan
 from .common import DomainError
 
 
@@ -19,9 +19,14 @@ def approved(user):
     return record is None or (record.luu_tru_luc is None and record.tinh_trang != "left")
 
 
-# Các chức vụ thuộc Ban điều hành (BĐH) = các role có quyền BOARD
-ADMIN_ROLES = frozenset(name for name, spec in DEFAULT_ROLES.items()
-                        if spec["permissions"] & Permission.BOARD)
+def board_role_names():
+    """Các chức vụ thuộc Ban điều hành (BĐH) = các role có bit BOARD trong bảng `role`
+    (chưa seed bảng role thì dùng DEFAULT_ROLES). Dùng để chống mất BĐH cuối cùng."""
+    rows = Role.query.all()
+    if rows:
+        return frozenset(row.name for row in rows if (row.permissions or 0) & Permission.BOARD)
+    return frozenset(name for name, spec in DEFAULT_ROLES.items()
+                     if spec["permissions"] & Permission.BOARD)
 MEMBER_ROLE = "THANH_VIEN"
 
 
@@ -110,7 +115,7 @@ def _active_admin_count():
     """Subquery đếm số thành viên BĐH còn hoạt động (dùng trong câu UPDATE có điều kiện)."""
     return (db.session.query(db.func.count(User.id))
             .outerjoin(MemberRecord, User.id == MemberRecord.user_id)
-            .filter(User.status == "approved", User.chuc_vu.in_(ADMIN_ROLES),
+            .filter(User.status == "approved", User.chuc_vu.in_(board_role_names()),
                     db.or_(MemberRecord.user_id.is_(None), db.and_(
                         MemberRecord.luu_tru_luc.is_(None),
                         MemberRecord.tinh_trang != "left")))
@@ -133,7 +138,8 @@ def set_member_role_safely(target, new_role):
     old_role = target.chuc_vu
     conditions = [User.id == target.id, User.status == "approved",
                   User.chuc_vu == old_role, _active_member_row(User.id)]
-    if old_role in ADMIN_ROLES and new_role not in ADMIN_ROLES:
+    board_roles = board_role_names()
+    if old_role in board_roles and new_role not in board_roles:
         conditions.append(_active_admin_count() > 1)
     result = db.session.execute(
         db.update(User).where(*conditions).values(chuc_vu=new_role)
@@ -151,7 +157,7 @@ def set_member_left_safely(target, record, archived_at=None):
         values["luu_tru_luc"] = archived_at
     conditions = [MemberRecord.user_id == target.id]
     active_admin_in_database = db.session.query(User.id).filter(
-        User.id == target.id, User.status == "approved", User.chuc_vu.in_(ADMIN_ROLES),
+        User.id == target.id, User.status == "approved", User.chuc_vu.in_(board_role_names()),
         _active_member_row(User.id)).exists()
     conditions.append(db.or_(~active_admin_in_database, _active_admin_count() > 1))
     result = db.session.execute(

@@ -182,5 +182,5 @@ def tasks():
         total_tasks=len(scoped_tasks),
         selected_status=selected_status,
         selected_view=selected_view,
-        is_board=can_manage_events(current_user),
+        can_manage_events=can_manage_events(current_user),
     )

@@ -1,3 +1,19 @@
+# Tách quyền Ban điều hành và quản lý sự kiện (05/11/2026)
+
+## Lỗi đã sửa
+- Nhiều chỗ dùng lẫn quyền BĐH (`BOARD`) và quyền quản lý sự kiện (`MANAGE_EVENTS`). Hai nhóm đang trùng người nên chưa lộ lỗi, nhưng tách hai nhóm là sai ngay:
+  - Trang AI hiện form đề xuất sự kiện theo `BOARD`, còn route nhận form lại kiểm `MANAGE_EVENTS`.
+  - AI cho người có `BOARD` xem đăng ký/điểm danh của người khác, rộng hơn trang sự kiện.
+  - Trang chi tiết sự kiện và bảng công việc đặt tên biến `is_bdh`/`is_board` nhưng kiểm `MANAGE_EVENTS`.
+  - Danh sách chức vụ BĐH (chống mất BĐH cuối cùng, nhường chức vụ) viết cứng trong code, không đọc bảng `role`.
+
+## Thay đổi
+- Mỗi chức năng kiểm đúng quyền (bảng ở DEVELOPER_GUIDE mục 6.2): sự kiện, task, điểm danh, đề xuất AI, mẫu sự kiện/task → `MANAGE_EVENTS`; tóm tắt ngày, báo cáo, nháp email AI → `BOARD`.
+- Trang AI tách thành hai phần theo quyền; trang sự kiện, bảng công việc, trang Thành viên dùng biến đặt theo quyền thật (`can_manage_events`, `is_board`, `can_view_members`).
+- `board_role_names()` đọc bảng `role`; bỏ `User.ADMIN_ROLES` và `access.ADMIN_ROLES` viết cứng.
+- Chữ hiển thị: việc duyệt task/đề xuất ghi "người quản lý sự kiện" thay vì "BĐH".
+- Test mới: `tests/test_permission_split.py` (4 test, dùng vai trò chỉ có một trong hai quyền). Tổng 220 test.
+
 # Trạng thái sự kiện: chuyển tay + hệ thống tự rà soát (05/11/2026)
 
 ## Lỗi đã sửa

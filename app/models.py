@@ -273,8 +273,6 @@ class User(UserMixin, db.Model):
             self.email_confirmed_at = utcnow()
 
     # ---- phân quyền (Ch7) ----
-    ADMIN_ROLES = frozenset({"CN", "PCN", "TB", "THUKY_THUQUY"})
-
     @property
     def permissions(self):
         """Tổng bit quyền của chức vụ hiện tại."""
@@ -299,9 +297,8 @@ class User(UserMixin, db.Model):
         return DEFAULT_ROLES.get(self.chuc_vu, {}).get("label", self.chuc_vu)
 
     def outranks(self, other_user):
-        """True khi người BĐH nhường chức vụ cho một thành viên thường."""
-        return (self.chuc_vu in self.ADMIN_ROLES
-                and other_user.chuc_vu == "THANH_VIEN")
+        """True khi người BĐH (quyền BOARD) nhường chức vụ cho một thành viên thường."""
+        return self.is_bdh() and other_user.chuc_vu == "THANH_VIEN"
 
     def is_bdh(self):
         """Thuộc Ban điều hành (có quyền BOARD)."""

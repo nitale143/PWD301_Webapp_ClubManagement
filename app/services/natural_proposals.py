@@ -107,7 +107,7 @@ def _ban(message):
     named = _entity(Ban.query.all(), "ten_ban", message, "ban")
     if re.search(r"\b(?:ca\s+)?\d+\s+ban\b|\btat ca (?:cac )?ban\b", text) and not named:
         raise DomainError("Một task chỉ thuộc một ban. Hãy nói rõ task nào cho ban nào; "
-                          "nếu cần 3 ban, tạo ba đề xuất để BDH kiểm tra từng ban.")
+                          "nếu cần 3 ban, tạo ba đề xuất để người quản lý sự kiện kiểm tra từng ban.")
     return named
 
 
@@ -289,4 +289,4 @@ def maybe_create_natural_proposal(actor, message, conversation=None):
     return {"intent": "ai_proposal", "preview": True, "provider": "database",
             "proposal_id": proposal.id,
             "answer": f"Đã tạo đề xuất #{proposal.id} từ câu tự nhiên; chưa áp dụng. " + resolved
-            + "BDH hãy xem đúng sự kiện, ban, người nhận và thời hạn rồi bấm Duyệt và áp dụng."}
+            + "Người quản lý sự kiện hãy xem đúng sự kiện, ban, người nhận và thời hạn rồi bấm Duyệt và áp dụng."}

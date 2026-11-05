@@ -319,7 +319,21 @@ Bảng `role` trong DB là nguồn sự thật. `Role.insert_roles()` seed bản
 - Không có `member_record`, không thuộc ban. Bị loại khỏi `active_members()`, `funds.target_members()`, danh sách phân quyền, người nhận task và người nhận nhắc kỳ quỹ.
 - Quên mật khẩu: `flask reset-admin-password` (chỉ chạy được trên máy chủ). Sau đó `permissions.can_assign_role` kiểm tra thêm giới hạn số lượng `Config.ROLE_LIMITS`.
 
-**Bảo vệ BĐH cuối cùng:** `set_member_role_safely` và `set_member_left_safely` dùng câu UPDATE có điều kiện "còn hơn 1 BĐH hoạt động".
+**Bảo vệ BĐH cuối cùng:** `set_member_role_safely` và `set_member_left_safely` dùng câu UPDATE có điều kiện "còn hơn 1 BĐH hoạt động". Danh sách chức vụ thuộc BĐH lấy từ `board_role_names()`, tức các role có bit BOARD **trong bảng `role` của database** (chưa seed thì dùng `DEFAULT_ROLES`).
+
+**BĐH (`BOARD`) và người quản lý sự kiện (`MANAGE_EVENTS`) là hai quyền độc lập.** Theo bảng mặc định hai nhóm trùng người, nhưng code phải kiểm đúng quyền của từng chức năng, để CLB tách được hai nhóm (vd. "Cộng tác viên sự kiện" chỉ có MANAGE_EVENTS):
+
+| Chức năng | Quyền | Hàm / decorator |
+|---|---|---|
+| Tạo, sửa, chuyển trạng thái sự kiện; nhập CTFtime | MANAGE_EVENTS | `can_manage_events`, `permission_required(Permission.MANAGE_EVENTS)` |
+| Giao, chỉ định lại, duyệt task; điểm danh, mã QR | MANAGE_EVENTS | như trên |
+| Đề xuất sự kiện/task bằng AI (form, chat, duyệt), mẫu sự kiện/mẫu chia task | MANAGE_EVENTS | `proposals.create_proposal`, `can_review` |
+| AI tra cứu đăng ký/điểm danh của người khác | MANAGE_EVENTS | `club_data_tools.event_participation` |
+| Tóm tắt ngày, báo cáo tuần/tháng, thống kê lượt dùng AI | BOARD | `is_board`, `bdh_required` |
+| Soạn, duyệt, gửi nháp email AI | BOARD | `email_proposals.can_review_email` |
+| Tra cứu tên/MSSV cho AI và nháp email | BOARD | `board_members` |
+
+Template nhận biến theo quyền thật: `can_manage_events` (trang sự kiện, bảng công việc, trang AI), `is_board` (trang AI), `can_view_members` (trang Thành viên, = MANAGE_MEMBERS). Không đặt tên `is_bdh` cho một biến không kiểm BOARD. Test: `tests/test_permission_split.py`.
 
 ### 6.3. Decorator (`app/permissions.py`)
 
@@ -643,6 +657,7 @@ python scripts/gen_function_reference.py                   # cập nhật FUNCTI
 | `test_two_role_security.py` | Ma trận quyền theo chức vụ, quy tắc gán vai trò, nhường chức vụ, BĐH cuối cùng |
 | `test_account_security.py` | Mật khẩu mạnh, xác minh email, quên/đặt lại, đổi mật khẩu vô hiệu phiên cũ, fresh login, remember me, mật khẩu tạm, Flask-Limiter, ProxyFix, scheduler, migration up/down |
 | `test_core_flows.py` | Quỹ theo kỳ, sự kiện → task → tính hoạt động, trang/xuất thành viên, lệnh CLI |
+| `test_permission_split.py` | Vai trò chỉ có MANAGE_EVENTS và vai trò chỉ có BOARD: mỗi trang, route, service và câu trả lời AI kiểm đúng quyền |
 | `test_event_status.py` | Quy tắc theo giờ, rà soát tự động chỉ đi tới, chuyển tay (bắt đầu sớm, kết thúc, hủy, mở lại), quyền, tính lại hoạt động khi tự kết thúc, trang/API/AI cùng một trạng thái |
 | `test_activity.py` | Công thức 50 % task + 50 % điểm danh, tạm nghỉ, chưa xếp loại, lọc SQL khớp Python, tính lại khi kết thúc sự kiện/sửa điểm danh, trang/Excel/API/AI cùng một số |
 | `test_auth_hardening.py` | CSRF mọi method, đăng nhập (khóa, xoay session, open redirect), đăng ký, avatar |

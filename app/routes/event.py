@@ -187,8 +187,7 @@ def event_detail(event_id):
     prior_feedback = EventFeedback.query.filter_by(event_id=event_id, user_id=current_user.id).first()
     return render_template(
         "event_detail.html", event=ev, bans=bans,
-        is_bdh=can_manage_events(current_user),
-        is_board=can_manage_events(current_user),
+        can_manage_events=can_manage_events(current_user),
         registration=registration, registrations=registrations, detail=detail,
         can_register=registration_open(ev, detail) and eligible(ev, current_user),
         prior_feedback=prior_feedback,
@@ -394,7 +393,7 @@ def task_submit(task_id):
                 "task_submitted", ten=nguoi_tao.ho_ten, nguoi_nop=current_user.ho_ten,
                 task=task.ten_task, su_kien=task.event.ten_su_kien))
 
-        flash("Đã nộp sản phẩm, chờ BĐH duyệt.", "success")
+        flash("Đã nộp sản phẩm, chờ người quản lý sự kiện duyệt.", "success")
     else:
         flash("Chưa có thay đổi nội dung nộp, trạng thái giữ nguyên.", "error")
     return redirect(url_for("event.event_detail", event_id=task.event_id))
@@ -460,7 +459,7 @@ def _change_event_status(event_id, new_status):
 @login_required
 @permission_required(Permission.MANAGE_EVENTS)
 def event_change_status(event_id):
-    """BĐH chuyển trạng thái bằng tay: bắt đầu sớm, kết thúc, hủy, mở lại (xem event_status.MANUAL)."""
+    """Người quản lý sự kiện (MANAGE_EVENTS) chuyển trạng thái bằng tay: bắt đầu sớm, kết thúc, hủy, mở lại (xem event_status.MANUAL)."""
     require_csrf()
     return _change_event_status(event_id, request.form.get("trang_thai", ""))
 

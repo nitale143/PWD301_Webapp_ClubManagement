@@ -226,11 +226,11 @@ Khi câu hỏi nằm ngoài phạm vi hỗ trợ, trợ lý nói rõ là chưa h
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
 | Xem danh sách chờ và duyệt đăng ký | ✔ | ✔ | ✔ | – | – | – |
 | Quản lý thành viên (xem hồ sơ đầy đủ, sửa, lưu trữ, nhập file, cộng/trừ điểm, cấp mật khẩu tạm) | ✔ | ✔ | ✔ | ✔ | – | – |
-| Sự kiện và task (tạo, giao, duyệt, điểm danh, đề xuất AI, mẫu sự kiện/task trong Kho mẫu) | ✔ | ✔ | ✔ | ✔ | ✔ | – |
+| Sự kiện và task (tạo, chuyển trạng thái, giao, duyệt, điểm danh, đề xuất sự kiện/task bằng AI, mẫu sự kiện/task trong Kho mẫu) | ✔ | ✔ | ✔ | ✔ | ✔ | – |
 | Quỹ (mở kỳ, ghi thu chi, khoản thu, xác nhận thanh toán) | ✔ | ✔ | ✔ | – | ✔ | – |
 | Phân vai trò cho người khác | ✔** | ✔ | ✔* | – | – | – |
 | Nhường chức vụ của bản thân | – | ✔ | ✔ | ✔ | ✔ | – |
-| Báo cáo tổng hợp, nháp email AI | ✔ | ✔ | ✔ | ✔ | ✔ | – |
+| Ban điều hành: tóm tắt ngày, báo cáo tổng hợp, nháp email AI | ✔ | ✔ | ✔ | ✔ | ✔ | – |
 | Mẫu email trong Kho mẫu (kể cả email tự động) | ✔ | ✔ | ✔ | – | – | – |
 
 \* Phó chủ nhiệm chỉ gán được vai trò **thấp hơn** mình (Trưởng ban, Thư ký/Thủ quỹ, Thành viên). PCN không gán được Phó chủ nhiệm hay Chủ nhiệm, và không đổi được vai trò của Chủ nhiệm hay Phó chủ nhiệm khác.
@@ -246,6 +246,8 @@ Khi câu hỏi nằm ngoài phạm vi hỗ trợ, trợ lý nói rõ là chưa h
 - Khi BĐH đã đủ người, nên hạn chế dùng tài khoản này. Chỉ dùng khi cần gán lại Chủ nhiệm, ví dụ Chủ nhiệm cũ rời CLB mà chưa kịp nhường chức.
 
 Số người tối đa mỗi chức vụ: 1 Chủ nhiệm, 2 Phó chủ nhiệm, 3 Trưởng ban, 1 Thư ký/Thủ quỹ. Hệ thống không cho hạ chức hay lưu trữ **thành viên BĐH cuối cùng**, để CLB không bị mất quyền quản trị.
+
+Quyền **Sự kiện và task** và quyền **Ban điều hành** là hai quyền riêng. Hiện hai quyền này trùng người, nhưng CLB có thể tạo vai trò chỉ có một trong hai (ví dụ "Cộng tác viên sự kiện" chỉ quản lý sự kiện, không xem báo cáo và nháp email). Khi đó mỗi người chỉ thấy đúng phần việc của quyền mình có.
 
 Nút nào không thuộc quyền của bạn sẽ bị ẩn. Kể cả khi gửi request trực tiếp, máy chủ vẫn kiểm tra lại quyền và trả lỗi 403.
 

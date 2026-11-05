@@ -44,7 +44,7 @@
                     {% for status in status_order %}<a href="{{ url_for('main.tasks', status=status, view=selected_view) }}" class="{{ 'active' if selected_status == status else '' }}" {% if selected_status == status %}aria-current="page"{% endif %}>{{ status_labels[status] }} <span>{{ task_counts.get(status, 0) }}</span></a>{% endfor %}
                 </div></div>
                 <div class="toolbar-right"><div class="segmented" role="group" aria-label="Kiểu hiển thị"><a href="{{ url_for('main.tasks', status=selected_status, view='board') }}" class="{{ 'active' if selected_view == 'board' else '' }}" aria-pressed="{{ 'true' if selected_view == 'board' else 'false' }}">{{ icon('grid') }} Bảng</a><a href="{{ url_for('main.tasks', status=selected_status, view='list') }}" class="{{ 'active' if selected_view == 'list' else '' }}" aria-pressed="{{ 'true' if selected_view == 'list' else 'false' }}">{{ icon('file') }} Danh sách</a></div>
-                    {% if is_board %}<a class="btn btn-primary" href="{{ url_for('event.event_list') }}">{{ icon('plus') }} Mở sự kiện để giao việc</a>{% endif %}
+                    {% if can_manage_events %}<a class="btn btn-primary" href="{{ url_for('event.event_list') }}">{{ icon('plus') }} Mở sự kiện để giao việc</a>{% endif %}
                 </div>
             </div>
         </div>

@@ -571,7 +571,7 @@
         });
     })();
 </script>
-{% if current_user.is_bdh() %}
+{% if is_board %}
 <p class="small muted">AI trong 24 giờ: {{ usage_summary.calls }} lượt model, {{ usage_summary.tokens }} token, thời gian phản hồi trung bình {{ usage_summary.average_ms }} ms. Đây không phải số tiền tính phí.</p>
 <details class="new-task-box">
     <summary>Tóm tắt hôm nay và báo cáo có nguồn</summary>
@@ -599,6 +599,8 @@
     </div>
     {% else %}<p class="muted">Chưa lưu báo cáo nào.</p>{% endfor %}
 </details>
+{% endif %}
+{% if is_board or can_manage_events %}
 <details class="new-task-box">
     <summary>Kho mẫu (email, sự kiện, chia task)</summary>
     <p class="small muted">Khi soạn nháp email hoặc lập đề xuất, AI tìm mẫu trong kho trước (theo tên, từ khóa, loại sự kiện).
@@ -609,11 +611,13 @@
     <a class="btn btn-secondary btn-sm" href="{{ url_for('kho_mau.index') }}">{{ icon('file') }} Mở Kho mẫu</a>
     {% endif %}
 </details>
+{% endif %}
+{% if can_manage_events %}
 <details class="new-task-box">
     <summary>Đề xuất sự kiện hoặc chia task (chỉ tạo bản xem trước)</summary>
     <form method="post" action="{{ url_for('ai.proposal_new') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <p class="small muted">Chưa ghi sự kiện/task cho đến khi BDH bấm Duyệt ở danh sách bên dưới.</p>
+        <p class="small muted">Chưa ghi sự kiện/task cho đến khi người quản lý sự kiện bấm Duyệt ở danh sách bên dưới.</p>
         <label>Loại đề xuất</label>
         <select name="kind" required>
             <option value="event">Sự kiện mới</option>
@@ -662,8 +666,10 @@
 {% else %}
 <p class="muted">Không có đề xuất nào đang chờ.</p>
 {% endfor %}
+{% endif %}
 
-<h2>Nháp email chờ BDH duyệt</h2>
+{% if is_board %}
+<h2>Nháp email chờ BĐH duyệt</h2>
 {% for draft in email_proposals %}
 <div class="new-task-box">
     <p><strong>#{{ draft.id }} — {{ 'Cần đối soát gửi dở' if draft.status == 'sending' else ('Gửi lỗi, cần kiểm tra trước khi thử lại' if draft.status == 'failed' else 'Chưa gửi') }}</strong></p>

@@ -21,7 +21,7 @@ from app.models import (
     Attendance, Ban, Event, EventRegistration, MemberRecord, User, UserBan,
 )
 from .access import (
-    active_members, approved, can_manage_events, can_manage_members, directory_members, is_board,
+    active_members, approved, can_manage_events, can_manage_members, directory_members,
     require, visible_members,
 )
 from .activities import LABELS as _ACTIVITY_LABELS, levels_for, rules_note, summary as activity_summary
@@ -376,7 +376,7 @@ def _upcoming_events():
 
 
 def _ongoing_events(now):
-    """Đang diễn ra (kể cả BĐH bắt đầu sớm), chưa qua giờ kết thúc."""
+    """Đang diễn ra (kể cả được bắt đầu sớm bằng tay), chưa qua giờ kết thúc."""
     return _live_events().filter(Event.trang_thai == ONGOING, Event.thoi_gian_ket_thuc >= now)
 
 
@@ -445,12 +445,12 @@ def event_participation(actor, args, question):
     event, question_back = _pick_event(args)
     if event is None:
         return _clarify(question_back or "Không tìm thấy sự kiện được hỏi.")
-    manager = can_manage_events(actor) or is_board(actor)
+    manager = can_manage_events(actor)
     member = _member_target(actor, question, active_members() if manager
                             else active_members().filter(User.id == actor.id))
     if member is None:
         require(manager,
-                "Số liệu đăng ký/điểm danh của sự kiện chỉ dành cho Ban điều hành. "
+                "Số liệu đăng ký/điểm danh của sự kiện chỉ dành cho người quản lý sự kiện. "
                 "Bạn có thể hỏi về chính mình, vd. \"tôi đã đăng ký sự kiện X chưa\".")
     rows = (db.session.query(EventRegistration, Attendance, User)
             .join(User, User.id == EventRegistration.user_id)
