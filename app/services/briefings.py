@@ -1,13 +1,11 @@
 """Deterministic, permission-scoped club briefings and report snapshots."""
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 from io import BytesIO
-from zoneinfo import ZoneInfo
 import re
 
 from openpyxl import Workbook
-from flask import current_app
 
 from app import db
 from app.models import (AIReportSnapshot, Attendance, EmailProposal,
@@ -84,9 +82,6 @@ def report_data(actor, period, today=None):
     today = today or club_now().date()
     start, end = _window(period, today)
     first, last = datetime.combine(start, time.min), datetime.combine(end, time.min)
-    club_zone = ZoneInfo(current_app.config["APP_TIMEZONE"])
-    payment_first = first.replace(tzinfo=club_zone).astimezone(timezone.utc).replace(tzinfo=None)
-    payment_last = last.replace(tzinfo=club_zone).astimezone(timezone.utc).replace(tzinfo=None)
     visible_ids = {member.id for member in visible_members(actor)}
     events = _event_scope(actor, Event.query.filter(
         Event.trang_thai == "da_ket_thuc", Event.thoi_gian_ket_thuc >= first,
@@ -101,8 +96,8 @@ def report_data(actor, period, today=None):
                           Attendance.trang_thai.in_(["on_time", "late", "absent", "excused"]))
                   .order_by(Attendance.id).all()) if event_ids else []
     payments = (FundPayment.query.filter(
-        FundPayment.trang_thai == "confirmed", FundPayment.xac_nhan_luc >= payment_first,
-        FundPayment.xac_nhan_luc < payment_last, FundPayment.user_id.in_(visible_ids))
+        FundPayment.trang_thai == "confirmed", FundPayment.xac_nhan_luc >= first,
+        FundPayment.xac_nhan_luc < last, FundPayment.user_id.in_(visible_ids))
         .order_by(FundPayment.id).all())
     full_scope = is_board(actor)
     return {"period": period, "from": start.isoformat(), "through": today.isoformat(),
@@ -119,7 +114,7 @@ def report_data(actor, period, today=None):
                             "status": row.trang_thai} for row in attendance],
             "payments": [{"id": row.id, "fund_id": row.fund_id,
                           "member_id": row.user_id, "amount": str(row.so_tien),
-                          "confirmed_at_utc": row.xac_nhan_luc.isoformat()} for row in payments]}
+                          "confirmed_at": row.xac_nhan_luc.isoformat()} for row in payments]}
 
 
 def report_text(payload):
@@ -180,7 +175,7 @@ def report_workbook(snapshot):
         ("Sự kiện", payload["events"], ("id", "name", "ended_at")),
         ("Task", payload["tasks"], ("id", "name", "event_id", "ban_id", "deadline", "status")),
         ("Điểm danh", payload["attendance"], ("id", "event_id", "member_id", "status")),
-        ("Thu quỹ mới", payload["payments"], ("id", "fund_id", "member_id", "amount", "confirmed_at_utc")),
+        ("Thu quỹ mới", payload["payments"], ("id", "fund_id", "member_id", "amount", "confirmed_at")),
     ):
         sheet = wb.create_sheet(name)
         sheet.append(safe_excel_row(columns))

@@ -14,7 +14,7 @@ from flask import current_app
 
 from app import db
 from app.models import User
-from app.timeutil import utcnow
+from app.timeutil import club_now
 from .common import audit
 
 _STEPS = (1, 3, 6)
@@ -32,7 +32,7 @@ def locked_minutes(user, now=None):
     """Số phút còn bị khóa (làm tròn lên), hoặc 0 nếu không bị khóa."""
     if not _enabled() or user is None or user.khoa_dang_nhap_den is None:
         return 0
-    remaining = (user.khoa_dang_nhap_den - (now or utcnow())).total_seconds()
+    remaining = (user.khoa_dang_nhap_den - (now or club_now())).total_seconds()
     return math.ceil(remaining / 60) if remaining > 0 else 0
 
 
@@ -47,7 +47,7 @@ def record_failure(user):
     if count % limit == 0:
         step = _STEPS[min(count // limit, len(_STEPS)) - 1]
         seconds = max(1, int(current_app.config.get("LOGIN_LOCKOUT_SECONDS", 300))) * step
-        user.khoa_dang_nhap_den = utcnow() + timedelta(seconds=seconds)
+        user.khoa_dang_nhap_den = club_now() + timedelta(seconds=seconds)
         audit(None, "login_locked", user, {"failed": count, "minutes": math.ceil(seconds / 60)})
     db.session.commit()
 

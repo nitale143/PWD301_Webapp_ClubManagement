@@ -90,7 +90,7 @@ class WorkflowTests(unittest.TestCase):
 
     def create_event(self):
         self.login(1)
-        start = datetime.utcnow() + timedelta(days=1)
+        start = club_now() + timedelta(days=1)
         response = self.csrf_request("POST", "/api/v1/events", json={
             "name": "Workshop", "code": f"WS{Event.query.count() + 1}",
             "start_at": start.isoformat(), "end_at": (start + timedelta(hours=2)).isoformat(),
@@ -195,7 +195,7 @@ class WorkflowTests(unittest.TestCase):
         updated = self.csrf_request("PATCH", f"/api/v1/events/{event_id}", json={"location": "Phong A"})
         self.assertEqual(updated.status_code, 200, updated.json)
         self.assertEqual(updated.json["location"], "Phong A")
-        start = datetime.utcnow() + timedelta(days=3)
+        start = club_now() + timedelta(days=3)
         copied = self.csrf_request("POST", f"/api/v1/events/{event_id}/copy", json={
             "code": "COPY1", "start_at": start.isoformat(),
             "end_at": (start + timedelta(hours=1)).isoformat()})
@@ -653,7 +653,7 @@ class WorkflowTests(unittest.TestCase):
         db.session.add(reg)
         db.session.flush()
         db.session.add(Attendance(registration_id=reg.id, trang_thai="on_time",
-                                  checkin_luc=datetime.utcnow() - timedelta(days=1)))
+                                  checkin_luc=club_now() - timedelta(days=1)))
         db.session.commit()
         self.login(3)
         result = self.csrf_request("POST", "/api/v1/assistant", json={"question": "báo cáo tháng này"})
@@ -673,7 +673,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(edited.status_code, 302)
         self.assertEqual(db.session.get(EmailProposal, draft.id).subject, "Liên hệ đặt phòng")
         draft.status = "sending"
-        draft.reviewed_at = datetime.utcnow() - timedelta(minutes=3)
+        draft.reviewed_at = club_now() - timedelta(minutes=3)
         db.session.commit()
         with patch("app.services.email_proposals.send_email") as send:
             reconciled = self.csrf_request("POST",
@@ -1001,7 +1001,7 @@ class WorkflowTests(unittest.TestCase):
         db.session.flush()
         db.session.add(FundPayment(fund_id=fund.id, user_id=3, so_tien=25,
                                    phuong_thuc="cash", trang_thai="confirmed",
-                                   xac_nhan_boi_id=1, xac_nhan_luc=datetime.utcnow()))
+                                   xac_nhan_boi_id=1, xac_nhan_luc=club_now()))
         db.session.commit()
         self.login(1)
         actor = db.session.get(User, 1)
@@ -1100,10 +1100,10 @@ class WorkflowTests(unittest.TestCase):
         db.session.add_all([
             FundPayment(fund_id=fund.id, user_id=3, so_tien=25, phuong_thuc="cash",
                         trang_thai="confirmed", xac_nhan_boi_id=1,
-                        xac_nhan_luc=datetime.utcnow()),
+                        xac_nhan_luc=club_now()),
             FundPayment(fund_id=fund.id, user_id=6, so_tien=25, phuong_thuc="cash",
                         trang_thai="confirmed", xac_nhan_boi_id=1,
-                        xac_nhan_luc=datetime.utcnow()),
+                        xac_nhan_luc=club_now()),
         ])
         db.session.commit()
         payload = report_data(leader, "week")

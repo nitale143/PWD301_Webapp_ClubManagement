@@ -179,7 +179,7 @@ Khi `TESTING=True`, `create_app()` tự đặt `AUTO_CREATE_TABLES=True`, `RATEL
 
 ## 5. Mô hình dữ liệu
 
-Tên bảng và cột giữ tiếng Việt không dấu như database cũ. Thời gian audit, thanh toán, đăng ký lưu **UTC naive** (`timeutil.utcnow()`). Giờ sự kiện, hạn task lưu **giờ CLB naive** (`services.common.club_now()`, theo `APP_TIMEZONE`).
+Tên bảng và cột giữ tiếng Việt không dấu như database cũ. **Mọi thời gian** (giờ sự kiện, hạn task, ngày đăng ký, tin nhắn, thanh toán, điểm danh, audit…) lưu, so sánh và hiển thị theo **giờ Việt Nam naive** (`APP_TIMEZONE`, mặc định `Asia/Ho_Chi_Minh`). Chỉ lấy giờ qua `app.timeutil.club_now()` (cũng dùng được qua `services.common`); giờ có múi giờ từ bên ngoài (API, CTFtime) đổi bằng `to_club_time()`. Không gọi `datetime.utcnow()` / `datetime.now()` trực tiếp.
 
 ### Nhóm bảng
 
@@ -625,6 +625,7 @@ Schema do **Flask-Migrate (Alembic)** quản lý trong thư mục `migrations/`:
 | `0006` | `fund_collection.period_id`, `fund_transaction.payment_id`; chuyển `fund_due` sang quỹ kỳ (khoản thu) + thanh toán đã xác nhận rồi xóa bảng |
 | `0007` | Tạo `event_draft`; xóa `ai_proposal`, `assistant_pending`, `conversation_pending` (đề xuất chưa duyệt không chuyển sang) |
 | `0008` | `user.dang_nhap_sai`, `user.khoa_dang_nhap_den` (tạm khóa đăng nhập lưu trong database) |
+| `0009` | Đổi các cột trước đây lưu UTC (ngày đăng ký, tin nhắn, thanh toán, điểm danh, audit…) sang giờ Việt Nam; giờ sự kiện, hạn task giữ nguyên |
 
 **Quy trình thay đổi schema** (Ch5.2):
 

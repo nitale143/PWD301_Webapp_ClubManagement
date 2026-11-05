@@ -11,14 +11,14 @@ from .common import DomainError
 from .email_proposals import maybe_create_email_draft
 from .event_drafts import maybe_handle_draft
 from .verified_queries import maybe_answer_member_query
-from app.timeutil import utcnow
+from app.timeutil import club_now
 
 
 def check_chat_rate(actor):
     """Giới hạn số câu hỏi AI mỗi phút cho một người (AI_CHAT_MESSAGES_PER_MINUTE)."""
     count = ChatMessage.query.filter(
         ChatMessage.user_id == actor.id, ChatMessage.role == "user",
-        ChatMessage.thoi_gian >= utcnow() - timedelta(minutes=1),
+        ChatMessage.thoi_gian >= club_now() - timedelta(minutes=1),
     ).count()
     if count >= current_app.config["AI_CHAT_MESSAGES_PER_MINUTE"]:
         raise DomainError("Bạn gửi câu hỏi quá nhanh. Vui lòng đợi một phút.", 429)

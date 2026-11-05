@@ -27,7 +27,7 @@ from app.services.email_proposals import (can_review_email, edit_email_draft,
 from app.services.briefings import (can_access_report, daily_digest, report_data,
                                     report_email_draft, report_text, report_workbook,
                                     save_report)
-from app.timeutil import utcnow
+from app.timeutil import club_now
 
 ai_bp = Blueprint("ai", __name__)
 
@@ -191,7 +191,7 @@ def ai_chat():
         ).order_by(EmailProposal.created_at.desc())
         email_proposals = [draft for draft in email_query.limit(30) if can_review_email(current_user, draft)]
         usage_query = AIUsageLog.query.filter(
-            AIUsageLog.created_at >= utcnow() - timedelta(days=1))
+            AIUsageLog.created_at >= club_now() - timedelta(days=1))
         usage = usage_query.all()
         usage_summary = {"calls": len(usage),
                          "tokens": sum(row.total_tokens for row in usage),
@@ -246,7 +246,7 @@ def _change_conversation(conversation_id, action):
             conversation.title = checked_title(request.form.get("title"))
         else:
             conversation.archived = action == "archive"
-        conversation.updated_at = utcnow()
+        conversation.updated_at = club_now()
         db.session.commit()
         flash("Đã lưu thay đổi cuộc trò chuyện.", "success")
         return redirect(url_for("ai.ai_chat", chat=conversation.id,
@@ -449,7 +449,7 @@ def draft_action(draft_id, action):
     try:
         if action == "suggest":
             count = event_drafts.suggest_assignees(draft)
-            draft.updated_at = utcnow()
+            draft.updated_at = club_now()
             audit(current_user, "event_draft_update", draft, {"changes": [f"gợi ý {count} task"]})
             db.session.commit()
             flash(f"AI đã gợi ý người cho {count} task." if count else

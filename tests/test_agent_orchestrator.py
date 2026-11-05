@@ -157,7 +157,7 @@ class AgentOrchestratorTests(unittest.TestCase):
             fund_id=fund.id, user_id=user_id, so_tien=amount,
             phuong_thuc="cash", ma_giao_dich=f"TEST-{fund.id}-{user_id}",
             trang_thai="confirmed", xac_nhan_boi_id=1,
-            xac_nhan_luc=datetime.utcnow(),
+            xac_nhan_luc=club_now(),
         ))
         db.session.commit()
         return fund
@@ -542,7 +542,7 @@ class AgentOrchestratorTests(unittest.TestCase):
                     elif change == "status":
                         actor.status = "pending"
                     elif change == "membership_archive":
-                        db.session.get(MemberRecord, 1).luu_tru_luc = datetime.utcnow()
+                        db.session.get(MemberRecord, 1).luu_tru_luc = club_now()
                     elif change == "conversation_archive":
                         conversation.archived = True
                     db.session.commit()

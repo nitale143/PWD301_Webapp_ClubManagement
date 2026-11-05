@@ -42,7 +42,7 @@ Tài liệu dành cho **thành viên** và **Ban điều hành (BĐH)** của CL
    | Nhập lại mật khẩu | Phải giống ô Mật khẩu |
 
 3. Bấm **Gửi đăng ký**. Nếu ô nào sai, lỗi hiện ngay dưới ô đó.
-4. Hệ thống gửi **email xác minh**. Mở thư và bấm vào liên kết (hiệu lực 48 giờ).
+4. Hệ thống gửi **email xác minh**. Mở thư và bấm vào liên kết (hiệu lực **1 giờ**; hết hạn thì bấm **Gửi lại email xác minh**).
 5. Tài khoản ở trạng thái **Chờ xét duyệt** cho tới khi Chủ nhiệm hoặc Phó chủ nhiệm duyệt. Bạn vẫn đăng nhập được nhưng chỉ thấy trang chờ duyệt. Trên trang này có nút **Gửi lại email xác minh** nếu chưa nhận được thư.
 6. Khi được duyệt (hoặc bị từ chối), bạn nhận email thông báo.
 

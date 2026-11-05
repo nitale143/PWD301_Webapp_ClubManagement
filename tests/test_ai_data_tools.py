@@ -17,7 +17,6 @@ from app.services.agent import respond_events
 from app.services.assistant import RulesProvider
 from app.services.club_data_tools import answer_by_rules, detect_tool, merge_args
 from app.services.common import DomainError, club_now
-from app.timeutil import utcnow
 
 
 class FakeModel:
@@ -86,7 +85,7 @@ class DataToolTests(unittest.TestCase):
             db.session.add(reg)
             db.session.flush()
             db.session.add(Attendance(registration_id=reg.id, trang_thai=state, checkin_boi_id=1,
-                                      checkin_luc=utcnow() - timedelta(days=2) if state == "on_time" else None))
+                                      checkin_luc=club_now() - timedelta(days=2) if state == "on_time" else None))
         for user_id, state in ((1, "registered"), (2, "cancelled"), (3, "registered"), (4, "registered")):
             db.session.add(EventRegistration(event_id=11, user_id=user_id, trang_thai=state))
         period = FundPeriod(ten_ky="Fall 2026", ngay_bat_dau=(now - timedelta(days=30)).date(),

@@ -11,7 +11,6 @@ from contextlib import closing
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from app.timeutil import utcnow
 
 
 _CHAT_CONVERSATION_INDEX = (
@@ -219,7 +218,8 @@ def _timestamp_bounds(connection, user_id, include_pending=True):
     if not values and not include_pending:
         return None, None
     if not values:
-        now = utcnow().isoformat(sep=" ")
+        # Database cũ (trước Alembic) lưu UTC; migration 0009 sẽ đổi sang giờ Việt Nam.
+        now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(sep=" ")
         return now, now
     # Existing values are SQLite datetime strings in the same sortable format.
     return min(values), max(values)

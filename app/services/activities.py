@@ -24,7 +24,7 @@ from app.models import (
     Attendance, Event, EventDetail, EventRegistration, EventTargetBan, FundPeriod,
     MemberActivity, MemberRecord, Task, User,
 )
-from app.timeutil import utcnow
+from app.timeutil import club_now
 
 LABELS = Config.ACTIVITY_LABELS
 PAUSED = "tam_nghi"
@@ -146,7 +146,7 @@ def _save(member, period, data):
     row.su_kien_co_mat = data["event_present"]
     row.diem = data["score"]
     row.trang_thai = data["level"]
-    row.cap_nhat_luc = utcnow()
+    row.cap_nhat_luc = club_now()
     return row
 
 

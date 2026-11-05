@@ -104,7 +104,7 @@
     const retry = ctfPanel.querySelector('[data-ctf-retry]');
     const search = ctfPanel.querySelector('[data-ctf-search]');
     const formatter = new Intl.DateTimeFormat('vi-VN', {
-        timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short'
+        timeZone: 'Asia/Ho_Chi_Minh', dateStyle: 'medium', timeStyle: 'short'
     });
     let loaded = false;
     let loading = false;
@@ -177,7 +177,7 @@
         time.dateTime = event.start;
         time.textContent = `${formatDate(event.start)} – ${formatDate(event.finish)}`;
         const timezone = document.createElement('span');
-        timezone.textContent = 'Giờ Việt Nam · Asia/Bangkok';
+        timezone.textContent = 'Giờ Việt Nam (UTC+7)';
         timeRow.append(time, timezone);
         card.append(top, title, timeRow);
 

@@ -7,6 +7,7 @@ from unittest.mock import patch
 from flask import g
 
 from tests.support import sign_csrf
+from app.timeutil import club_now
 from app import create_app, db
 from app.models import Ban, Event, MemberRecord, Permission, Task, User, UserBan
 from app.services.access import (
@@ -212,7 +213,7 @@ class TwoRoleSecurityTests(unittest.TestCase):
         record = db.session.get(MemberRecord, 1)
         self.assertFalse(set_member_left_safely(last_admin, record))
         db.session.rollback()
-        self.assertFalse(set_member_left_safely(last_admin, record, datetime.utcnow()))
+        self.assertFalse(set_member_left_safely(last_admin, record, club_now()))
         db.session.rollback()
         self.assertEqual(db.session.get(User, 1).chuc_vu, "CN")
         self.assertEqual(db.session.get(MemberRecord, 1).tinh_trang, "active")
@@ -227,7 +228,7 @@ class TwoRoleSecurityTests(unittest.TestCase):
         for index, status in enumerate(("cancelled", "da_ket_thuc"), start=1):
             event_id = 20 + index
             task_id = 30 + index
-            start = datetime.utcnow() - timedelta(days=1)
+            start = club_now() - timedelta(days=1)
             event = Event(
                 id=event_id, ten_su_kien=f"Terminal {status}", ma_su_kien=f"TERM{index}",
                 thoi_gian_bat_dau=start, thoi_gian_ket_thuc=start + timedelta(hours=2),
@@ -253,7 +254,7 @@ class TwoRoleSecurityTests(unittest.TestCase):
                                               headers=self.csrf_headers).status_code, 400)
 
     def test_html_api_and_ctftime_event_creation_are_available_to_all_admin_roles(self):
-        starts = datetime.utcnow() + timedelta(days=2)
+        starts = club_now() + timedelta(days=2)
         ends = starts + timedelta(hours=3)
         for user_id, _role in self.ADMIN_ROLES:
             self.login(user_id)

@@ -1,11 +1,8 @@
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from zoneinfo import ZoneInfo
-
-from flask import current_app
-
 from app import db
 from app.models import AuditLog, MemberRecord
+from app.timeutil import club_now, to_club_time  # noqa: F401  (club_now: dùng chung qua services.common)
 
 
 class DomainError(Exception):
@@ -16,11 +13,6 @@ class DomainError(Exception):
         """Lưu thông báo và status."""
         super().__init__(message)
         self.status = status
-
-
-def club_now():
-    """Event/task wall-clock values in the database are club-local naive datetimes."""
-    return datetime.now(ZoneInfo(current_app.config["APP_TIMEZONE"])).replace(tzinfo=None)
 
 
 def parse_date(value, label):
@@ -39,7 +31,7 @@ def parse_datetime(value, label):
     """Đọc thời gian ISO 8601; có múi giờ thì đổi về giờ CLB (naive)."""
     try:
         parsed = datetime.fromisoformat(str(value))
-        return parsed.astimezone(ZoneInfo(current_app.config["APP_TIMEZONE"])).replace(tzinfo=None) if parsed.tzinfo else parsed
+        return to_club_time(parsed)
     except (TypeError, ValueError):
         raise DomainError(f"{label} không hợp lệ (ISO 8601).") from None
 
@@ -75,6 +67,6 @@ def member_record(user):
     """Lấy MemberRecord của user, chưa có thì tạo mới (ngày gia nhập = ngày tạo tài khoản)."""
     record = db.session.get(MemberRecord, user.id)
     if record is None:
-        record = MemberRecord(user_id=user.id, ngay_gia_nhap=user.ngay_tao.date() if user.ngay_tao else date.today())
+        record = MemberRecord(user_id=user.id, ngay_gia_nhap=(user.ngay_tao or club_now()).date())
         db.session.add(record)
     return record

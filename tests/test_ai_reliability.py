@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests.support import csrf_for
+from app.timeutil import club_now
 from app import create_app, db
 from app.models import (
     Attendance,
@@ -99,7 +100,7 @@ class AIAssistantReliabilityTests(unittest.TestCase):
                                 headers={"X-CSRF-Token": token})
 
     def _event(self, event_id, name):
-        start = datetime.utcnow() + timedelta(days=event_id)
+        start = club_now() + timedelta(days=event_id)
         return Event(
             id=event_id,
             ten_su_kien=name,

@@ -1,7 +1,7 @@
 """Các model SQLAlchemy của webapp CLB (Ch5 – Database & ORM, Ch7 – RBAC).
 
 Quy ước đặt tên: tên bảng/cột giữ tiếng Việt không dấu như database cũ để
-không phải đổi dữ liệu đã có. Thời gian lưu dạng UTC naive (xem app.timeutil).
+không phải đổi dữ liệu đã có. Mọi thời gian lưu theo giờ Việt Nam, naive (xem app.timeutil).
 Schema thay đổi qua Flask-Migrate: sửa model → `flask db migrate -m "..."`
 → kiểm tra file trong migrations/versions → `flask db upgrade`.
 """
@@ -9,7 +9,7 @@ from flask_login import AnonymousUserMixin, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from app import db, login_manager
-from app.timeutil import utcnow
+from app.timeutil import club_now
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +185,7 @@ class User(UserMixin, db.Model):
     # Người đã chỉ định chức vụ này (phục vụ cơ chế nhường quyền)
     chi_dinh_boi_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
 
-    ngay_tao = db.Column(db.DateTime, default=utcnow)
+    ngay_tao = db.Column(db.DateTime, default=club_now)
 
     # Kỳ (FundPeriod) mà thành viên được BĐH duyệt vào. Kỳ này "Chưa xếp loại" hoạt động;
     # từ kỳ KẾ TIẾP mới tính (app/services/activities.py).
@@ -221,7 +221,7 @@ class User(UserMixin, db.Model):
     def set_password(self, raw_password):
         """Băm mật khẩu bằng Werkzeug (scrypt), ghi thời điểm đổi và mở khóa đăng nhập."""
         self.password_hash = generate_password_hash(raw_password)
-        self.password_changed_at = utcnow()
+        self.password_changed_at = club_now()
         self.dang_nhap_sai, self.khoa_dang_nhap_den = 0, None
 
     def check_password(self, raw_password):
@@ -274,7 +274,7 @@ class User(UserMixin, db.Model):
         """Đánh dấu email đã xác minh và ghi thời điểm xác minh."""
         if not self.email_confirmed:
             self.email_confirmed = True
-            self.email_confirmed_at = utcnow()
+            self.email_confirmed_at = club_now()
 
     # ---- phân quyền (Ch7) ----
     @property
@@ -482,7 +482,7 @@ class MemberActivity(db.Model):
     diem = db.Column(db.Float)                                          # 0–100; NULL = chưa có dữ liệu
     # tich_cuc | hoat_dong | it_hoat_dong | khong_hoat_dong | chua_xep_loai
     trang_thai = db.Column(db.String(20), nullable=False, default="chua_xep_loai")
-    cap_nhat_luc = db.Column(db.DateTime, nullable=False, default=utcnow)
+    cap_nhat_luc = db.Column(db.DateTime, nullable=False, default=club_now)
 
     user = db.relationship("User")
     period = db.relationship("FundPeriod")
@@ -502,7 +502,7 @@ class ChatMessage(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     role = db.Column(db.String(10), nullable=False)  # 'user' | 'ai'
     content = db.Column(db.Text, nullable=False)
-    thoi_gian = db.Column(db.DateTime, default=utcnow)
+    thoi_gian = db.Column(db.DateTime, default=club_now)
     conversation_id = db.Column(db.Integer, db.ForeignKey("chat_conversation.id"), nullable=True)
 
     __table_args__ = (
@@ -518,9 +518,9 @@ class ChatConversation(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     title = db.Column(db.String(100), nullable=False, default="Cuộc trò chuyện mới",
                       server_default="Cuộc trò chuyện mới")
-    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
-    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow,
-                            onupdate=utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=club_now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=club_now,
+                            onupdate=club_now)
     archived = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     legacy_marker = db.Column(db.String(16), nullable=True)
 
@@ -538,7 +538,7 @@ class Notification(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     noi_dung = db.Column(db.String(255), nullable=False)
     da_doc = db.Column(db.Boolean, default=False)
-    thoi_gian = db.Column(db.DateTime, default=utcnow)
+    thoi_gian = db.Column(db.DateTime, default=club_now)
 
 
 # Nghiệp vụ mở rộng: hồ sơ thành viên, khoản thu, sự kiện chi tiết, AI…
@@ -548,7 +548,7 @@ class MemberRecord(db.Model):
     """
     __tablename__ = "member_record"
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), primary_key=True)
-    ngay_gia_nhap = db.Column(db.Date, nullable=False, default=lambda: utcnow().date())
+    ngay_gia_nhap = db.Column(db.Date, nullable=False, default=lambda: club_now().date())
     tinh_trang = db.Column(db.String(20), nullable=False, default="active")
     ghi_chu = db.Column(db.Text, nullable=False, default="")
     luu_tru_luc = db.Column(db.DateTime)
@@ -574,7 +574,7 @@ class FundCollection(db.Model):
     mo_ta = db.Column(db.Text, nullable=False, default="")
     trang_thai = db.Column(db.String(12), nullable=False, default="draft", index=True)
     tao_boi_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    tao_luc = db.Column(db.DateTime, nullable=False, default=utcnow)
+    tao_luc = db.Column(db.DateTime, nullable=False, default=club_now)
     period_id = db.Column(db.Integer, db.ForeignKey("fund_period.id"), index=True)
     period = db.relationship("FundPeriod")
     __table_args__ = (
@@ -603,7 +603,7 @@ class FundAdjustment(db.Model):
     so_tien = db.Column(db.Numeric(14, 2), nullable=False, default=0)
     ly_do = db.Column(db.Text, nullable=False)
     tao_boi_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    tao_luc = db.Column(db.DateTime, nullable=False, default=utcnow)
+    tao_luc = db.Column(db.DateTime, nullable=False, default=club_now)
     __table_args__ = (
         db.UniqueConstraint("fund_id", "user_id", name="uq_fund_adjustment_member"),
         db.CheckConstraint("loai IN ('exempt','reduce')", name="ck_fund_adjustment_type"),
@@ -621,7 +621,7 @@ class FundPayment(db.Model):
     fund_id = db.Column(db.Integer, db.ForeignKey("fund_collection.id"), nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
     so_tien = db.Column(db.Numeric(14, 2), nullable=False)
-    ngay_dong = db.Column(db.DateTime, nullable=False, default=utcnow)
+    ngay_dong = db.Column(db.DateTime, nullable=False, default=club_now)
     phuong_thuc = db.Column(db.String(20), nullable=False)
     ma_giao_dich = db.Column(db.String(100), nullable=False, default="")
     trang_thai = db.Column(db.String(12), nullable=False, default="pending", index=True)
@@ -642,7 +642,7 @@ class PaymentEvidence(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     payment_id = db.Column(db.Integer, db.ForeignKey("fund_payment.id"), nullable=False)
     duong_dan = db.Column(db.String(255), nullable=False)
-    tai_len_luc = db.Column(db.DateTime, nullable=False, default=utcnow)
+    tai_len_luc = db.Column(db.DateTime, nullable=False, default=club_now)
 
 
 class EventDetail(db.Model):
@@ -680,7 +680,7 @@ class EventRegistration(db.Model):
     event_id = db.Column(db.Integer, db.ForeignKey("event.id"), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     trang_thai = db.Column(db.String(12), nullable=False, default="registered")
-    dang_ky_luc = db.Column(db.DateTime, nullable=False, default=utcnow)
+    dang_ky_luc = db.Column(db.DateTime, nullable=False, default=club_now)
     huy_luc = db.Column(db.DateTime)
     user = db.relationship("User")
     event = db.relationship("Event", backref="registrations")
@@ -713,7 +713,7 @@ class QRCheckinLog(db.Model):
     event_id = db.Column(db.Integer, db.ForeignKey("event.id"), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     account_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    checkin_luc = db.Column(db.DateTime, nullable=False, default=utcnow)
+    checkin_luc = db.Column(db.DateTime, nullable=False, default=club_now)
 
 
 class EventFeedback(db.Model):
@@ -724,7 +724,7 @@ class EventFeedback(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     danh_gia = db.Column(db.Integer, nullable=False)
     binh_luan = db.Column(db.Text, nullable=False, default="")
-    tao_luc = db.Column(db.DateTime, nullable=False, default=utcnow)
+    tao_luc = db.Column(db.DateTime, nullable=False, default=club_now)
     __table_args__ = (
         db.UniqueConstraint("event_id", "user_id", name="uq_event_feedback_member"),
         db.CheckConstraint("danh_gia BETWEEN 1 AND 5", name="ck_event_feedback_rating"),
@@ -742,7 +742,7 @@ class AuditLog(db.Model):
     object_type = db.Column(db.String(100), nullable=False)
     object_id = db.Column(db.String(100), nullable=False)
     details = db.Column(db.JSON, nullable=False, default=dict)
-    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=club_now)
 
 
 class EventDraft(db.Model):
@@ -760,8 +760,8 @@ class EventDraft(db.Model):
     status = db.Column(db.String(12), nullable=False, default="draft")   # draft | approved | discarded
     request_text = db.Column(db.Text, nullable=False)
     data = db.Column(db.JSON, nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
-    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=club_now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=club_now, onupdate=club_now)
     reviewed_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     reviewed_at = db.Column(db.DateTime)
     result_event_id = db.Column(db.Integer, db.ForeignKey("event.id"))
@@ -784,7 +784,7 @@ class EmailProposal(db.Model):
     status = db.Column(db.String(12), nullable=False, default="pending", index=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     reviewed_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=club_now)
     reviewed_at = db.Column(db.DateTime)
     sent_at = db.Column(db.DateTime)
     __table_args__ = (
@@ -813,8 +813,8 @@ class EmailTemplate(db.Model):
     body = db.Column(db.Text, nullable=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow,
-                           onupdate=utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=club_now,
+                           onupdate=club_now)
 
 
 class ProposalTemplate(db.Model):
@@ -837,7 +837,7 @@ class ProposalTemplate(db.Model):
     is_default = db.Column(db.Boolean, nullable=False, default=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=club_now, onupdate=club_now)
     __table_args__ = (
         db.UniqueConstraint("kind", "name_key", name="uq_proposal_template_name"),
         db.CheckConstraint("kind IN ('event','task')", name="ck_proposal_template_kind"),
@@ -852,7 +852,7 @@ class AIReportSnapshot(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
     period = db.Column(db.String(10), nullable=False)
     payload = db.Column(db.JSON, nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=club_now)
 
 
 class MemberPlanningProfile(db.Model):
@@ -863,8 +863,8 @@ class MemberPlanningProfile(db.Model):
     skills = db.Column(db.JSON, nullable=False, default=list)
     max_active_tasks = db.Column(db.Integer, nullable=False, default=3)
     unavailable_until = db.Column(db.Date)
-    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow,
-                           onupdate=utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=club_now,
+                           onupdate=club_now)
     __table_args__ = (
         db.CheckConstraint("max_active_tasks BETWEEN 1 AND 10",
                            name="ck_member_planning_capacity"),
@@ -884,4 +884,4 @@ class AIUsageLog(db.Model):
     output_tokens = db.Column(db.Integer, nullable=False, default=0)
     total_tokens = db.Column(db.Integer, nullable=False, default=0)
     elapsed_ms = db.Column(db.Integer, nullable=False, default=0)
-    created_at = db.Column(db.DateTime, nullable=False, default=utcnow, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=club_now, index=True)

@@ -22,7 +22,6 @@ from .access import (board_members, can_manage_events, can_manage_funds,
                      is_board, require, scoped_members)
 from .common import DomainError, club_now
 from .funds import OWING_STATES, balance, fund_member_rows, period_collections, period_fund, target_members
-from app.timeutil import utcnow
 
 
 def _normalize(text):
@@ -59,7 +58,7 @@ def _model_quota():
     """Bound shared-key use per member; the final approval gates remain separate."""
     if not has_request_context() or not current_user.is_authenticated:
         return
-    now = utcnow()
+    now = club_now()
     recent = AIUsageLog.query.filter(
         AIUsageLog.actor_id == current_user.id,
         AIUsageLog.created_at >= now - timedelta(minutes=1),
@@ -307,8 +306,8 @@ class RulesProvider(AssistantProvider):
                                              Event.trang_thai != "cancelled")
             events = event_query.count()
             attendance_query = (Attendance.query.join(EventRegistration)
-                                .filter(Attendance.checkin_luc >= utcnow() - timedelta(days=30),
-                                        Attendance.checkin_luc <= utcnow(),
+                                .filter(Attendance.checkin_luc >= club_now() - timedelta(days=30),
+                                        Attendance.checkin_luc <= club_now(),
                                         Attendance.trang_thai.in_(["on_time", "late"])))
             if not is_board(actor):
                 attendance_query = attendance_query.filter(EventRegistration.user_id.in_(board_ids))

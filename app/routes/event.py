@@ -23,7 +23,6 @@ from app.services.events import (
     qr_checkin, register, registration_open,
 )
 from app.services.ctftime import CalendarUnavailable, SOURCE_URL, calendar_data, event_by_id
-from app.timeutil import utcnow
 
 event_bp = Blueprint("event", __name__)
 
@@ -383,7 +382,7 @@ def task_submit(task_id):
         return redirect(url_for("event.event_detail", event_id=task.event_id))
     if noi_dung_moi and noi_dung_moi != (task.noi_dung_nop or ""):
         task.noi_dung_nop = noi_dung_moi
-        task.lan_nop_gan_nhat = utcnow()
+        task.lan_nop_gan_nhat = club_now()
         task.trang_thai = "cho_duyet"
         db.session.commit()
 

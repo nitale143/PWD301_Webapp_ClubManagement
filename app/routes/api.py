@@ -57,7 +57,6 @@ from app.limiter import limiter
 from app.validators import (
     EMAIL_RE, MSSV_EXAMPLE, MSSV_RE, PASSWORD_MAX, normalize_facebook, normalize_mssv, normalize_phone,
 )
-from app.timeutil import utcnow
 
 
 api_bp = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -352,7 +351,7 @@ def member_archive(user_id):
     record = member_record(user)
     if record.luu_tru_luc:
         raise DomainError("Thành viên đã được lưu trữ.")
-    if not set_member_left_safely(user, record, utcnow()):
+    if not set_member_left_safely(user, record, club_now()):
         raise DomainError("Không thể lưu trữ quản trị viên cuối cùng.", 409)
     audit(current_user, "member_archive", record, {"member_id": user.id})
     db.session.commit()
@@ -815,7 +814,7 @@ def assistant_conversation_rename(conversation_id):
     require_csrf()
     conversation = owned_conversation(current_user, conversation_id)
     conversation.title = checked_title(body().get("title"))
-    conversation.updated_at = utcnow()
+    conversation.updated_at = club_now()
     db.session.commit()
     return jsonify(conversation_json(conversation))
 
@@ -829,7 +828,7 @@ def assistant_conversation_archive(conversation_id):
     if not isinstance(archived, bool):
         raise DomainError("Trạng thái lưu trữ không hợp lệ.")
     conversation.archived = archived
-    conversation.updated_at = utcnow()
+    conversation.updated_at = club_now()
     db.session.commit()
     return jsonify(conversation_json(conversation))
 

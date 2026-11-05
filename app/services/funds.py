@@ -18,7 +18,6 @@ from app.models import (
 from .access import approved, is_treasurer, require
 from .activities import current_period, period_of
 from .common import DomainError, audit, club_now, parse_date, parse_money
-from app.timeutil import utcnow
 
 
 # Loại khoản thu được phép TẠO MỚI: quỹ theo kỳ / quỹ sự kiện / khác.
@@ -219,7 +218,7 @@ def record_payment(actor, fund, member, data):
     payment = FundPayment(
         fund_id=fund.id, user_id=member.id,
         so_tien=amount,
-        ngay_dong=utcnow(), phuong_thuc=method,
+        ngay_dong=club_now(), phuong_thuc=method,
         ma_giao_dich=str(data.get("transaction_code", "")).strip()[:100],
         ghi_chu=str(data.get("note", "")).strip(), trang_thai="pending",
     )
@@ -247,7 +246,7 @@ def review_payment(actor, payment, decision, note=""):
         raise DomainError("Giao dịch đã được xử lý.")
     payment.trang_thai = decision
     payment.xac_nhan_boi_id = actor.id
-    payment.xac_nhan_luc = utcnow()
+    payment.xac_nhan_luc = club_now()
     payment.ghi_chu = str(note).strip() or payment.ghi_chu
     audit(actor, f"fund_payment_{decision}", payment, {"amount": str(payment.so_tien)})
     if decision == "confirmed":
@@ -306,7 +305,7 @@ def adjust_fund(actor, fund, member, data):
     adjustment.so_tien = Decimal("0.00") if kind == "exempt" else amount
     adjustment.ly_do = reason
     adjustment.tao_boi_id = actor.id
-    adjustment.tao_luc = utcnow()
+    adjustment.tao_luc = club_now()
     db.session.flush()
     audit(actor, "fund_adjustment", adjustment, {"type": kind, "amount": str(adjustment.so_tien), "reason": reason})
     db.session.commit()

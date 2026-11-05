@@ -34,7 +34,7 @@ class Config:
     LOGIN_LOCKOUT_SECONDS = 300          # lần khóa đầu; lần 2 ×3, từ lần 3 ×6 (login_lockout.py)
     MAX_FORM_PARTS = 200
     MAX_FORM_MEMORY_SIZE = 128 * 1024
-    APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "Asia/Bangkok")
+    APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "Asia/Ho_Chi_Minh")   # giờ lưu, kiểm tra, hiển thị
     SESSION_COOKIE_SAMESITE = "Lax"
     # Flask-Login: "strong" đăng xuất khi IP hoặc trình duyệt thay đổi (Ch6 – slide 71)
     SESSION_PROTECTION = os.environ.get("SESSION_PROTECTION", "strong")
@@ -45,7 +45,7 @@ class Config:
     REMEMBER_COOKIE_SECURE = APP_ENV == "production"
     REMEMBER_COOKIE_NAME = "fia_remember"
     # Thời hạn token gửi qua email (giây)
-    EMAIL_CONFIRM_MAX_AGE = 48 * 3600
+    EMAIL_CONFIRM_MAX_AGE = 3600            # link xác minh email: 1 giờ
     PASSWORD_RESET_MAX_AGE = 3600
 
     # --- Flask-WTF (Ch4) ---

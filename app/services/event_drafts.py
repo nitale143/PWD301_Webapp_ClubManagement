@@ -27,7 +27,6 @@ from .common import DomainError, audit, club_now
 from .event_status import OPEN, initial_status, is_terminal
 from .natural_datetime import extract_schedule
 from .proposal_templates import find_proposal_template
-from app.timeutil import utcnow
 
 MAX_TASKS = 15
 DEFAULT_DUE = "23:59"
@@ -43,7 +42,7 @@ def visible_drafts(actor):
     """Bản nháp đang dở mà người quản lý sự kiện được xem (mọi người quản lý sự kiện cùng làm)."""
     require(can_manage_events(actor), "Chỉ người có quyền quản lý sự kiện được xem bản nháp.")
     return (EventDraft.query.filter(EventDraft.status == "draft",
-                                    EventDraft.updated_at >= utcnow() - DRAFT_TTL)
+                                    EventDraft.updated_at >= club_now() - DRAFT_TTL)
             .order_by(EventDraft.updated_at.desc()))
 
 
@@ -60,7 +59,7 @@ def active_draft(actor, conversation=None):
     if not can_manage_events(actor):
         return None
     query = EventDraft.query.filter(EventDraft.status == "draft", EventDraft.created_by_id == actor.id,
-                                    EventDraft.updated_at >= utcnow() - DRAFT_TTL)
+                                    EventDraft.updated_at >= club_now() - DRAFT_TTL)
     query = (query.filter(EventDraft.conversation_id == conversation.id) if conversation is not None
              else query.filter(EventDraft.conversation_id.is_(None)))
     return query.order_by(EventDraft.updated_at.desc()).first()
@@ -356,7 +355,7 @@ def _store(draft, data):
     """Ghi lại JSON của bản nháp (cột JSON không tự nhận thay đổi bên trong dict)."""
     draft.data = data
     flag_modified(draft, "data")
-    draft.updated_at = utcnow()
+    draft.updated_at = club_now()
 
 
 def _task_by_key(data, key):
@@ -675,7 +674,7 @@ def approve(actor, draft):
         db.session.add(Task(event_id=event.id, ten_task=task["name"], mo_ta=task.get("description") or "",
                             deadline=deadline, assignee_id=member.id, ban_id=task["ban_id"],
                             trang_thai="dang_lam"))
-    draft.reviewed_by_id, draft.reviewed_at, draft.result_event_id = actor.id, utcnow(), event.id
+    draft.reviewed_by_id, draft.reviewed_at, draft.result_event_id = actor.id, club_now(), event.id
     audit(actor, "event_draft_approve", draft, {"event_id": event.id, "tasks": len(data["tasks"])})
     db.session.commit()
     return event
@@ -685,7 +684,7 @@ def discard(actor, draft):
     """Bỏ bản nháp (không ảnh hưởng dữ liệu thật). Commit."""
     require(can_manage_events(actor))
     _claim(draft, "discarded")
-    draft.reviewed_by_id, draft.reviewed_at = actor.id, utcnow()
+    draft.reviewed_by_id, draft.reviewed_at = actor.id, club_now()
     audit(actor, "event_draft_discard", draft)
     db.session.commit()
 

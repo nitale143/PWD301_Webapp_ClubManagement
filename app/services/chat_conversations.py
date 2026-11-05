@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from app import db
 from app.models import ChatConversation, ChatMessage
 from .common import DomainError
-from app.timeutil import utcnow
+from app.timeutil import club_now
 
 DEFAULT_TITLE = "Cuộc trò chuyện mới"
 MESSAGE_PAGE_SIZE = 40
@@ -105,7 +105,7 @@ def append_exchange(actor, conversation, question, reply):
     for role, content in (("user", question), ("ai", reply)):
         db.session.add(ChatMessage(user_id=actor.id, conversation_id=conversation.id,
                                    role=role, content=content))
-    conversation.updated_at = utcnow()
+    conversation.updated_at = club_now()
 
 
 def begin_turn(actor, conversation, question):
@@ -117,7 +117,7 @@ def begin_turn(actor, conversation, question):
     message = ChatMessage(user_id=actor.id, conversation_id=conversation.id,
                           role="user", content=question)
     db.session.add(message)
-    conversation.updated_at = utcnow()
+    conversation.updated_at = club_now()
     db.session.flush()
     db.session.commit()
     return message
@@ -135,7 +135,7 @@ def finish_turn(actor, conversation, reply, user_message_id, run_id, permission_
     message = ChatMessage(user_id=actor.id, conversation_id=conversation.id,
                           role="ai", content=reply["answer"])
     db.session.add(message)
-    conversation.updated_at = utcnow()
+    conversation.updated_at = club_now()
     audit(actor, "assistant_query", actor, {
         "intent": reply.get("intent", "unsupported"),
         "provider": reply.get("provider", "rules"),

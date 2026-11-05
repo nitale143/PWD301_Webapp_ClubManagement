@@ -13,7 +13,6 @@ from .access import approved, can_manage_events, require
 from .activities import refresh_for_event
 from .event_status import ENDED, OPEN, is_terminal
 from .common import DomainError, audit, club_now
-from app.timeutil import utcnow
 
 
 QR_TTL_SECONDS = 15 * 60
@@ -74,7 +73,7 @@ def register(actor, event, member=None):
         registration = EventRegistration(event_id=event.id, user_id=member.id)
         db.session.add(registration)
     registration.trang_thai = state
-    registration.dang_ky_luc = utcnow()
+    registration.dang_ky_luc = club_now()
     registration.huy_luc = None
     db.session.flush()
     audit(actor, "event_registration", registration, {"event_id": event.id, "member_id": member.id, "state": state})
@@ -93,7 +92,7 @@ def cancel_registration(actor, registration):
         raise DomainError("Không thể hủy đăng ký sau khi đã điểm danh.")
     freed_slot = registration.trang_thai == "registered"
     registration.trang_thai = "cancelled"
-    registration.huy_luc = utcnow()
+    registration.huy_luc = club_now()
     promoted = None
     if freed_slot:
         promoted = EventRegistration.query.filter_by(
@@ -141,9 +140,9 @@ def qr_checkin(actor, token, now=None, expected_event_id=None):
         attendance = Attendance(registration_id=registration.id)
         db.session.add(attendance)
     attendance.trang_thai = "late" if now > event.thoi_gian_bat_dau else "on_time"
-    attendance.checkin_luc = utcnow()
+    attendance.checkin_luc = club_now()
     attendance.checkin_boi_id = actor.id
-    db.session.add(QRCheckinLog(event_id=event.id, user_id=actor.id, account_id=actor.id, checkin_luc=utcnow()))
+    db.session.add(QRCheckinLog(event_id=event.id, user_id=actor.id, account_id=actor.id, checkin_luc=club_now()))
     db.session.flush()
     audit(actor, "qr_checkin", attendance, {"event_id": event.id})
     db.session.commit()
@@ -163,7 +162,7 @@ def manual_attendance(actor, registration, state, note=""):
         db.session.add(attendance)
     attendance.trang_thai = state
     attendance.checkin_boi_id = actor.id
-    attendance.checkin_luc = utcnow() if state in {"on_time", "late"} else None
+    attendance.checkin_luc = club_now() if state in {"on_time", "late"} else None
     attendance.ghi_chu = str(note or "").strip()
     db.session.flush()
     # Sửa điểm danh sau khi sự kiện đã kết thúc → tính lại tình trạng hoạt động của kỳ.

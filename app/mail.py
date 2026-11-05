@@ -15,7 +15,7 @@ from email.utils import parseaddr
 
 from flask import current_app
 
-from app.timeutil import utcnow
+from app.timeutil import club_now
 
 
 _EMAIL_RE = re.compile(
@@ -135,7 +135,7 @@ def _write_outbox(to_email, subject, body):
     message.set_content(body)
     folder = os.path.join(current_app.instance_path, "mail_outbox")
     os.makedirs(folder, mode=0o700, exist_ok=True)
-    path = os.path.join(folder, utcnow().strftime("%Y%m%d-%H%M%S-%f") + ".eml")
+    path = os.path.join(folder, club_now().strftime("%Y%m%d-%H%M%S-%f") + ".eml")
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as handle:
         handle.write(bytes(message))

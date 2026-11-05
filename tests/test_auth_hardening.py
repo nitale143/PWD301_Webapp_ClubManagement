@@ -164,14 +164,14 @@ class AuthHardeningTests(unittest.TestCase):
     def test_lockout_is_stored_per_account_in_the_database(self):
         from datetime import timedelta
         from app.models import AuditLog
-        from app.timeutil import utcnow
+        from app.timeutil import club_now
 
         self._fail(times=4, address="203.0.113.1")
         self._fail(times=1, address="203.0.113.2")          # đổi IP không thoát được bộ đếm
         user = db.session.get(User, 1)
         db.session.refresh(user)
         self.assertEqual(user.dang_nhap_sai, 5)
-        first_lock = user.khoa_dang_nhap_den - utcnow()
+        first_lock = user.khoa_dang_nhap_den - club_now()
         self.assertTrue(timedelta(minutes=4) < first_lock <= timedelta(minutes=5))
         self.assertEqual(AuditLog.query.filter_by(action="login_locked").count(), 1)
 
@@ -181,11 +181,11 @@ class AuthHardeningTests(unittest.TestCase):
         db.session.refresh(user)
         self.assertEqual(user.dang_nhap_sai, 5)             # lúc khóa không đếm thêm
 
-        user.khoa_dang_nhap_den = utcnow() - timedelta(seconds=1)   # hết hạn khóa
+        user.khoa_dang_nhap_den = club_now() - timedelta(seconds=1)   # hết hạn khóa
         db.session.commit()
         self._fail(times=5)
         db.session.refresh(user)
-        self.assertTrue(timedelta(minutes=14) < user.khoa_dang_nhap_den - utcnow() <= timedelta(minutes=15))
+        self.assertTrue(timedelta(minutes=14) < user.khoa_dang_nhap_den - club_now() <= timedelta(minutes=15))
 
         user.set_password("new-fixture-password")           # quên mật khẩu / mật khẩu tạm → mở khóa
         db.session.commit()

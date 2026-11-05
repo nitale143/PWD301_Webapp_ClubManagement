@@ -1,3 +1,21 @@
+# Một múi giờ cho toàn hệ thống: giờ Việt Nam; link xác minh email 1 giờ (06/11/2026)
+
+## Lỗi đã sửa
+- Hệ thống lưu lẫn hai múi giờ: giờ sự kiện, hạn task theo giờ CLB; ngày đăng ký, tin nhắn, thông báo, thanh toán, điểm danh, audit… theo UTC. Nơi hiển thị không đổi múi giờ nên:
+  - Đăng ký lúc 01:55 sáng 6/11 hiện "Nộp 05/11" ở trang Phê duyệt; ngày gia nhập có thể lùi 1 ngày.
+  - Giờ thông báo, giờ lưu báo cáo lệch 7 tiếng; biểu đồ điểm danh theo tháng có thể lệch tháng.
+
+## Thay đổi
+- `app/timeutil.py`: một hàm `club_now()` (giờ Việt Nam, theo `APP_TIMEZONE`, mặc định `Asia/Ho_Chi_Minh`) dùng cho mọi thao tác lưu, kiểm tra, hiển thị; `to_club_time()` cho giờ có múi giờ từ bên ngoài. Bỏ `utcnow()`.
+- Báo cáo AI: bỏ bước đổi khung ngày sang UTC; khóa thanh toán `confirmed_at_utc` → `confirmed_at`.
+- Link xác minh email hiệu lực **1 giờ** (trước 48 giờ). Mail ghi "hiệu lực 1 giờ".
+
+## Database
+- Migration `0009`: đổi 33 cột trước đây lưu UTC sang giờ Việt Nam (cả báo cáo AI đã lưu). Hạ cấp đổi ngược lại.
+- Ngày gia nhập đã lỡ lùi 1 ngày (đăng ký trước 7 giờ sáng) không tự sửa được; sửa tay ở hồ sơ nếu cần.
+
+- Test mới: `tests/test_vietnam_time.py` (4 test).
+
 # Email: người gửi được có tên hiển thị (06/11/2026)
 
 - `MAIL_DEFAULT_SENDER="FIA Club <fia.clb@gmail.com>"` trước đây bị coi là cấu hình sai ("Email delivery configuration is invalid") nên không gửi được thư nào. Nay nhận cả địa chỉ trần lẫn dạng có tên; vẫn chặn ký tự xuống dòng (chống chèn header).

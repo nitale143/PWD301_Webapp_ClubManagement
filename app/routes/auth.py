@@ -92,7 +92,7 @@ def send_confirmation_email(user):
     """Gửi link xác minh email (token itsdangerous, hạn EMAIL_CONFIRM_MAX_AGE)."""
     token = user.generate_token("confirm")
     link = url_for("auth.confirm_email", token=token, _external=True)
-    hours = current_app.config.get("EMAIL_CONFIRM_MAX_AGE", 48 * 3600) // 3600
+    hours = current_app.config.get("EMAIL_CONFIRM_MAX_AGE", 3600) // 3600
     return send_email(user.email, *render_system_email(
         "confirm_email", ten=user.ho_ten, link=link, so_gio=hours))
 
@@ -246,7 +246,7 @@ def logout():
 @auth_bp.route("/confirm/<token>")
 def confirm_email(token):
     """Mở link xác minh email: token hợp lệ → đánh dấu email đã xác minh."""
-    user = User.from_token(token, "confirm", current_app.config.get("EMAIL_CONFIRM_MAX_AGE", 48 * 3600))
+    user = User.from_token(token, "confirm", current_app.config.get("EMAIL_CONFIRM_MAX_AGE", 3600))
     if user is None:
         flash("Liên kết xác minh không hợp lệ hoặc đã hết hạn.", "error")
         return redirect(url_for("auth.login"))

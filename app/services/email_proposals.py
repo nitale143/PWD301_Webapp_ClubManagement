@@ -13,7 +13,7 @@ from .access import approved, board_members as visible_members, is_board, requir
 from .assistant import AnthropicProvider, _normalize, get_provider
 from .common import DomainError, audit
 from .email_templates import find_email_template, render_template, system_template
-from app.timeutil import utcnow
+from app.timeutil import club_now
 
 
 _EMAIL_COMMAND = re.compile(r"^\s*(?:gửi|gui)\s*(?:mail|email|thư|thu)\s+(?:cho\s+)?(.+)$", re.IGNORECASE)
@@ -347,12 +347,12 @@ def reconcile_email_draft(actor, draft, outcome):
     require(can_review_email(actor, draft))
     if draft.status != "sending" or outcome not in {"sent", "failed"}:
         raise DomainError("Bản nháp không ở trạng thái gửi dở.")
-    if not draft.reviewed_at or utcnow() - draft.reviewed_at < timedelta(minutes=2):
+    if not draft.reviewed_at or club_now() - draft.reviewed_at < timedelta(minutes=2):
         raise DomainError("Hãy đợi ít nhất 2 phút rồi kiểm tra hộp thư đã gửi.")
     claimed = db.session.execute(
         db.update(EmailProposal).where(EmailProposal.id == draft.id,
                                        EmailProposal.status == "sending")
-        .values(status=outcome, sent_at=utcnow() if outcome == "sent" else None)
+        .values(status=outcome, sent_at=club_now() if outcome == "sent" else None)
     )
     if claimed.rowcount != 1:
         raise DomainError("Bản nháp này đã được xử lý.")
@@ -385,7 +385,7 @@ def review_email_draft(actor, draft, decision, confirm_retry=False):
         db.update(EmailProposal).where(EmailProposal.id == draft.id,
                                        EmailProposal.status == draft.status)
         .values(status="rejected" if decision == "rejected" else "sending",
-                reviewed_by_id=actor.id, reviewed_at=utcnow())
+                reviewed_by_id=actor.id, reviewed_at=club_now())
     )
     if claimed.rowcount != 1:
         raise DomainError("Bản nháp này đã được xử lý.")
@@ -397,7 +397,7 @@ def review_email_draft(actor, draft, decision, confirm_retry=False):
     db.session.commit()
     sent = send_email(draft.recipient_email, draft.subject, draft.body)
     draft.status = "sent" if sent else "failed"
-    draft.sent_at = utcnow() if sent else None
+    draft.sent_at = club_now() if sent else None
     audit(actor, "email_draft_sent" if sent else "email_draft_failed", draft)
     db.session.commit()
     return sent
