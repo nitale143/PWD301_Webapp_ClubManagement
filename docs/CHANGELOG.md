@@ -1,3 +1,21 @@
+# Tạm khóa đăng nhập lưu trong database (06/11/2026)
+
+## Lỗi đã sửa
+- Bộ đếm sai mật khẩu nằm trong RAM của từng worker: chạy 4 worker thì thực tế thử được ~20 lần; restart là mở khóa hết; đổi IP là đếm lại từ đầu.
+- Người bị khóa chỉ thấy "MSSV hoặc mật khẩu không đúng", không biết mình đang bị khóa.
+
+## Cách hoạt động mới (`app/services/login_lockout.py`)
+- Đếm theo **tài khoản** trong database (`user.dang_nhap_sai`, `user.khoa_dang_nhap_den`), chung cho mọi worker, không mất khi restart, không phụ thuộc IP.
+- Sai 5 lần liên tiếp → khóa 5 phút; lần khóa thứ hai 15 phút, từ lần thứ ba 30 phút. Đang khóa thì không kiểm tra mật khẩu và không đếm thêm.
+- Màn hình báo "Tài khoản đang tạm khóa… thử lại sau N phút". Mỗi lần khóa ghi audit `login_locked`.
+- Đăng nhập đúng, đặt lại mật khẩu (Quên mật khẩu) hoặc Quản trị cấp mật khẩu tạm → mở khóa.
+
+## Đã xóa
+- Lớp `_LoginRateLimiter` (RAM), `_login_key`, cấu hình `LOGIN_WINDOW_SECONDS`.
+
+## Database
+- Migration `0008`: thêm hai cột trên `user`.
+
 # Bản nháp sự kiện: AI lập ngay, bổ sung dần, trả lời như người (05/11/2026)
 
 ## Tính năng

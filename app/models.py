@@ -197,6 +197,9 @@ class User(UserMixin, db.Model):
     # Bắt đổi mật khẩu ở lần đăng nhập kế tiếp (tài khoản import / mật khẩu tạm)
     must_change_password = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     password_changed_at = db.Column(db.DateTime)
+    # Tạm khóa đăng nhập khi nhập sai nhiều lần (app/services/login_lockout.py)
+    dang_nhap_sai = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    khoa_dang_nhap_den = db.Column(db.DateTime)
 
     ban_links = db.relationship(
         "UserBan", back_populates="user", foreign_keys=[UserBan.user_id]
@@ -216,9 +219,10 @@ class User(UserMixin, db.Model):
         self.set_password(raw_password)
 
     def set_password(self, raw_password):
-        """Băm mật khẩu bằng Werkzeug (scrypt) và ghi lại thời điểm đổi mật khẩu."""
+        """Băm mật khẩu bằng Werkzeug (scrypt), ghi thời điểm đổi và mở khóa đăng nhập."""
         self.password_hash = generate_password_hash(raw_password)
         self.password_changed_at = utcnow()
+        self.dang_nhap_sai, self.khoa_dang_nhap_den = 0, None
 
     def check_password(self, raw_password):
         """So sánh mật khẩu nhập vào với hash đã lưu."""

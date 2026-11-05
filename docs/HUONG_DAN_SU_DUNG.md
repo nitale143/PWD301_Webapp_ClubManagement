@@ -463,7 +463,8 @@ Vào **ĐIỀU HÀNH → Kho mẫu**. Có 3 tab:
 
 | Tình huống | Cách xử lý |
 |---|---|
-| "MSSV hoặc mật khẩu không đúng" dù nhập đúng | Có thể tài khoản đang bị khóa tạm do sai nhiều lần. Chờ 5 phút rồi thử lại, hoặc dùng **Quên mật khẩu**. Tài khoản bị từ chối hoặc đã rời CLB cũng không đăng nhập được. |
+| "Tài khoản đang tạm khóa…" | Nhập sai mật khẩu 5 lần liên tiếp thì tài khoản bị khóa 5 phút; bị khóa tiếp thì 15 phút, rồi 30 phút. Chờ hết thời gian ghi trên màn hình, dùng **Quên mật khẩu**, hoặc nhờ Quản trị cấp mật khẩu tạm (đặt mật khẩu mới là mở khóa ngay). |
+| "MSSV hoặc mật khẩu không đúng" dù nhập đúng | Kiểm tra lại MSSV. Tài khoản bị từ chối hoặc đã rời CLB cũng không đăng nhập được. |
 | Bị đưa về trang "Đổi mật khẩu" liên tục | Bạn đang dùng mật khẩu tạm. Hãy đặt mật khẩu mới. |
 | Bị yêu cầu nhập lại mật khẩu | Thao tác nhạy cảm khi đang đăng nhập bằng "Ghi nhớ". Nhập mật khẩu để tiếp tục. |
 | "Phiên biểu mẫu không hợp lệ. Hãy tải lại trang." | Trang mở quá lâu hoặc đã đăng xuất ở tab khác. Tải lại trang (F5) rồi làm lại. |

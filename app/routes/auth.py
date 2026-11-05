@@ -4,18 +4,14 @@
 Nguyên tắc bảo mật áp dụng:
 - Thông báo lỗi đăng nhập chung chung, không tiết lộ MSSV có tồn tại hay không.
 - Khi MSSV không tồn tại vẫn chạy kiểm tra hash giả để thời gian phản hồi như nhau.
-- Khóa tạm thời theo (IP, tài khoản) sau nhiều lần sai + Flask-Limiter theo IP.
+- Tạm khóa tài khoản sau nhiều lần sai, lưu trong database (services/login_lockout.py)
+  + Flask-Limiter theo IP.
 - Tạo session mới (session.clear) khi đăng nhập; đăng xuất chỉ nhận POST.
 - Chỉ chuyển hướng `next` tới đường dẫn nội bộ (chống open redirect).
 - Link quên mật khẩu luôn trả cùng một thông báo (không lộ email nào đã đăng ký).
 """
-from collections import deque
-import hashlib
-import hmac
 import re
 import secrets
-import threading
-import time
 from urllib.parse import urlsplit
 
 from flask import (
@@ -38,6 +34,7 @@ from app.services.email_templates import render_system_email
 from app.models import Ban, User, UserBan
 from app.services.access import approved
 from app.services.common import audit
+from app.services import login_lockout
 
 auth_bp = Blueprint("auth", __name__)
 _MSSV_RE = re.compile(r"^[A-Za-z0-9_-]{1,20}$")
@@ -50,57 +47,6 @@ _FORGOT_PASSWORD_NOTICE = ("Nếu email thuộc một tài khoản đang hoạt 
 def _auth_rate_limit():
     """Giới hạn tần suất cho các form xác thực, đọc từ AUTH_RATE_LIMIT."""
     return current_app.config.get("AUTH_RATE_LIMIT", "20 per minute")
-
-
-class _LoginRateLimiter:
-    """Khóa đăng nhập tạm thời trong RAM, khóa theo (IP, MSSV) đã được HMAC.
-
-    Bổ sung cho Flask-Limiter: Flask-Limiter giới hạn số request theo IP, còn
-    lớp này khóa một tài khoản sau LOGIN_MAX_ATTEMPTS lần sai liên tiếp.
-    """
-
-    def __init__(self):
-        """Khởi tạo bảng đếm số lần sai (khóa bằng threading.Lock)."""
-        self._lock = threading.Lock()
-        self._attempts = {}
-
-    def is_locked(self, key, now):
-        """True nếu khóa (IP, MSSV) đang bị tạm khóa."""
-        with self._lock:
-            entry = self._attempts.get(key)
-            if not entry:
-                return False
-            if entry["locked_until"] > now:
-                return True
-            if entry["locked_until"]:
-                self._attempts.pop(key, None)
-            return False
-
-    def failed(self, key, now, *, max_attempts, window_seconds, lockout_seconds):
-        """Ghi nhận một lần đăng nhập sai; đủ LOGIN_MAX_ATTEMPTS lần trong cửa sổ thời gian thì
-        khóa.
-        """
-        cutoff = now - window_seconds
-        with self._lock:
-            entry = self._attempts.setdefault(key, {"timestamps": deque(), "locked_until": 0})
-            timestamps = entry["timestamps"]
-            while timestamps and timestamps[0] <= cutoff:
-                timestamps.popleft()
-            timestamps.append(now)
-            if len(timestamps) >= max_attempts:
-                entry["locked_until"] = now + lockout_seconds
-
-            if len(self._attempts) > 4096:
-                for stale_key, stale in list(self._attempts.items()):
-                    if stale["locked_until"] <= now and not stale["timestamps"]:
-                        self._attempts.pop(stale_key, None)
-                while len(self._attempts) > 4096:
-                    self._attempts.pop(next(iter(self._attempts)))
-
-    def succeeded(self, key):
-        """Xóa bộ đếm khi đăng nhập thành công."""
-        with self._lock:
-            self._attempts.pop(key, None)
 
 
 def _safe_next(value):
@@ -121,37 +67,10 @@ def _safe_next(value):
     return value
 
 
-def _limiter_settings():
-    """Đọc (số lần tối đa, cửa sổ, thời gian khóa) từ cấu hình."""
-    cfg = current_app.config
-    return (
-        max(1, int(cfg.get("LOGIN_MAX_ATTEMPTS", 5))),
-        max(1, int(cfg.get("LOGIN_WINDOW_SECONDS", 300))),
-        max(1, int(cfg.get("LOGIN_LOCKOUT_SECONDS", 300))),
-    )
-
-
-def _login_limiter():
-    """Lấy (hoặc tạo) bộ khóa đăng nhập dùng chung của app."""
-    limiter_state = current_app.extensions.get("login_rate_limiter")
-    if limiter_state is None:
-        limiter_state = _LoginRateLimiter()
-        current_app.extensions["login_rate_limiter"] = limiter_state
-    return limiter_state
-
-
-def _login_key(mssv):
-    """Khóa nhận diện HMAC(IP + MSSV) – không lưu MSSV dạng rõ trong RAM."""
-    address = request.remote_addr or "unknown"
-    secret = str(current_app.config.get("SECRET_KEY") or "development-key")
-    material = f"{address}\0{mssv.casefold()}".encode("utf-8", "replace")
-    return hmac.new(secret.encode("utf-8"), material, hashlib.sha256).hexdigest()
-
-
-def _login_failed(form):
-    """Phản hồi đăng nhập thất bại với thông báo chung chung (không tiết lộ lý do)."""
+def _login_failed(form, message=_GENERIC_LOGIN_ERROR):
+    """Phản hồi đăng nhập thất bại (mặc định thông báo chung, không tiết lộ lý do)."""
     current_app.logger.warning("Login rejected")
-    flash(_GENERIC_LOGIN_ERROR, "error")
+    flash(message, "error")
     form.password.data = ""
     return render_template("login.html", form=form, next_target=_safe_next(form.next.data))
 
@@ -218,19 +137,15 @@ def login():
 
     mssv = form.mssv.data
     password = form.password.data
-    key = _login_key(mssv[:256])
-    limiter_enabled = current_app.config.get("LOGIN_LIMIT_ENABLED", True)
-    lockout = _login_limiter() if limiter_enabled else None
-    max_attempts, window_seconds, lockout_seconds = _limiter_settings()
-
-    if lockout and lockout.is_locked(key, time.monotonic()):
-        current_app.logger.warning("Login rate limit exceeded")
-        return _login_failed(form)
-
     valid_mssv = bool(_MSSV_RE.fullmatch(mssv))
     # MSSV lưu dạng in hoa (SE201256); tên đăng nhập Quản trị hệ thống giữ nguyên như khi tạo
     user = ((User.query.filter_by(mssv=mssv).first()
              or User.query.filter_by(mssv=mssv.upper()).first()) if valid_mssv else None)
+
+    minutes = login_lockout.locked_minutes(user)
+    if minutes:             # đang khóa: không kiểm tra mật khẩu, không đếm thêm
+        return _login_failed(form, f"Tài khoản đang tạm khóa do nhập sai mật khẩu nhiều lần. "
+                                   f"Thử lại sau {minutes} phút hoặc dùng Quên mật khẩu.")
     password_matches = (
         user.check_password(password)
         if user is not None
@@ -240,13 +155,12 @@ def login():
     if (not valid_mssv or user is None or not password_matches
             or user.status not in {"approved", "pending"}
             or (user.status == "approved" and not approved(user))):
-        if lockout:
-            lockout.failed(key, time.monotonic(), max_attempts=max_attempts,
-                           window_seconds=window_seconds, lockout_seconds=lockout_seconds)
+        if user is not None and not password_matches:
+            login_lockout.record_failure(user)
         return _login_failed(form)
 
-    if lockout:
-        lockout.succeeded(key)
+    login_lockout.clear(user)
+    db.session.commit()
     session.clear()                                   # tạo session mới, chống session fixation
     login_user(user, remember=bool(form.remember.data))
     session.permanent = True

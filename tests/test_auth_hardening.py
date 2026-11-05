@@ -22,7 +22,6 @@ class AuthHardeningTests(unittest.TestCase):
             "SQLALCHEMY_DATABASE_URI": f"sqlite:///{self.root / 'auth-test.db'}",
             "SECRET_KEY": "isolated-test-secret-key",
             "LOGIN_MAX_ATTEMPTS": 5,
-            "LOGIN_WINDOW_SECONDS": 300,
             "LOGIN_LOCKOUT_SECONDS": 300,
             "LOGIN_LIMIT_ENABLED": True,
             "UPLOAD_FOLDER": str(self.root / "avatars"),
@@ -151,7 +150,59 @@ class AuthHardeningTests(unittest.TestCase):
             "mssv": "STU001", "password": "fixture-ui-test-password", "csrf_token": token,
         })
         self.assertEqual(locked.status_code, 200)
-        self.assertIn("MSSV hoặc mật khẩu không đúng.".encode(), locked.data)
+        self.assertIn("đang tạm khóa".encode(), locked.data)
+
+    def _fail(self, code="STU001", times=1, address="203.0.113.1"):
+        g.pop("_login_user", None)
+        client = self.app.test_client()
+        token = self.csrf(client)
+        for _ in range(times):
+            client.post("/login", data={"mssv": code, "password": "wrong-password", "csrf_token": token},
+                        environ_base={"REMOTE_ADDR": address})
+        g.pop("_login_user", None)
+
+    def test_lockout_is_stored_per_account_in_the_database(self):
+        from datetime import timedelta
+        from app.models import AuditLog
+        from app.timeutil import utcnow
+
+        self._fail(times=4, address="203.0.113.1")
+        self._fail(times=1, address="203.0.113.2")          # đổi IP không thoát được bộ đếm
+        user = db.session.get(User, 1)
+        db.session.refresh(user)
+        self.assertEqual(user.dang_nhap_sai, 5)
+        first_lock = user.khoa_dang_nhap_den - utcnow()
+        self.assertTrue(timedelta(minutes=4) < first_lock <= timedelta(minutes=5))
+        self.assertEqual(AuditLog.query.filter_by(action="login_locked").count(), 1)
+
+        locked = self.login(self.app.test_client())         # đúng mật khẩu, IP khác, vẫn bị khóa
+        self.assertEqual(locked.status_code, 200)
+        self.assertIn("Thử lại sau 5 phút".encode(), locked.data)
+        db.session.refresh(user)
+        self.assertEqual(user.dang_nhap_sai, 5)             # lúc khóa không đếm thêm
+
+        user.khoa_dang_nhap_den = utcnow() - timedelta(seconds=1)   # hết hạn khóa
+        db.session.commit()
+        self._fail(times=5)
+        db.session.refresh(user)
+        self.assertTrue(timedelta(minutes=14) < user.khoa_dang_nhap_den - utcnow() <= timedelta(minutes=15))
+
+        user.set_password("new-fixture-password")           # quên mật khẩu / mật khẩu tạm → mở khóa
+        db.session.commit()
+        self.assertEqual(self.login(self.app.test_client(), password="new-fixture-password").status_code, 302)
+
+        self._fail(times=3)
+        self.login(self.app.test_client(), password="new-fixture-password")
+        db.session.refresh(user)
+        self.assertEqual((user.dang_nhap_sai, user.khoa_dang_nhap_den), (0, None))   # đăng nhập đúng: xóa bộ đếm
+
+        g.pop("_login_user", None)
+        unknown = self.app.test_client()
+        token = self.csrf(unknown)
+        for _ in range(6):
+            response = unknown.post("/login", data={"mssv": "UNKNOWN1", "password": "x-password",
+                                                    "csrf_token": token})
+        self.assertIn("MSSV hoặc mật khẩu không đúng.".encode(), response.data)
 
     def test_pending_login_redirects_to_pending_and_logout_is_post_only(self):
         client = self.app.test_client()

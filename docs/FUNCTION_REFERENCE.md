@@ -187,58 +187,58 @@ Các model SQLAlchemy của webapp CLB (Ch5 – Database & ORM, Ch7 – RBAC).
 | class `UserBan` | 142 | Bảng trung gian nhiều-nhiều User ↔ Ban; `is_truong_ban` đánh dấu Trưởng ban của ban đó. |
 | class `Ban` | 155 | Ban hoạt động: Kỹ thuật, Nhân sự, Truyền thông. |
 | class `User` | 164 | Tài khoản thành viên CLB: thông tin cá nhân, trạng thái duyệt, chức vụ (khớp Role.name), xác thực (hash mật khẩu, xác minh email, bắt đổi mật khẩu). |
-| `User.password(self)` | 209 | Không cho đọc mật khẩu (chỉ lưu hash). |
-| `User.password(self, raw_password)` | 214 | Gán mật khẩu mới: tự băm và lưu vào password_hash. |
-| `User.set_password(self, raw_password)` | 218 | Băm mật khẩu bằng Werkzeug (scrypt) và ghi lại thời điểm đổi mật khẩu. |
-| `User.check_password(self, raw_password)` | 223 | So sánh mật khẩu nhập vào với hash đã lưu. |
-| `User.session_marker(self)` | 229 | Đổi mỗi khi đổi mật khẩu → mọi phiên/cookie ghi nhớ cũ tự mất hiệu lực. |
-| `User.get_id(self)` | 234 | Định danh lưu trong session/cookie của Flask-Login: "<id>:<session_marker>". |
-| `User.generate_token(self, purpose)` | 239 | Token ký bằng SECRET_KEY. purpose: 'confirm' hoặc 'reset'. Token reset gắn với hash mật khẩu hiện tại nên chỉ dùng được một lần: đổi mật khẩu xong thì token cũ tự mất hiệu lực. |
-| `User.from_token(token, purpose, max_age)` | 254 | Trả về User nếu token hợp lệ, còn hạn và đúng mục đích; ngược lại None. |
-| `User.confirm_email(self)` | 269 | Đánh dấu email đã xác minh và ghi thời điểm xác minh. |
-| `User.permissions(self)` | 277 | Tổng bit quyền của chức vụ hiện tại. |
-| `User.can(self, perm)` | 281 | True nếu chức vụ hiện tại có quyền `perm` (chưa xét trạng thái duyệt). |
-| `User.is_administrator(self)` | 285 | True nếu chức vụ có quyền phân vai trò (CN/PCN theo bảng mặc định). |
-| `User.rank(self)` | 290 | Cấp bậc của chức vụ hiện tại (số nhỏ = cấp cao). |
-| `User.role_label(self)` | 295 | Tên hiển thị tiếng Việt của chức vụ. |
-| `User.outranks(self, other_user)` | 299 | True khi người BĐH (quyền BOARD) nhường chức vụ cho một thành viên thường. |
-| `User.is_bdh(self)` | 303 | Thuộc Ban điều hành (có quyền BOARD). |
-| `User.is_system_admin(self)` | 308 | Tài khoản quản trị hệ thống (không phải thành viên CLB). |
-| `User.quan_ly_ban_ids(self)` | 312 | Các ban_id mà Trưởng ban này quản lý (rỗng nếu không phải TB). |
-| `User.__repr__(self)` | 318 | Chuỗi mô tả user khi debug. |
-| class `AnonymousUser` | 323 | Người chưa đăng nhập: không có quyền nào (để template gọi can() an toàn). |
-| `AnonymousUser.can(self, perm)` | 329 | Người chưa đăng nhập không có quyền nào. |
-| `AnonymousUser.is_bdh(self)` | 333 | Người chưa đăng nhập không thuộc BĐH. |
-| `AnonymousUser.is_administrator(self)` | 337 | Người chưa đăng nhập không phải quản trị. |
-| `load_user(user_id)` | 348 | Nạp user từ session/cookie. Định dạng id: "<id>:<session_marker>". Nếu marker không khớp (mật khẩu đã đổi sau khi phiên được tạo) → coi như chưa đăng nhập. Dạng cũ chỉ có "<id>" chỉ được chấp nhận khi TESTING. |
-| class `Event` | 370 | Sự kiện của CLB; `tasks` là các task con. Trạng thái: sap_dien_ra &#124; dang_dien_ra &#124; da_ket_thuc &#124; cancelled – chỉ được đổi qua app/services/event_status.py (BĐH chuyển tay hoặc hệ thống tự chuyển theo giờ). |
-| class `Task` | 396 | Đầu việc thuộc một sự kiện, giao cho một người phụ trách (assignee) thuộc một ban. Trạng thái: dang_lam → cho_duyet → lam_lai/hoan_thanh, hoặc huy. |
-| class `FundPeriod` | 427 | Kỳ quỹ / kỳ hoạt động (Spring, Summer, Fall…). Chỉ một kỳ `is_current`; chứa sổ thu chi. Tiền phải đóng trong kỳ là các khoản thu (FundCollection.period_id), trong đó "quỹ kỳ" là khoản thu loại semester. |
-| class `FundTransaction` | 446 | Một dòng trong sổ thu chi của kỳ: thu (số dương) hoặc chi (số âm). Dòng có `payment_id` do hệ thống tự ghi khi thủ quỹ xác nhận một thanh toán khoản thu. |
-| class `MemberActivity` | 464 | Tình trạng hoạt động của một thành viên trong một kỳ (tính bởi app/services/activities.py). Điểm = 50% tỉ lệ task hoàn thành + 50% tỉ lệ có mặt, chỉ trên sự kiện đã kết thúc trong kỳ. |
-| class `ChatMessage` | 494 | Một tin nhắn trong lịch sử chat AI (role 'user' hoặc 'ai'), thuộc một cuộc trò chuyện. |
-| class `ChatConversation` | 509 | A bounded, user-owned tab in the AI chat history. |
-| class `Notification` | 530 | Thông báo hiện ở chuông trên thanh trên cùng (nhắc deadline, nhắc kỳ mới…). |
-| class `MemberRecord` | 541 | Hồ sơ thành viên mở rộng: ngày gia nhập, tình trạng (active/paused/left), ghi chú, thời điểm lưu trữ. |
-| class `FundCollection` | 557 | Khoản thu – nguồn DUY NHẤT cho "phải đóng / đã đóng" (xem app/services/funds.py). Thuộc một kỳ (`period_id`); quỹ kỳ là khoản thu loại semester (mỗi kỳ tối đa một). Trạng thái draft/open/closed/cancelled. |
-| class `FundTargetBan` | 585 | Ban áp dụng của một khoản thu (khi khoản thu không áp dụng cho tất cả thành viên). |
-| class `FundAdjustment` | 592 | Miễn (exempt) hoặc giảm (reduce) khoản thu cho một thành viên, bắt buộc có lý do. |
-| class `FundPayment` | 611 | Một lần đóng tiền cho khoản thu; chờ người quản lý quỹ xác nhận (pending → confirmed/rejected). |
-| class `PaymentEvidence` | 635 | Ảnh minh chứng thanh toán, lưu trong instance/payment_evidence với tên ngẫu nhiên. |
-| class `EventDetail` | 644 | Thông tin chi tiết của sự kiện: loại, nội dung, địa điểm, hạn đăng ký, người phụ trách (cột so_nguoi_toi_da giữ lại cho dữ liệu cũ, không còn dùng), khoản thu liên quan. |
-| class `EventTargetBan` | 665 | Ban được phép đăng ký sự kiện (khi sự kiện không mở cho tất cả). |
-| class `EventRegistration` | 672 | Đăng ký tham gia sự kiện: registered &#124; waitlist &#124; cancelled. |
-| class `Attendance` | 690 | Điểm danh của một lượt đăng ký: on_time &#124; late &#124; excused &#124; absent &#124; pending. |
-| class `QRCheckinLog` | 705 | Nhật ký mỗi lần quét QR điểm danh (phục vụ đối soát). |
-| class `EventFeedback` | 715 | Đánh giá 1–5 sao và bình luận của thành viên sau sự kiện. |
-| class `AuditLog` | 730 | Nhật ký thao tác: ai làm gì, trên đối tượng nào, lúc nào (không lưu mật khẩu/nội dung nhạy cảm). |
-| class `EventDraft` | 744 | Bản nháp sự kiện do trợ lý AI lập từ mô tả (xem app/services/event_drafts.py). Được lưu ngay cả khi còn thiếu thông tin; người quản lý sự kiện bổ sung qua chat hoặc form. Không ghi gì vào bảng event/task cho tới khi được duyệt. `event_id` có giá trị khi bản nháp chỉ thêm task cho một sự kiện đã có. `data` là JSON: thông tin sự kiện + danh sách task. |
-| class `EmailProposal` | 770 | Email draft: chat creation never sends; a separate BDH action does. |
-| class `EmailTemplate` | 793 | Mẫu email trong kho mẫu. - `system_key` có giá trị: mẫu của email tự động (xác minh email, giao task…) và mẫu chung `general`; chỉ sửa nội dung, không xóa/đổi tên. - `system_key` rỗng: mẫu do BĐH tạo, AI tìm theo tên/từ khóa khi soạn nháp. |
-| class `ProposalTemplate` | 816 | Mẫu sự kiện / mẫu chia task trong kho mẫu, AI dùng khi lập đề xuất. `content` (JSON): - kind="event": {"name", "content", "type", "location", "duration_hours"} - kind="task": {"tasks": [{"name", "description", "days_before"}]} `is_default=True`: mẫu chung, dùng khi không tìm thấy mẫu phù hợp hơn. |
-| class `AIReportSnapshot` | 843 | Immutable reviewed numbers and source rows for export/email. |
-| class `MemberPlanningProfile` | 854 | Member-provided task preferences; absent rows use conservative defaults. |
-| class `AIUsageLog` | 870 | Successful model calls, without prompts, replies, secrets or price guesses. |
+| `User.password(self)` | 212 | Không cho đọc mật khẩu (chỉ lưu hash). |
+| `User.password(self, raw_password)` | 217 | Gán mật khẩu mới: tự băm và lưu vào password_hash. |
+| `User.set_password(self, raw_password)` | 221 | Băm mật khẩu bằng Werkzeug (scrypt), ghi thời điểm đổi và mở khóa đăng nhập. |
+| `User.check_password(self, raw_password)` | 227 | So sánh mật khẩu nhập vào với hash đã lưu. |
+| `User.session_marker(self)` | 233 | Đổi mỗi khi đổi mật khẩu → mọi phiên/cookie ghi nhớ cũ tự mất hiệu lực. |
+| `User.get_id(self)` | 238 | Định danh lưu trong session/cookie của Flask-Login: "<id>:<session_marker>". |
+| `User.generate_token(self, purpose)` | 243 | Token ký bằng SECRET_KEY. purpose: 'confirm' hoặc 'reset'. Token reset gắn với hash mật khẩu hiện tại nên chỉ dùng được một lần: đổi mật khẩu xong thì token cũ tự mất hiệu lực. |
+| `User.from_token(token, purpose, max_age)` | 258 | Trả về User nếu token hợp lệ, còn hạn và đúng mục đích; ngược lại None. |
+| `User.confirm_email(self)` | 273 | Đánh dấu email đã xác minh và ghi thời điểm xác minh. |
+| `User.permissions(self)` | 281 | Tổng bit quyền của chức vụ hiện tại. |
+| `User.can(self, perm)` | 285 | True nếu chức vụ hiện tại có quyền `perm` (chưa xét trạng thái duyệt). |
+| `User.is_administrator(self)` | 289 | True nếu chức vụ có quyền phân vai trò (CN/PCN theo bảng mặc định). |
+| `User.rank(self)` | 294 | Cấp bậc của chức vụ hiện tại (số nhỏ = cấp cao). |
+| `User.role_label(self)` | 299 | Tên hiển thị tiếng Việt của chức vụ. |
+| `User.outranks(self, other_user)` | 303 | True khi người BĐH (quyền BOARD) nhường chức vụ cho một thành viên thường. |
+| `User.is_bdh(self)` | 307 | Thuộc Ban điều hành (có quyền BOARD). |
+| `User.is_system_admin(self)` | 312 | Tài khoản quản trị hệ thống (không phải thành viên CLB). |
+| `User.quan_ly_ban_ids(self)` | 316 | Các ban_id mà Trưởng ban này quản lý (rỗng nếu không phải TB). |
+| `User.__repr__(self)` | 322 | Chuỗi mô tả user khi debug. |
+| class `AnonymousUser` | 327 | Người chưa đăng nhập: không có quyền nào (để template gọi can() an toàn). |
+| `AnonymousUser.can(self, perm)` | 333 | Người chưa đăng nhập không có quyền nào. |
+| `AnonymousUser.is_bdh(self)` | 337 | Người chưa đăng nhập không thuộc BĐH. |
+| `AnonymousUser.is_administrator(self)` | 341 | Người chưa đăng nhập không phải quản trị. |
+| `load_user(user_id)` | 352 | Nạp user từ session/cookie. Định dạng id: "<id>:<session_marker>". Nếu marker không khớp (mật khẩu đã đổi sau khi phiên được tạo) → coi như chưa đăng nhập. Dạng cũ chỉ có "<id>" chỉ được chấp nhận khi TESTING. |
+| class `Event` | 374 | Sự kiện của CLB; `tasks` là các task con. Trạng thái: sap_dien_ra &#124; dang_dien_ra &#124; da_ket_thuc &#124; cancelled – chỉ được đổi qua app/services/event_status.py (BĐH chuyển tay hoặc hệ thống tự chuyển theo giờ). |
+| class `Task` | 400 | Đầu việc thuộc một sự kiện, giao cho một người phụ trách (assignee) thuộc một ban. Trạng thái: dang_lam → cho_duyet → lam_lai/hoan_thanh, hoặc huy. |
+| class `FundPeriod` | 431 | Kỳ quỹ / kỳ hoạt động (Spring, Summer, Fall…). Chỉ một kỳ `is_current`; chứa sổ thu chi. Tiền phải đóng trong kỳ là các khoản thu (FundCollection.period_id), trong đó "quỹ kỳ" là khoản thu loại semester. |
+| class `FundTransaction` | 450 | Một dòng trong sổ thu chi của kỳ: thu (số dương) hoặc chi (số âm). Dòng có `payment_id` do hệ thống tự ghi khi thủ quỹ xác nhận một thanh toán khoản thu. |
+| class `MemberActivity` | 468 | Tình trạng hoạt động của một thành viên trong một kỳ (tính bởi app/services/activities.py). Điểm = 50% tỉ lệ task hoàn thành + 50% tỉ lệ có mặt, chỉ trên sự kiện đã kết thúc trong kỳ. |
+| class `ChatMessage` | 498 | Một tin nhắn trong lịch sử chat AI (role 'user' hoặc 'ai'), thuộc một cuộc trò chuyện. |
+| class `ChatConversation` | 513 | A bounded, user-owned tab in the AI chat history. |
+| class `Notification` | 534 | Thông báo hiện ở chuông trên thanh trên cùng (nhắc deadline, nhắc kỳ mới…). |
+| class `MemberRecord` | 545 | Hồ sơ thành viên mở rộng: ngày gia nhập, tình trạng (active/paused/left), ghi chú, thời điểm lưu trữ. |
+| class `FundCollection` | 561 | Khoản thu – nguồn DUY NHẤT cho "phải đóng / đã đóng" (xem app/services/funds.py). Thuộc một kỳ (`period_id`); quỹ kỳ là khoản thu loại semester (mỗi kỳ tối đa một). Trạng thái draft/open/closed/cancelled. |
+| class `FundTargetBan` | 589 | Ban áp dụng của một khoản thu (khi khoản thu không áp dụng cho tất cả thành viên). |
+| class `FundAdjustment` | 596 | Miễn (exempt) hoặc giảm (reduce) khoản thu cho một thành viên, bắt buộc có lý do. |
+| class `FundPayment` | 615 | Một lần đóng tiền cho khoản thu; chờ người quản lý quỹ xác nhận (pending → confirmed/rejected). |
+| class `PaymentEvidence` | 639 | Ảnh minh chứng thanh toán, lưu trong instance/payment_evidence với tên ngẫu nhiên. |
+| class `EventDetail` | 648 | Thông tin chi tiết của sự kiện: loại, nội dung, địa điểm, hạn đăng ký, người phụ trách (cột so_nguoi_toi_da giữ lại cho dữ liệu cũ, không còn dùng), khoản thu liên quan. |
+| class `EventTargetBan` | 669 | Ban được phép đăng ký sự kiện (khi sự kiện không mở cho tất cả). |
+| class `EventRegistration` | 676 | Đăng ký tham gia sự kiện: registered &#124; waitlist &#124; cancelled. |
+| class `Attendance` | 694 | Điểm danh của một lượt đăng ký: on_time &#124; late &#124; excused &#124; absent &#124; pending. |
+| class `QRCheckinLog` | 709 | Nhật ký mỗi lần quét QR điểm danh (phục vụ đối soát). |
+| class `EventFeedback` | 719 | Đánh giá 1–5 sao và bình luận của thành viên sau sự kiện. |
+| class `AuditLog` | 734 | Nhật ký thao tác: ai làm gì, trên đối tượng nào, lúc nào (không lưu mật khẩu/nội dung nhạy cảm). |
+| class `EventDraft` | 748 | Bản nháp sự kiện do trợ lý AI lập từ mô tả (xem app/services/event_drafts.py). Được lưu ngay cả khi còn thiếu thông tin; người quản lý sự kiện bổ sung qua chat hoặc form. Không ghi gì vào bảng event/task cho tới khi được duyệt. `event_id` có giá trị khi bản nháp chỉ thêm task cho một sự kiện đã có. `data` là JSON: thông tin sự kiện + danh sách task. |
+| class `EmailProposal` | 774 | Email draft: chat creation never sends; a separate BDH action does. |
+| class `EmailTemplate` | 797 | Mẫu email trong kho mẫu. - `system_key` có giá trị: mẫu của email tự động (xác minh email, giao task…) và mẫu chung `general`; chỉ sửa nội dung, không xóa/đổi tên. - `system_key` rỗng: mẫu do BĐH tạo, AI tìm theo tên/từ khóa khi soạn nháp. |
+| class `ProposalTemplate` | 820 | Mẫu sự kiện / mẫu chia task trong kho mẫu, AI dùng khi lập đề xuất. `content` (JSON): - kind="event": {"name", "content", "type", "location", "duration_hours"} - kind="task": {"tasks": [{"name", "description", "days_before"}]} `is_default=True`: mẫu chung, dùng khi không tìm thấy mẫu phù hợp hơn. |
+| class `AIReportSnapshot` | 847 | Immutable reviewed numbers and source rows for export/email. |
+| class `MemberPlanningProfile` | 858 | Member-provided task preferences; absent rows use conservative defaults. |
+| class `AIUsageLog` | 874 | Successful model calls, without prompts, replies, secrets or price guesses. |
 
 ### `app/legacy_sqlite.py`
 
@@ -280,31 +280,23 @@ Xác thực người dùng (Ch6): đăng nhập, đăng ký, đăng xuất, xác
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `_auth_rate_limit()` | 50 | Giới hạn tần suất cho các form xác thực, đọc từ AUTH_RATE_LIMIT. |
-| class `_LoginRateLimiter` | 55 | Khóa đăng nhập tạm thời trong RAM, khóa theo (IP, MSSV) đã được HMAC. Bổ sung cho Flask-Limiter: Flask-Limiter giới hạn số request theo IP, còn lớp này khóa một tài khoản sau LOGIN_MAX_ATTEMPTS lần sai liên tiếp. |
-| `_LoginRateLimiter.__init__(self)` | 62 | Khởi tạo bảng đếm số lần sai (khóa bằng threading.Lock). |
-| `_LoginRateLimiter.is_locked(self, key, now)` | 67 | True nếu khóa (IP, MSSV) đang bị tạm khóa. |
-| `_LoginRateLimiter.failed(self, key, now, *, max_attempts, window_seconds, lockout_seconds)` | 79 | Ghi nhận một lần đăng nhập sai; đủ LOGIN_MAX_ATTEMPTS lần trong cửa sổ thời gian thì khóa. |
-| `_LoginRateLimiter.succeeded(self, key)` | 100 | Xóa bộ đếm khi đăng nhập thành công. |
-| `_safe_next(value)` | 106 | Chỉ cho phép chuyển hướng tới đường dẫn nội bộ dạng "/..." (Ch6 – slide 70). |
-| `_limiter_settings()` | 124 | Đọc (số lần tối đa, cửa sổ, thời gian khóa) từ cấu hình. |
-| `_login_limiter()` | 134 | Lấy (hoặc tạo) bộ khóa đăng nhập dùng chung của app. |
-| `_login_key(mssv)` | 143 | Khóa nhận diện HMAC(IP + MSSV) – không lưu MSSV dạng rõ trong RAM. |
-| `_login_failed(form)` | 151 | Phản hồi đăng nhập thất bại với thông báo chung chung (không tiết lộ lý do). |
-| `_existing_session_redirect()` | 159 | Người đã đăng nhập vào trang login/register: chuyển tới /pending hoặc /home; tài khoản không còn hợp lệ thì đăng xuất. |
-| `send_confirmation_email(user)` | 172 | Gửi link xác minh email (token itsdangerous, hạn EMAIL_CONFIRM_MAX_AGE). |
-| `_send_reset_email(user)` | 181 | Gửi email chứa link đặt lại mật khẩu (hiệu lực 1 giờ, dùng một lần). |
-| `index()` | 193 | Trang giới thiệu công khai; người đã đăng nhập được chuyển vào workspace.<br>route: `auth_bp.route('/', methods=['GET'])` |
-| `login()` | 202 | Đăng nhập bằng LoginForm: kiểm tra khóa tạm, so khớp mật khẩu (thời gian như nhau), tạo session mới, hỗ trợ "ghi nhớ đăng nhập" và `next` nội bộ.<br>route: `auth_bp.route('/login', methods=['GET', 'POST'])` · bảo vệ: `limiter.limit(_auth_rate_limit, methods=['POST'])` |
-| `pending()` | 263 | Trang chờ duyệt cho tài khoản mới đăng ký (kèm gửi lại email xác minh).<br>route: `auth_bp.route('/pending')` · bảo vệ: `login_required` |
-| `register()` | 272 | Đăng ký thành viên bằng RegistrationForm; tạo tài khoản trạng thái pending và gửi email xác minh.<br>route: `auth_bp.route('/register', methods=['GET', 'POST'])` · bảo vệ: `limiter.limit(_auth_rate_limit, methods=['POST'])` |
-| `logout()` | 321 | Đăng xuất (chỉ nhận POST) và xóa session.<br>route: `auth_bp.route('/logout', methods=['POST'])` · bảo vệ: `login_required` |
-| `confirm_email(token)` | 333 | Mở link xác minh email: token hợp lệ → đánh dấu email đã xác minh.<br>route: `auth_bp.route('/confirm/<token>')` |
-| `resend_confirmation()` | 350 | Gửi lại email xác minh (giới hạn 3 lần/giờ).<br>route: `auth_bp.route('/confirm/resend', methods=['POST'])` · bảo vệ: `login_required`, `limiter.limit('3 per hour')` |
-| `change_password()` | 370 | Đổi mật khẩu (cần fresh login); đổi xong mọi phiên khác bị đăng xuất, phiên hiện tại được cấp lại.<br>route: `auth_bp.route('/password/change', methods=['GET', 'POST'])` · bảo vệ: `login_required`, `fresh_login_required` |
-| `forgot_password()` | 399 | Nhận email và gửi link đặt lại mật khẩu; luôn trả cùng một thông báo để không lộ email nào có tài khoản.<br>route: `auth_bp.route('/password/forgot', methods=['GET', 'POST'])` · bảo vệ: `limiter.limit(_auth_rate_limit, methods=['POST'])` |
-| `reset_password(token)` | 419 | Đặt mật khẩu mới từ link email; token hết hiệu lực ngay sau khi dùng.<br>route: `auth_bp.route('/password/reset/<token>', methods=['GET', 'POST'])` · bảo vệ: `limiter.limit(_auth_rate_limit, methods=['POST'])` |
-| `reauthenticate()` | 444 | Xác nhận lại mật khẩu để phiên trở thành "fresh" (Ch6 – slide 115).<br>route: `auth_bp.route('/reauth', methods=['GET', 'POST'])` · bảo vệ: `login_required`, `limiter.limit(_auth_rate_limit, methods=['POST'])` |
+| `_auth_rate_limit()` | 47 | Giới hạn tần suất cho các form xác thực, đọc từ AUTH_RATE_LIMIT. |
+| `_safe_next(value)` | 52 | Chỉ cho phép chuyển hướng tới đường dẫn nội bộ dạng "/..." (Ch6 – slide 70). |
+| `_login_failed(form, message=_GENERIC_LOGIN_ERROR)` | 70 | Phản hồi đăng nhập thất bại (mặc định thông báo chung, không tiết lộ lý do). |
+| `_existing_session_redirect()` | 78 | Người đã đăng nhập vào trang login/register: chuyển tới /pending hoặc /home; tài khoản không còn hợp lệ thì đăng xuất. |
+| `send_confirmation_email(user)` | 91 | Gửi link xác minh email (token itsdangerous, hạn EMAIL_CONFIRM_MAX_AGE). |
+| `_send_reset_email(user)` | 100 | Gửi email chứa link đặt lại mật khẩu (hiệu lực 1 giờ, dùng một lần). |
+| `index()` | 112 | Trang giới thiệu công khai; người đã đăng nhập được chuyển vào workspace.<br>route: `auth_bp.route('/', methods=['GET'])` |
+| `login()` | 121 | Đăng nhập bằng LoginForm: kiểm tra khóa tạm, so khớp mật khẩu (thời gian như nhau), tạo session mới, hỗ trợ "ghi nhớ đăng nhập" và `next` nội bộ.<br>route: `auth_bp.route('/login', methods=['GET', 'POST'])` · bảo vệ: `limiter.limit(_auth_rate_limit, methods=['POST'])` |
+| `pending()` | 177 | Trang chờ duyệt cho tài khoản mới đăng ký (kèm gửi lại email xác minh).<br>route: `auth_bp.route('/pending')` · bảo vệ: `login_required` |
+| `register()` | 186 | Đăng ký thành viên bằng RegistrationForm; tạo tài khoản trạng thái pending và gửi email xác minh.<br>route: `auth_bp.route('/register', methods=['GET', 'POST'])` · bảo vệ: `limiter.limit(_auth_rate_limit, methods=['POST'])` |
+| `logout()` | 235 | Đăng xuất (chỉ nhận POST) và xóa session.<br>route: `auth_bp.route('/logout', methods=['POST'])` · bảo vệ: `login_required` |
+| `confirm_email(token)` | 247 | Mở link xác minh email: token hợp lệ → đánh dấu email đã xác minh.<br>route: `auth_bp.route('/confirm/<token>')` |
+| `resend_confirmation()` | 264 | Gửi lại email xác minh (giới hạn 3 lần/giờ).<br>route: `auth_bp.route('/confirm/resend', methods=['POST'])` · bảo vệ: `login_required`, `limiter.limit('3 per hour')` |
+| `change_password()` | 284 | Đổi mật khẩu (cần fresh login); đổi xong mọi phiên khác bị đăng xuất, phiên hiện tại được cấp lại.<br>route: `auth_bp.route('/password/change', methods=['GET', 'POST'])` · bảo vệ: `login_required`, `fresh_login_required` |
+| `forgot_password()` | 313 | Nhận email và gửi link đặt lại mật khẩu; luôn trả cùng một thông báo để không lộ email nào có tài khoản.<br>route: `auth_bp.route('/password/forgot', methods=['GET', 'POST'])` · bảo vệ: `limiter.limit(_auth_rate_limit, methods=['POST'])` |
+| `reset_password(token)` | 333 | Đặt mật khẩu mới từ link email; token hết hiệu lực ngay sau khi dùng.<br>route: `auth_bp.route('/password/reset/<token>', methods=['GET', 'POST'])` · bảo vệ: `limiter.limit(_auth_rate_limit, methods=['POST'])` |
+| `reauthenticate()` | 358 | Xác nhận lại mật khẩu để phiên trở thành "fresh" (Ch6 – slide 115).<br>route: `auth_bp.route('/reauth', methods=['GET', 'POST'])` · bảo vệ: `login_required`, `limiter.limit(_auth_rate_limit, methods=['POST'])` |
 
 ### `app/routes/admin.py`
 
@@ -881,6 +873,18 @@ Quỹ CLB – khoản thu là nguồn DUY NHẤT cho "phải đóng / đã đón
 | `_post_to_ledger(actor, payment)` | 259 | Ghi một dòng thu vào sổ thu chi của kỳ cho thanh toán vừa xác nhận (một thanh toán một dòng). |
 | `record_confirmed_payment(actor, fund, member, method='cash', amount=None, note='')` | 279 | Thủ quỹ ghi nhận thành viên đã đóng (vd. tiền mặt) và xác nhận luôn; mặc định đóng đủ số còn thiếu. |
 | `adjust_fund(actor, fund, member, data)` | 287 | Miễn hoặc giảm khoản thu cho một thành viên, bắt buộc lý do. |
+
+### `app/services/login_lockout.py`
+
+Tạm khóa đăng nhập theo tài khoản, lưu trong database (chung cho mọi worker, không mất khi restart).
+
+| Hàm / class | Dòng | Mô tả |
+|---|---|---|
+| `_enabled()` | 23 | — |
+| `_max_attempts()` | 27 | — |
+| `locked_minutes(user, now=None)` | 31 | Số phút còn bị khóa (làm tròn lên), hoặc 0 nếu không bị khóa. |
+| `record_failure(user)` | 39 | Đếm một lần sai (UPDATE cộng dồn, an toàn khi nhiều worker); đủ ngưỡng thì khóa. Commit. |
+| `clear(user)` | 55 | Xóa bộ đếm sau khi đăng nhập đúng (chưa commit). |
 
 ### `app/services/natural_datetime.py`
 

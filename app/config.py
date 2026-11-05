@@ -31,8 +31,7 @@ class Config:
     SESSION_COOKIE_NAME = "__Host-fia" if APP_ENV == "production" else "fia_session"
     LOGIN_LIMIT_ENABLED = True
     LOGIN_MAX_ATTEMPTS = 5
-    LOGIN_WINDOW_SECONDS = 300
-    LOGIN_LOCKOUT_SECONDS = 300
+    LOGIN_LOCKOUT_SECONDS = 300          # lần khóa đầu; lần 2 ×3, từ lần 3 ×6 (login_lockout.py)
     MAX_FORM_PARTS = 200
     MAX_FORM_MEMORY_SIZE = 128 * 1024
     APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "Asia/Bangkok")

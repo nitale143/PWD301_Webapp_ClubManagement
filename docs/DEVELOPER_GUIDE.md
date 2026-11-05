@@ -384,7 +384,7 @@ Template dùng `can(Permission.X)` (từ context processor) để ẩn/hiện n�
 |---|---|---|
 | Đăng ký | `GET/POST /register` | `RegistrationForm` → `User(status="pending")` → gửi link xác minh |
 | Xác minh email | `GET /confirm/<token>`, `POST /confirm/resend` | Token purpose `confirm` (48h), gắn với email hiện tại |
-| Đăng nhập | `GET/POST /login` | Hash giả khi MSSV không tồn tại (thời gian phản hồi đồng đều), khóa theo HMAC(IP+MSSV), `session.clear()` rồi `login_user(remember=...)`, `next` chỉ nhận đường dẫn nội bộ |
+| Đăng nhập | `GET/POST /login` | Hash giả khi MSSV không tồn tại (thời gian phản hồi đồng đều), tạm khóa tài khoản sau `LOGIN_MAX_ATTEMPTS` lần sai liên tiếp, lưu ở `user.dang_nhap_sai`/`khoa_dang_nhap_den` (`services/login_lockout.py`: 5 → 15 → 30 phút, chung cho mọi worker; đăng nhập đúng hoặc `set_password` thì mở khóa; có audit `login_locked`), `session.clear()` rồi `login_user(remember=...)`, `next` chỉ nhận đường dẫn nội bộ |
 | Đăng xuất | `POST /logout` | Chỉ POST + CSRF |
 | Quên mật khẩu | `GET/POST /password/forgot` | Luôn trả cùng một thông báo |
 | Đặt lại | `GET/POST /password/reset/<token>` | Token purpose `reset` (1h) chứa 16 ký tự cuối của hash mật khẩu → dùng một lần |
@@ -624,6 +624,7 @@ Schema do **Flask-Migrate (Alembic)** quản lý trong thư mục `migrations/`:
 | `0005` | `event.trang_thai` NOT NULL + CheckConstraint; thêm `event.trang_thai_doi_tay_luc`; đổi giá trị cũ `completed` → `da_ket_thuc`, `open`/`draft`/lạ → `sap_dien_ra` |
 | `0006` | `fund_collection.period_id`, `fund_transaction.payment_id`; chuyển `fund_due` sang quỹ kỳ (khoản thu) + thanh toán đã xác nhận rồi xóa bảng |
 | `0007` | Tạo `event_draft`; xóa `ai_proposal`, `assistant_pending`, `conversation_pending` (đề xuất chưa duyệt không chuyển sang) |
+| `0008` | `user.dang_nhap_sai`, `user.khoa_dang_nhap_den` (tạm khóa đăng nhập lưu trong database) |
 
 **Quy trình thay đổi schema** (Ch5.2):
 
