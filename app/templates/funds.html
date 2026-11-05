@@ -83,7 +83,7 @@
             <div class="tabs" role="tablist" aria-label="Thông tin quỹ">
                 <button class="{{ 'active' if active_tab == 'collections' else '' }}" type="button" role="tab" id="fund-tab-collections" aria-controls="fund-panel-collections" aria-selected="{{ 'true' if active_tab == 'collections' else 'false' }}" data-finance-tab="collections">Khoản thu <span class="badge neutral">{{ collection_rows|length }}</span></button>
                 <button class="{{ 'active' if active_tab == 'transactions' else '' }}" type="button" role="tab" id="fund-tab-transactions" aria-controls="fund-panel-transactions" aria-selected="{{ 'true' if active_tab == 'transactions' else 'false' }}" data-finance-tab="transactions">Thu / chi <span class="badge neutral">{{ transactions|length if is_thu_quy else '—' }}</span></button>
-                <button class="{{ 'active' if active_tab == 'dues' else '' }}" type="button" role="tab" id="fund-tab-dues" aria-controls="fund-panel-dues" aria-selected="{{ 'true' if active_tab == 'dues' else 'false' }}" data-finance-tab="dues">Danh sách đóng quỹ <span class="badge neutral">{{ dues|length }}</span></button>
+                <button class="{{ 'active' if active_tab == 'dues' else '' }}" type="button" role="tab" id="fund-tab-dues" aria-controls="fund-panel-dues" aria-selected="{{ 'true' if active_tab == 'dues' else 'false' }}" data-finance-tab="dues">Đóng quỹ kỳ <span class="badge neutral">{{ quy_ky_rows|length }}</span></button>
             </div>
 
             <section class="fund-panel" id="fund-panel-collections" role="tabpanel" aria-labelledby="fund-tab-collections" data-finance-panel="collections"{% if active_tab != 'collections' %} hidden{% endif %}>
@@ -153,26 +153,30 @@
             </section>
 
             <section class="fund-panel" id="fund-panel-dues" role="tabpanel" aria-labelledby="fund-tab-dues" data-finance-panel="dues"{% if active_tab != 'dues' %} hidden{% endif %}>
-                {% if dues %}
+                {% if not period %}
+                <div class="empty-state">{{ icon('calendar') }}<strong>Chưa có kỳ quỹ đang mở</strong><span class="muted">Mở kỳ mới và nhập số tiền quỹ kỳ để theo dõi đóng quỹ.</span></div>
+                {% elif not quy_ky %}
+                <div class="empty-state">{{ icon('wallet') }}<strong>Kỳ {{ period.ten_ky }} chưa có quỹ kỳ</strong><span class="muted">{% if is_thu_quy %}Tạo khoản thu loại "Quỹ theo kỳ" để bắt đầu thu quỹ kỳ.{% else %}Thủ quỹ chưa mở quỹ kỳ.{% endif %}</span></div>
+                {% elif quy_ky_rows %}
+                <p class="small muted">{{ quy_ky.ten_khoan_thu }} · {{ money(quy_ky.so_tien) }} / thành viên · hạn {{ quy_ky.han_dong.strftime('%d/%m/%Y') }}. Tình trạng tính từ thanh toán đã xác nhận.</p>
                 <div class="table-wrap">
                     <table class="data-table">
-                        <thead><tr><th>Thành viên</th><th>MSSV</th><th>Trạng thái</th>{% if is_thu_quy %}<th></th>{% endif %}</tr></thead>
+                        <thead><tr><th>Thành viên</th><th>MSSV</th><th>Đã đóng / phải đóng</th><th>Trạng thái</th>{% if is_thu_quy %}<th></th>{% endif %}</tr></thead>
                         <tbody>
-                        {% for due in dues %}
-                        <tr data-filter-row data-category="{{ 'paid' if due.da_dong else 'unpaid' }}" data-filter-text="{{ (due.user.ho_ten ~ ' ' ~ due.user.mssv ~ ' ' ~ ('đã đóng' if due.da_dong else 'chưa đóng'))|lower }}">
-                            <td><div class="row">{{ avatar(due.user.ho_ten) }}<strong>{{ due.user.ho_ten }}</strong></div></td>
-                            <td>{{ due.user.mssv }}</td>
-                            <td>{{ badge('Đã đóng' if due.da_dong else 'Chưa đóng', 'success' if due.da_dong else 'warning') }}</td>
-                            {% if is_thu_quy %}<td><form method="post" action="{{ url_for('funds.toggle_due', user_id=due.user_id) }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-secondary btn-sm" type="submit">{{ 'Đánh dấu chưa đóng' if due.da_dong else 'Đánh dấu đã đóng' }}</button></form></td>{% endif %}
+                        {% for member, item in quy_ky_rows %}
+                        <tr data-filter-row data-category="{{ 'paid' if item.status in ['paid', 'exempt'] else 'pending' if item.status == 'pending' else 'unpaid' }}" data-filter-text="{{ (member.ho_ten ~ ' ' ~ member.mssv ~ ' ' ~ item.status)|lower }}">
+                            <td><div class="row">{{ avatar(member.ho_ten) }}<strong>{{ member.ho_ten }}</strong></div></td>
+                            <td>{{ member.mssv }}</td>
+                            <td>{{ money(item.paid) }} / {{ money(item.required) }}</td>
+                            <td>{{ balance_state(item.status) }}</td>
+                            {% if is_thu_quy %}<td>{% if quy_ky.trang_thai == 'open' and item.status in ['unpaid', 'partial', 'overdue'] %}<form method="post" action="{{ url_for('funds.collection_record_paid', fund_id=quy_ky.id, user_id=member.id) }}" class="inline-form" data-confirm="Ghi nhận {{ member.ho_ten }} đã đóng {{ money(item.remaining) }} (tiền mặt)? Thanh toán được xác nhận và ghi vào sổ thu chi."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-secondary btn-sm" type="submit">{{ icon('check') }} Ghi nhận đã đóng</button></form>{% endif %}</td>{% endif %}
                         </tr>
                         {% endfor %}
                         </tbody>
                     </table>
                 </div>
-                {% elif not period %}
-                <div class="empty-state">{{ icon('calendar') }}<strong>Chưa có kỳ quỹ đang mở</strong><span class="muted">Danh sách đóng quỹ sẽ hiển thị sau khi mở kỳ.</span></div>
                 {% else %}
-                <div class="empty-state">{{ icon('users') }}<strong>Chưa có dữ liệu đóng quỹ</strong><span class="muted">Không tìm thấy bản ghi đóng quỹ trong kỳ hiện tại.</span></div>
+                <div class="empty-state">{{ icon('users') }}<strong>Quỹ kỳ không áp dụng cho bạn</strong><span class="muted">{{ quy_ky.ten_khoan_thu }} chỉ áp dụng cho một số ban.</span></div>
                 {% endif %}
             </section>
         </div>
@@ -212,8 +216,8 @@
     {% endif %}
 
     <div class="row preview-footnote">
-        <span class="muted small">{{ icon('shield') }} Số liệu được lấy từ khoản thu, giao dịch và trạng thái đóng quỹ thực tế.</span>
-        {% if is_thu_quy and period %}<button class="btn btn-ghost btn-sm" type="button" data-dialog-open="fund-reminder-dialog">{{ icon('mail') }} Nhắc đóng quỹ</button>{% endif %}
+        <span class="muted small">{{ icon('shield') }} Tình trạng đóng quỹ tính từ thanh toán đã xác nhận của từng khoản thu; thanh toán được xác nhận tự ghi vào sổ thu chi.</span>
+        {% if is_thu_quy %}<button class="btn btn-ghost btn-sm" type="button" data-dialog-open="fund-reminder-dialog">{{ icon('mail') }} Nhắc đóng quỹ</button>{% endif %}
     </div>
 
     {% if is_thu_quy %}
@@ -236,7 +240,8 @@
             {{ period_form.hidden_tag() }}
             {{ form_field(period_form.ten_ky, required=true, maxlength=50, placeholder='Ví dụ: Spring 2027') }}
             <div class="form-grid">{{ form_field(period_form.ngay_bat_dau, required=true) }}{{ form_field(period_form.ngay_ket_thuc) }}</div>
-            <p class="form-note">Mở kỳ mới sẽ tự động đóng kỳ đang mở hiện tại (nếu có).</p>
+            <div class="form-grid">{{ form_field(period_form.so_tien_quy, type='number', min=0, step=1000, help='Để trống nếu kỳ này chưa thu quỹ.') }}{{ form_field(period_form.han_dong_quy, help='Mặc định: ngày kết thúc kỳ, không có thì 30 ngày sau ngày bắt đầu.') }}</div>
+            <p class="form-note">Mở kỳ mới sẽ tự động đóng kỳ đang mở hiện tại (nếu có). Quỹ kỳ được tạo thành một khoản thu "Quỹ &lt;tên kỳ&gt;" cho mọi thành viên.</p>
             <div class="dialog-footer"><button class="btn btn-secondary" type="button" data-dialog-close>Hủy</button><button class="btn btn-primary" type="submit">Mở kỳ mới</button></div>
         </form>
     </dialog>
@@ -255,12 +260,12 @@
     </dialog>
     {% endif %}
 
-    {% if period %}
+    {% if is_thu_quy %}
     <dialog class="dialog parity-finance-dialog" id="fund-reminder-dialog" aria-labelledby="fund-reminder-title">
-        <div class="dialog-heading"><div><p class="eyebrow">{{ period.ten_ky }}</p><h2 id="fund-reminder-title">Gửi email nhắc đóng quỹ?</h2></div><button class="btn btn-ghost btn-sm" type="button" aria-label="Đóng" data-dialog-close>{{ icon('close') }}</button></div>
+        <div class="dialog-heading"><div><p class="eyebrow">{{ period.ten_ky if period else 'KHOẢN THU ĐANG MỞ' }}</p><h2 id="fund-reminder-title">Gửi email nhắc đóng quỹ?</h2></div><button class="btn btn-ghost btn-sm" type="button" aria-label="Đóng" data-dialog-close>{{ icon('close') }}</button></div>
         <form method="post" action="{{ url_for('funds.remind_unpaid') }}" class="dialog-body page-stack">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <p>Hệ thống sẽ thử gửi email đến {{ dues|selectattr('da_dong', 'equalto', false)|list|length }} thành viên chưa đóng quỹ trong kỳ hiện tại.</p>
+            <p>Hệ thống sẽ thử gửi email đến {{ owing_count }} thành viên còn phải đóng (chưa đóng, đóng thiếu hoặc quá hạn) ở các khoản thu đang mở. Mỗi người nhận một thư liệt kê các khoản.</p>
             <p class="small muted">Email chỉ được gửi sau khi bạn chọn nút xác nhận bên dưới.</p>
             <div class="dialog-footer"><button class="btn btn-secondary" type="button" data-dialog-close>Hủy</button><button class="btn btn-primary" type="submit">Xác nhận gửi email</button></div>
         </form>

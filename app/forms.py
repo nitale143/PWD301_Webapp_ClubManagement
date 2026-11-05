@@ -255,17 +255,35 @@ class EventForm(BaseForm):
 # Quỹ
 # --------------------------------------------------------------------------
 class FundPeriodForm(BaseForm):
-    """Form mở kỳ quỹ mới: tên kỳ, ngày bắt đầu, ngày kết thúc (tùy chọn)."""
+    """Form mở kỳ quỹ mới: tên kỳ, ngày bắt đầu, ngày kết thúc (tùy chọn) và quỹ kỳ (tùy chọn).
+    Nhập số tiền quỹ kỳ thì hệ thống tạo khoản thu "Quỹ <tên kỳ>" cho mọi thành viên."""
     ten_ky = StringField("Tên kỳ", filters=[_strip], validators=[
         DataRequired(message="Vui lòng nhập tên kỳ (vd: Spring 2027)."), Length(max=50), NoControlChars()])
     ngay_bat_dau = DateField("Ngày bắt đầu", validators=[DataRequired(message="Ngày không hợp lệ.")])
     ngay_ket_thuc = DateField("Ngày kết thúc", validators=[Optional()])
+    so_tien_quy = StringField("Quỹ kỳ mỗi thành viên (₫)", filters=[_strip], validators=[Optional(), Length(max=32)])
+    han_dong_quy = DateField("Hạn đóng quỹ kỳ", validators=[Optional()])
     submit = SubmitField("Mở kỳ mới")
 
     def validate_ngay_ket_thuc(self, field):
         """Ngày kết thúc (nếu có) không được trước ngày bắt đầu."""
         if field.data and self.ngay_bat_dau.data and field.data < self.ngay_bat_dau.data:
             raise ValidationError("Ngày kết thúc phải sau ngày bắt đầu.")
+
+    def validate_so_tien_quy(self, field):
+        """Số tiền quỹ kỳ (nếu nhập) phải là số dương; lưu Decimal vào `self.fund_amount`."""
+        from app.services.common import DomainError, parse_money
+        self.fund_amount = None
+        if field.data:
+            try:
+                self.fund_amount = parse_money(field.data)
+            except DomainError:
+                raise ValidationError("Số tiền quỹ kỳ không hợp lệ.") from None
+
+    def validate_han_dong_quy(self, field):
+        """Hạn đóng quỹ kỳ không được trước ngày bắt đầu kỳ."""
+        if field.data and self.ngay_bat_dau.data and field.data < self.ngay_bat_dau.data:
+            raise ValidationError("Hạn đóng quỹ kỳ phải sau ngày bắt đầu kỳ.")
 
 
 class FundTransactionForm(BaseForm):

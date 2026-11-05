@@ -129,12 +129,13 @@
         </section>
 
         <section class="span-12 card">
-            <div class="card-header"><div><h2>Tình trạng đóng quỹ</h2><p class="small muted">Trạng thái đóng quỹ theo từng kỳ.</p></div>{{ icon('wallet') }}</div>
+            <div class="card-header"><div><h2>Tình trạng đóng quỹ</h2><p class="small muted">Các khoản thu áp dụng, tính từ thanh toán đã xác nhận.</p></div>{{ icon('wallet') }}</div>
             {% if dues %}
+            {% set fund_labels = {'paid': ('Đã đóng', 'success'), 'exempt': ('Được miễn', 'success'), 'partial': ('Đóng một phần', 'warning'), 'pending': ('Chờ xác nhận', 'warning'), 'overdue': ('Quá hạn', 'danger'), 'unpaid': ('Chưa đóng', 'neutral')} %}
             <div class="table-wrap"><table class="data-table">
-                <thead><tr><th>Kỳ</th><th>Trạng thái</th><th>Ngày đóng</th></tr></thead>
-                <tbody>{% for due in dues %}
-                    <tr><td>{{ due.period.ten_ky }}</td><td>{{ badge('Đã đóng', 'success') if due.da_dong else badge('Chưa đóng', 'warning') }}</td><td>{{ due.ngay_dong.strftime('%d/%m/%Y') if due.ngay_dong else '—' }}</td></tr>
+                <thead><tr><th>Kỳ</th><th>Khoản thu</th><th>Đã đóng / phải đóng</th><th>Hạn</th><th>Trạng thái</th></tr></thead>
+                <tbody>{% for fund, item in dues %}
+                    <tr><td>{{ fund.period.ten_ky if fund.period else '—' }}</td><td>{{ fund.ten_khoan_thu }}</td><td>{{ '{:,.0f}'.format(item.paid|float).replace(',', '.') }} / {{ '{:,.0f}'.format(item.required|float).replace(',', '.') }} đ</td><td>{{ fund.han_dong.strftime('%d/%m/%Y') }}</td><td>{{ badge(*fund_labels[item.status]) }}</td></tr>
                 {% endfor %}</tbody>
             </table></div>
             {% else %}

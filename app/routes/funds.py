@@ -1,19 +1,25 @@
 import io
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, abort
+from datetime import timedelta
+
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
 from flask_login import login_required, current_user
 
 from app import db
-from app.models import FundCollection, FundPayment, FundPeriod, FundTransaction, FundDue, User
+from app.models import FundCollection, FundPayment, FundPeriod, FundTransaction, User
 from app.forms import FundPeriodForm, FundTransactionForm
 from app.models import Permission
 from app.permissions import approved_required, permission_required
 from app.security import require_csrf
 from app.mail import send_email
 from app.services.email_templates import render_system_email
-from app.services.access import active_members, approved, can_manage_funds
-from app.services.common import DomainError, audit, club_now
+from app.services.access import can_manage_funds
+from app.services.common import DomainError, audit
 from app.services.export_security import safe_excel_row
-from app.services.funds import balance, create_collection, record_payment, review_payment, target_members
+from app.services.funds import (
+    PERIOD_FUND, applies_to_member, balance, create_collection, fund_member_rows, ledger_totals,
+    owing_by_member, period_collections, period_fund, record_confirmed_payment, record_payment,
+    review_payment, target_members,
+)
 
 funds_bp = Blueprint("funds", __name__)
 
@@ -34,8 +40,8 @@ def _is_thu_quy():
 @login_required
 @permission_required(Permission.MANAGE_FUNDS)
 def period_new():
-    """Mở kỳ quỹ mới (Spring/Summer/Fall…). Kỳ đang mở tự đóng lại – tại một
-    thời điểm chỉ có đúng một kỳ hiện tại."""
+    """Mở kỳ quỹ mới (Spring/Summer/Fall…). Kỳ đang mở tự đóng lại – tại một thời điểm chỉ có đúng
+    một kỳ hiện tại. Nhập số tiền quỹ kỳ thì tạo luôn khoản thu "Quỹ <tên kỳ>" cho mọi thành viên."""
     form = FundPeriodForm()
     if not form.validate_on_submit():
         _flash_form_errors(form)
@@ -52,14 +58,23 @@ def period_new():
     db.session.add(period)
     db.session.flush()
 
-    # Tạo sẵn bản ghi FundDue (chưa đóng) cho mọi thành viên đang hoạt động
-    for member in active_members().all():
-        if approved(member):
-            db.session.add(FundDue(period_id=period.id, user_id=member.id, da_dong=False))
-
-    audit(current_user, "legacy_period_create", period)
+    audit(current_user, "fund_period_create", period)
+    fund_amount = getattr(form, "fund_amount", None)   # None khi để trống ô quỹ kỳ
+    if fund_amount:
+        due = form.han_dong_quy.data or period.ngay_ket_thuc or (period.ngay_bat_dau + timedelta(days=30))
+        try:
+            create_collection(current_user, {
+                "name": f"Quỹ {period.ten_ky}", "type": PERIOD_FUND, "amount": str(fund_amount),
+                "start_date": period.ngay_bat_dau.isoformat(), "due_date": due.isoformat(),
+                "status": "open", "applies_to_all": True, "period_id": period.id, "commit": False,
+                "description": f"Quỹ kỳ {period.ten_ky}.",
+            })
+        except DomainError as exc:
+            db.session.rollback()
+            flash(str(exc), "error")
+            return redirect(url_for("funds.funds_home"))
     db.session.commit()
-    flash(f"Đã mở kỳ mới: {period.ten_ky}.", "success")
+    flash(f"Đã mở kỳ mới: {period.ten_ky}" + (" và quỹ kỳ." if fund_amount else "."), "success")
     return redirect(url_for("funds.funds_home"))
 
 
@@ -71,21 +86,18 @@ def funds_home():
     thanh toán chờ xác nhận.
     """
     period = FundPeriod.query.filter_by(is_current=True).first()
-    transactions, dues, so_du, tong_thu, tong_chi = [], [], 0, 0, 0
-
-    if period:
-        if _is_thu_quy():
-            transactions = (
-                FundTransaction.query.filter_by(period_id=period.id)
-                .order_by(FundTransaction.ngay.desc()).all()
-            )
-        tong_thu = sum(t.so_tien for t in transactions if t.so_tien > 0)
-        tong_chi = sum(t.so_tien for t in transactions if t.so_tien < 0)
-        so_du = tong_thu + tong_chi
-        due_query = FundDue.query.filter_by(period_id=period.id)
-        if not _is_thu_quy():
-            due_query = due_query.filter_by(user_id=current_user.id)
-        dues = due_query.all()
+    transactions, tong_thu, tong_chi, so_du = [], 0, 0, 0
+    if period and _is_thu_quy():
+        transactions = (FundTransaction.query.filter_by(period_id=period.id)
+                        .order_by(FundTransaction.ngay.desc(), FundTransaction.id.desc()).all())
+        tong_thu, tong_chi, so_du = ledger_totals(period)
+    # Quỹ kỳ: thủ quỹ thấy mọi thành viên, thành viên thấy dòng của mình
+    quy_ky = period_fund(period)
+    quy_ky_rows = []
+    if quy_ky:
+        quy_ky_rows = (fund_member_rows(quy_ky) if _is_thu_quy() else
+                       [(current_user, balance(quy_ky, current_user))]
+                       if applies_to_member(quy_ky, current_user) else [])
 
     collections = FundCollection.query.order_by(FundCollection.id.desc()).all()
     if not _is_thu_quy():
@@ -108,7 +120,10 @@ def funds_home():
         collection_names=collection_names,
         period=period,
         transactions=transactions,
-        dues=dues,
+        quy_ky=quy_ky,
+        quy_ky_rows=quy_ky_rows,
+        owing_count=len(owing_by_member([fund for fund in collections if fund.trang_thai == "open"]))
+        if _is_thu_quy() else 0,
         so_du=so_du,
         tong_thu=tong_thu,
         tong_chi=tong_chi,
@@ -199,52 +214,48 @@ def transaction_new():
     return redirect(url_for("funds.funds_home"))
 
 
-@funds_bp.route("/funds/due/<int:user_id>/toggle", methods=["POST"])
+@funds_bp.post("/funds/collections/<int:fund_id>/members/<int:user_id>/paid")
 @login_required
 @permission_required(Permission.MANAGE_FUNDS)
-def toggle_due(user_id):
-    """Đánh dấu đã đóng / chưa đóng quỹ kỳ hiện tại cho một thành viên."""
-    period = FundPeriod.query.filter_by(is_current=True).first()
-    if not period:
-        abort(400)
-    member = db.session.get(User, user_id)
-    if not member or member.status != "approved":
-        abort(404)
-
-    due = FundDue.query.filter_by(period_id=period.id, user_id=user_id).first()
-    if not due:
-        due = FundDue(period_id=period.id, user_id=user_id, da_dong=False)
-        db.session.add(due)
-
-    due.da_dong = not due.da_dong
-    due.ngay_dong = club_now().date() if due.da_dong else None
-    db.session.flush()
-    audit(current_user, "legacy_fund_due_toggle", due, {"paid": due.da_dong})
-    db.session.commit()
-    return redirect(url_for("funds.funds_home"))
+def collection_record_paid(fund_id, user_id):
+    """Thủ quỹ ghi nhận một thành viên đã đóng đủ (vd. tiền mặt): tạo thanh toán đã xác nhận và
+    tự ghi vào sổ thu chi. Thay cho ô bật/tắt "đã đóng" trước đây."""
+    require_csrf()
+    fund = db.get_or_404(FundCollection, fund_id)
+    member = db.get_or_404(User, user_id)
+    try:
+        record_confirmed_payment(current_user, fund, member, request.form.get("method", "cash"))
+        flash(f"Đã ghi nhận {member.ho_ten} đóng {fund.ten_khoan_thu}.", "success")
+    except DomainError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+    return redirect(url_for("funds.funds_home", tab="dues"))
 
 
 @funds_bp.route("/funds/nhac-dong-quy", methods=["POST"])
 @login_required
 @permission_required(Permission.MANAGE_FUNDS)
 def remind_unpaid():
-    """Gửi mail nhắc các thành viên chưa đóng quỹ trong kỳ hiện tại."""
+    """Gửi mail nhắc những thành viên còn phải đóng (chưa đóng, đóng thiếu, quá hạn) ở các khoản thu
+    đang mở; mỗi người một mail liệt kê các khoản."""
     period = FundPeriod.query.filter_by(is_current=True).first()
-    if not period:
-        flash("Chưa có kỳ quỹ nào đang mở.", "error")
-        return redirect(url_for("funds.funds_home"))
-
-    unpaid_dues = FundDue.query.filter_by(period_id=period.id, da_dong=False).all()
+    owing = owing_by_member(FundCollection.query.filter_by(trang_thai="open")
+                            .order_by(FundCollection.han_dong, FundCollection.id).all())
     sent = 0
-    for due in unpaid_dues:
-        sent += bool(send_email(due.user.email, *render_system_email(
-            "fund_reminder", ten=due.user.ho_ten, ky=period.ten_ky)))
-    audit(current_user, "legacy_fund_reminder", period, {"recipients": len(unpaid_dues), "sent": sent})
+    for member, items in owing.items():
+        lines = "\n".join(f"- {fund.ten_khoan_thu}: còn {item['remaining']:,.0f} đ, hạn "
+                          f"{fund.han_dong:%d/%m/%Y}".replace(",", ".") for fund, item in items)
+        sent += bool(send_email(member.email, *render_system_email(
+            "fund_reminder", ten=member.ho_ten, ky=period.ten_ky if period else "hiện tại",
+            danh_sach=lines)))
+    audit(current_user, "fund_reminder", period or current_user, {"recipients": len(owing), "sent": sent})
     db.session.commit()
-    if sent == len(unpaid_dues):
-        flash(f"Đã gửi nhắc nhở tới {sent} thành viên chưa đóng quỹ.", "success")
+    if not owing:
+        flash("Không có thành viên nào còn phải đóng ở các khoản thu đang mở.", "success")
+    elif sent == len(owing):
+        flash(f"Đã gửi nhắc nhở tới {sent} thành viên còn phải đóng.", "success")
     else:
-        flash(f"Đã gửi {sent}/{len(unpaid_dues)} email nhắc. Kiểm tra cấu hình SMTP cho các thư chưa gửi.", "error")
+        flash(f"Đã gửi {sent}/{len(owing)} email nhắc. Kiểm tra cấu hình SMTP cho các thư chưa gửi.", "error")
     return redirect(url_for("funds.funds_home"))
 
 
@@ -252,8 +263,8 @@ def remind_unpaid():
 @login_required
 @approved_required
 def export_funds_excel():
-    """Xuất Excel kỳ hiện tại: sổ thu chi (chỉ người quản lý quỹ) và tình trạng đóng quỹ (thành
-    viên chỉ thấy dòng của mình).
+    """Xuất Excel kỳ hiện tại: sổ thu chi (chỉ người quản lý quỹ) và tình trạng đóng từng khoản thu
+    của kỳ (thành viên chỉ thấy dòng của mình).
     """
     from openpyxl import Workbook
 
@@ -267,13 +278,15 @@ def export_funds_excel():
             ws.append(safe_excel_row([tx.ngay.isoformat(), tx.danh_muc, tx.noi_dung, tx.so_tien]))
 
     ws2 = wb.create_sheet("Đóng quỹ")
-    ws2.append(safe_excel_row(["Họ tên", "MSSV", "Đã đóng"]))
-    if period:
-        due_query = FundDue.query.filter_by(period_id=period.id)
-        if not _is_thu_quy():
-            due_query = due_query.filter_by(user_id=current_user.id)
-        for due in due_query:
-            ws2.append(safe_excel_row([due.user.ho_ten, due.user.mssv, "Có" if due.da_dong else "Chưa"]))
+    ws2.append(safe_excel_row(["Họ tên", "MSSV", "Khoản thu", "Phải đóng", "Đã đóng", "Còn thiếu",
+                               "Trạng thái"]))
+    labels = {"paid": "Đã đóng", "partial": "Đóng một phần", "unpaid": "Chưa đóng", "pending": "Chờ xác nhận",
+              "overdue": "Quá hạn", "exempt": "Được miễn"}
+    member_ids = None if _is_thu_quy() else [current_user.id]
+    for fund in period_collections(period):
+        for member, item in fund_member_rows(fund, member_ids):
+            ws2.append(safe_excel_row([member.ho_ten, member.mssv, fund.ten_khoan_thu, item["required"],
+                                       item["paid"], item["remaining"], labels[item["status"]]]))
 
     buf = io.BytesIO()
     wb.save(buf)

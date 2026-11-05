@@ -16,12 +16,12 @@ from flask import current_app, has_request_context
 from flask_login import current_user
 
 from app import db
-from app.models import AIUsageLog, Attendance, ChatMessage, Event, EventRegistration, FundCollection, FundDue, FundPayment, FundPeriod, Task, User
+from app.models import AIUsageLog, Attendance, ChatMessage, Event, EventRegistration, FundCollection, FundPayment, FundPeriod, Task, User
 from app.models import Permission
 from .access import (board_members, can_manage_events, can_manage_funds,
                      is_board, require, scoped_members)
 from .common import DomainError, club_now
-from .funds import balance, target_members
+from .funds import OWING_STATES, balance, fund_member_rows, period_collections, period_fund, target_members
 from app.timeutil import utcnow
 
 
@@ -220,43 +220,30 @@ class RulesProvider(AssistantProvider):
             if len(current_periods) > 1:
                 return {"intent": "period_ambiguous", "answer":
                         "Có nhiều kỳ quỹ đang được đánh dấu hiện tại. Vui lòng nhờ BDH kiểm tra cấu hình kỳ quỹ trước."}
-            period = named_period or (current_periods[0] if current_periods else None)
-            rows = []
-            if period:
-                dues = (FundDue.query.filter_by(period_id=period.id)
-                        .filter(FundDue.user_id.in_(visible_ids))
-                        .order_by(FundDue.user_id.asc(), FundDue.id.asc()).all())
-                unpaid = [due for due in dues if not due.da_dong]
-                if not dues:
-                    rows.append(f"Kỳ {period.ten_ky}: chưa có bản ghi đóng quỹ trong phạm vi bạn được xem.")
-                elif overdue_only:
-                    rows.append(f"Kỳ {period.ten_ky}: dữ liệu kỳ này không lưu hạn đóng riêng, nên không thể xác minh khoản nào đã quá hạn.")
-                elif unpaid:
-                    rows.append(f"Kỳ {period.ten_ky}: {len(unpaid)}/{len(dues)} bản ghi chưa đóng.")
-                    rows.extend(f"{due.user.mssv} - {due.user.ho_ten}" for due in unpaid[:100])
-                else:
-                    rows.append(f"Kỳ {period.ten_ky}: {len(dues)}/{len(dues)} bản ghi đã đóng; "
-                                "không có ai chưa đóng trong phạm vi bạn được xem.")
-            funds = (FundCollection.query.filter_by(trang_thai="open")
-                     .order_by(FundCollection.id.asc()) if not named_period else [])
-            if "thang nay" in text and not named_period:
-                today = club_now().date()
-                funds = funds.filter(db.extract("year", FundCollection.han_dong) == today.year, db.extract("month", FundCollection.han_dong) == today.month)
+            # Nguồn duy nhất: khoản thu. Hỏi theo kỳ → khoản thu của kỳ đó; ngược lại → khoản thu đang mở.
+            if named_period:
+                funds = period_collections(named_period)
+            else:
+                funds = (FundCollection.query.filter_by(trang_thai="open")
+                         .order_by(FundCollection.id.asc()))
+                if "thang nay" in text:
+                    today = club_now().date()
+                    funds = funds.filter(db.extract("year", FundCollection.han_dong) == today.year,
+                                         db.extract("month", FundCollection.han_dong) == today.month)
+                funds = funds.all()
             applicable_members = 0
-            debt_rows = []
+            rows = []
             for fund in funds:
-                members = target_members(fund).filter(User.id.in_(visible_ids)).order_by(User.id.asc()).all()
+                members = fund_member_rows(fund, visible_ids)
                 applicable_members += len(members)
-                for member in members:
-                    item = balance(fund, member)
-                    if item["remaining"] <= 0:
+                for member, item in members:
+                    if item["status"] not in OWING_STATES:
                         continue
                     if overdue_only and item["status"] != "overdue":
                         continue
-                    debt_rows.append(f"{member.mssv} - {member.ho_ten}: {fund.ten_khoan_thu}, còn {_money(item['remaining'])} ({item['status']})")
-            rows.extend(debt_rows)
+                    rows.append(f"{member.mssv} - {member.ho_ten}: {fund.ten_khoan_thu}, còn {_money(item['remaining'])} ({item['status']})")
             if not rows:
-                if not period and applicable_members == 0:
+                if applicable_members == 0:
                     answer = "Không có dữ liệu quỹ áp dụng trong phạm vi bạn được xem."
                 elif overdue_only:
                     answer = "Không có khoản thu nào được xác nhận là quá hạn trong phạm vi bạn được xem."
@@ -281,14 +268,15 @@ class RulesProvider(AssistantProvider):
             if not period and not open_collections:
                 return {"intent": "fund_overview", "answer": "Chưa có kỳ quỹ hoặc khoản thu đang mở."}
             rows = []
-            if period:
-                dues = (FundDue.query.filter_by(period_id=period.id)
-                        .filter(FundDue.user_id.in_(visible_ids))
-                        .order_by(FundDue.user_id.asc(), FundDue.id.asc()).all())
-                paid = sum(bool(due.da_dong) for due in dues)
-                rows.append(f"Kỳ {period.ten_ky}: đã đóng {paid}/{len(dues)} bản ghi "
-                            "trong phạm vi bạn được xem.")
-            rows.append(f"Khoản thu mới đang mở: {open_collections}.")
+            quy_ky = period_fund(period)
+            if quy_ky:
+                members = fund_member_rows(quy_ky, visible_ids)
+                paid = sum(item["status"] in {"paid", "exempt"} for _member, item in members)
+                rows.append(f"Kỳ {period.ten_ky} – {quy_ky.ten_khoan_thu}: đã đóng {paid}/{len(members)} "
+                            "thành viên trong phạm vi bạn được xem.")
+            elif period:
+                rows.append(f"Kỳ {period.ten_ky}: chưa có quỹ kỳ.")
+            rows.append(f"Khoản thu đang mở: {open_collections}.")
             return {"intent": "fund_overview", "answer": "\n".join(rows)}
 
         if "tong" in text and "da thu" in text:

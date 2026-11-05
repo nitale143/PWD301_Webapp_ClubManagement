@@ -425,8 +425,9 @@ class Task(db.Model):
 # Quỹ CLB (kỳ quản lý theo lịch học: Spring / Summer / Fall)
 # ---------------------------------------------------------------------------
 class FundPeriod(db.Model):
-    """Kỳ quỹ / kỳ hoạt động (Spring, Summer, Fall…). Chỉ một kỳ `is_current`; chứa sổ thu chi và
-    trạng thái đóng quỹ theo kỳ.
+    """Kỳ quỹ / kỳ hoạt động (Spring, Summer, Fall…). Chỉ một kỳ `is_current`; chứa sổ thu chi.
+    Tiền phải đóng trong kỳ là các khoản thu (FundCollection.period_id), trong đó "quỹ kỳ" là khoản
+    thu loại semester.
     """
     __tablename__ = "fund_period"
     id = db.Column(db.Integer, primary_key=True)
@@ -440,11 +441,11 @@ class FundPeriod(db.Model):
     transactions = db.relationship(
         "FundTransaction", backref="period", cascade="all, delete-orphan"
     )
-    dues = db.relationship("FundDue", backref="period", cascade="all, delete-orphan")
 
 
 class FundTransaction(db.Model):
-    """Một dòng trong sổ thu chi của kỳ: thu (số dương) hoặc chi (số âm)."""
+    """Một dòng trong sổ thu chi của kỳ: thu (số dương) hoặc chi (số âm). Dòng có `payment_id` do hệ
+    thống tự ghi khi thủ quỹ xác nhận một thanh toán khoản thu."""
     __tablename__ = "fund_transaction"
     id = db.Column(db.Integer, primary_key=True)
     period_id = db.Column(db.Integer, db.ForeignKey("fund_period.id"), nullable=False)
@@ -453,18 +454,7 @@ class FundTransaction(db.Model):
     ngay = db.Column(db.Date, nullable=False)
     so_tien = db.Column(db.Numeric(14, 2), nullable=False)  # thu: +, chi: -
     tao_boi_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-
-
-class FundDue(db.Model):
-    """Trạng thái đóng quỹ của từng thành viên trong 1 kỳ (sổ quỹ theo kỳ)."""
-    __tablename__ = "fund_due"
-    id = db.Column(db.Integer, primary_key=True)
-    period_id = db.Column(db.Integer, db.ForeignKey("fund_period.id"), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    da_dong = db.Column(db.Boolean, default=False)
-    ngay_dong = db.Column(db.Date, nullable=True)
-
-    user = db.relationship("User")
+    payment_id = db.Column(db.Integer, db.ForeignKey("fund_payment.id"), unique=True)
 
 
 # ---------------------------------------------------------------------------
@@ -565,7 +555,8 @@ class MemberRecord(db.Model):
 
 
 class FundCollection(db.Model):
-    """Khoản thu (thu theo tháng/kỳ/năm/sự kiện/tự nguyện…), có số tiền, hạn đóng và trạng thái
+    """Khoản thu – nguồn DUY NHẤT cho "phải đóng / đã đóng" (xem app/services/funds.py). Thuộc một kỳ
+    (`period_id`); quỹ kỳ là khoản thu loại semester (mỗi kỳ tối đa một). Trạng thái
     draft/open/closed/cancelled.
     """
     __tablename__ = "fund_collection"
@@ -580,6 +571,8 @@ class FundCollection(db.Model):
     trang_thai = db.Column(db.String(12), nullable=False, default="draft", index=True)
     tao_boi_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     tao_luc = db.Column(db.DateTime, nullable=False, default=utcnow)
+    period_id = db.Column(db.Integer, db.ForeignKey("fund_period.id"), index=True)
+    period = db.relationship("FundPeriod")
     __table_args__ = (
         db.CheckConstraint("so_tien >= 0", name="ck_fund_collection_amount"),
         db.CheckConstraint("han_dong >= ngay_bat_dau", name="ck_fund_collection_dates"),

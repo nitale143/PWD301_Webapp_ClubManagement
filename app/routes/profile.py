@@ -8,7 +8,8 @@ from flask_login import login_required, current_user
 from PIL import Image, ImageOps
 
 from app import db
-from app.models import User, MemberActivity, FundDue, MemberPlanningProfile
+from app.models import FundCollection, User, MemberActivity, MemberPlanningProfile
+from app.services.funds import VISIBLE_STATES, member_balances
 from app.services.activities import LABELS as ACTIVITY_LABELS, rules_note, summary as activity_summary
 from app.forms import AvatarForm, ResendConfirmationForm
 from app.permissions import approved_required
@@ -85,7 +86,10 @@ def view_profile(user_id=None):
         .order_by(MemberActivity.period_id.desc())
         .all()
     )
-    dues = FundDue.query.filter_by(user_id=user.id).all() if can_see_full else []
+    # Tình trạng đóng các khoản thu (mới nhất trước), tính từ thanh toán đã xác nhận
+    dues = member_balances(user, FundCollection.query.filter(FundCollection.trang_thai.in_(VISIBLE_STATES))
+                           .order_by(FundCollection.han_dong.desc(), FundCollection.id.desc()).limit(20)
+                           .all()) if can_see_full else []
 
     return render_template(
         "profile.html",

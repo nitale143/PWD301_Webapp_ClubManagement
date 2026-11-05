@@ -13,7 +13,7 @@ from openpyxl import load_workbook
 from tests.support import csrf_for
 from app import create_app, db
 from app.models import (
-    Ban, Event, FundDue, FundPeriod, FundTransaction, MemberActivity, MemberRecord, Role, Task, User,
+    Ban, Event, FundCollection, FundPayment, FundPeriod, FundTransaction, MemberActivity, MemberRecord, Role, Task, User,
     UserBan,
 )
 from app.services.common import club_now
@@ -66,7 +66,7 @@ class CoreFlowTests(unittest.TestCase):
         g.pop("_login_user", None)
         return self.client.get(path)
 
-    # ---------------- Quỹ theo kỳ ----------------
+    # ---------------- Quỹ theo kỳ (quỹ kỳ là một khoản thu) ----------------
     def test_fund_period_ledger_and_dues_follow_permissions(self):
         today = club_now().date()
         self.login(2)   # Trưởng ban: không có quyền quỹ
@@ -76,10 +76,12 @@ class CoreFlowTests(unittest.TestCase):
         self.post("/funds/period/new", {"ten_ky": "", "ngay_bat_dau": today.isoformat()})
         self.assertIsNone(FundPeriod.query.first())
         self.assertEqual(self.post("/funds/period/new", {
-            "ten_ky": "Fall 2026", "ngay_bat_dau": today.isoformat(),
+            "ten_ky": "Fall 2026", "ngay_bat_dau": today.isoformat(), "so_tien_quy": "100000",
             "ngay_ket_thuc": (today + timedelta(days=90)).isoformat()}).status_code, 302)
         period = FundPeriod.query.filter_by(is_current=True).one()
-        self.assertEqual({due.user_id for due in FundDue.query.filter_by(period_id=period.id)}, {1, 2, 3, 4})
+        quy_ky = FundCollection.query.filter_by(period_id=period.id, loai="semester").one()
+        self.assertEqual((quy_ky.ten_khoan_thu, int(quy_ky.so_tien), quy_ky.trang_thai, quy_ky.han_dong),
+                         ("Quỹ Fall 2026", 100000, "open", today + timedelta(days=90)))
 
         self.post("/funds/transaction/new", {"danh_muc": "x" * 101, "ngay": today.isoformat(), "so_tien": "1000"})
         self.post("/funds/transaction/new", {"danh_muc": "Thu quỹ", "ngay": today.isoformat(), "so_tien": "abc"})
@@ -88,21 +90,33 @@ class CoreFlowTests(unittest.TestCase):
         self.post("/funds/transaction/new", {"danh_muc": "In ấn", "noi_dung": "Poster", "ngay": today.isoformat(), "so_tien": "-120000"})
         self.assertEqual(sorted(int(tx.so_tien) for tx in FundTransaction.query), [-120000, 500000])
 
-        self.assertEqual(self.post("/funds/due/3/toggle").status_code, 302)
-        self.assertTrue(FundDue.query.filter_by(period_id=period.id, user_id=3).one().da_dong)
+        # Thủ quỹ ghi nhận đã đóng (thay ô bật/tắt cũ): thanh toán xác nhận + tự vào sổ thu chi
+        self.assertEqual(self.post(f"/funds/collections/{quy_ky.id}/members/3/paid").status_code, 302)
+        payment = FundPayment.query.filter_by(fund_id=quy_ky.id, user_id=3).one()
+        self.assertEqual((payment.trang_thai, int(payment.so_tien)), ("confirmed", 100000))
+        self.assertEqual(FundTransaction.query.filter_by(payment_id=payment.id).one().so_tien, 100000)
+        self.assertIn("Đã đóng", self.get("/funds?tab=dues").get_data(as_text=True))
         with patch("app.routes.funds.send_email", return_value=True) as mail:
             self.post("/funds/nhac-dong-quy")
-        self.assertEqual(mail.call_count, 3)
+        self.assertEqual(mail.call_count, 3)              # 1, 2, 4 còn phải đóng
+        self.assertIn("Quỹ Fall 2026", mail.call_args.args[2])
 
         workbook = load_workbook(io.BytesIO(self.get("/funds/export").data))
-        self.assertEqual(workbook["Thu chi"].max_row, 3)
+        self.assertEqual(workbook["Thu chi"].max_row, 4)  # 2 dòng ghi tay + 1 dòng tự ghi
         self.assertEqual(workbook["Đóng quỹ"].max_row, 5)
+        # Một kỳ chỉ có một quỹ kỳ
+        self.post("/funds/collections/new", {"name": "Quỹ 2", "type": "semester", "amount": "1000",
+                                             "start_date": today.isoformat(),
+                                             "due_date": (today + timedelta(days=5)).isoformat()})
+        self.assertEqual(FundCollection.query.filter_by(period_id=period.id, loai="semester").count(), 1)
 
         self.login(3)   # Thành viên chỉ thấy dòng đóng quỹ của mình, không thấy sổ thu chi
         workbook = load_workbook(io.BytesIO(self.get("/funds/export").data))
         self.assertEqual(workbook["Thu chi"].max_row, 1)
-        self.assertEqual([row[1] for row in workbook["Đóng quỹ"].iter_rows(min_row=2, values_only=True)], ["SV0003"])
-        self.assertEqual(self.post("/funds/due/3/toggle").status_code, 403)
+        rows = list(workbook["Đóng quỹ"].iter_rows(min_row=2, values_only=True))
+        self.assertEqual([(row[1], row[-1]) for row in rows], [("SV0003", "Đã đóng")])
+        self.assertEqual(self.post(f"/funds/collections/{quy_ky.id}/members/3/paid").status_code, 403)
+        self.assertIn("100.000 / 100.000", self.get("/profile").get_data(as_text=True))
 
     # ---------------- Sự kiện → task → tính hoạt động ----------------
     def test_event_task_review_and_activity_calculation(self):

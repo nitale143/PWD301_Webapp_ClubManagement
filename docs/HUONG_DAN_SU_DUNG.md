@@ -184,7 +184,7 @@ Trang **Quỹ câu lạc bộ** gồm:
 - **Khoản thu**: các khoản bạn phải đóng (quỹ tháng, quỹ kỳ, phí sự kiện…), kèm số phải đóng, đã đóng, còn thiếu và trạng thái (đã đóng / đóng một phần / chưa đóng / quá hạn / được miễn).
 - **Đóng tiền**: ở khoản thu cần đóng, chọn phương thức (tiền mặt / chuyển khoản / khác), mã giao dịch (nếu chuyển khoản) → **Gửi xác nhận thanh toán**. Không cần nhập số tiền: hệ thống tự lấy toàn bộ số còn phải đóng. Giao dịch ở trạng thái **chờ xác nhận** cho tới khi Thủ quỹ duyệt.
   - Đã gửi xác nhận đủ số tiền thì không gửi thêm được cho tới khi Thủ quỹ xử lý.
-- **Danh sách đóng quỹ theo kỳ**: bạn chỉ thấy dòng của mình.
+- **Đóng quỹ kỳ**: quỹ kỳ là một khoản thu như các khoản khác ("Quỹ <tên kỳ>"). Tab này cho biết bạn đã đóng bao nhiêu trên số phải đóng. Bạn chỉ thấy dòng của mình; hồ sơ cá nhân cũng hiện tình trạng các khoản thu.
 - Nút **Xuất Excel**: thành viên chỉ nhận dữ liệu của chính mình.
 
 ---
@@ -367,28 +367,23 @@ Khi sự kiện **kết thúc** (tự động hay bấm tay) hoặc được **m
 
 *(Chủ nhiệm, Phó chủ nhiệm, Thư ký/Thủ quỹ)*
 
-Hệ thống có **hai cách theo dõi quỹ** dùng song song:
-
-| | Quỹ theo kỳ (sổ thu chi) | Khoản thu (thu theo đợt) |
-|---|---|---|
-| Dùng cho | Sổ thu/chi tổng của CLB trong kỳ và đánh dấu ai đã đóng quỹ kỳ | Từng khoản thu cụ thể (quỹ tháng, phí sự kiện…) có số tiền và hạn |
-| Thao tác | Mở kỳ, ghi thu/chi, đánh dấu đã đóng | Tạo khoản thu, thành viên gửi thanh toán, Thủ quỹ xác nhận |
+Mọi khoản tiền thành viên phải đóng đều là **khoản thu**: quỹ kỳ, phí sự kiện, áo CLB… Ai đã đóng, đóng thiếu hay quá hạn đều tính từ các **thanh toán đã xác nhận** của khoản thu. **Sổ thu chi** của kỳ là nơi ghi tiền ra vào: thanh toán được xác nhận tự ghi một dòng thu; khoản chi (in ấn, giải thưởng…) Thủ quỹ ghi tay.
 
 Các thao tác nằm trong nút **Thao tác** ở góc phải trang Quỹ: Mở kỳ mới, Ghi nhận thu / chi, Xuất Excel (kỳ hiện tại), Xuất báo cáo khoản thu.
 
 ### 11.1. Quỹ theo kỳ
 
-1. **Mở kỳ mới**: nhập tên kỳ (vd: Fall 2026), ngày bắt đầu, ngày kết thúc (nên nhập để hệ thống nhắc trước 30 ngày). Mở kỳ mới sẽ **tự đóng kỳ cũ** và tạo dòng "chưa đóng" cho mọi thành viên đang hoạt động.
-2. **Ghi nhận thu / chi**: danh mục (≤100 ký tự), nội dung, ngày, số tiền. Khoản thu nhập số dương, khoản chi nhập số âm (vd: `-120000`).
-3. **Danh sách đóng quỹ**: bấm **Đánh dấu đã đóng** / **Đánh dấu chưa đóng** cho từng người.
-4. **Nhắc đóng quỹ**: gửi email cho mọi người chưa đóng. Hệ thống báo đã gửi được bao nhiêu thư.
-5. **Xuất Excel**: sheet "Thu chi" và "Đóng quỹ".
+1. **Mở kỳ mới**: nhập tên kỳ (vd: Fall 2026), ngày bắt đầu, ngày kết thúc (nên nhập để hệ thống nhắc trước 30 ngày). Nhập **Quỹ kỳ mỗi thành viên** và **Hạn đóng quỹ kỳ** thì hệ thống tạo luôn khoản thu "Quỹ <tên kỳ>" cho mọi thành viên (để trống nếu kỳ này chưa thu quỹ). Mở kỳ mới sẽ **tự đóng kỳ cũ**. Mỗi kỳ chỉ có một quỹ kỳ.
+2. **Ghi nhận thu / chi**: danh mục (≤100 ký tự), nội dung, ngày, số tiền. Khoản thu nhập số dương, khoản chi nhập số âm (vd: `-120000`). Tiền thu qua khoản thu **không cần ghi tay**: xác nhận thanh toán là sổ tự có dòng thu.
+3. **Đóng quỹ kỳ**: tab này liệt kê mọi thành viên với số đã đóng / phải đóng. Ai đóng tiền mặt trực tiếp thì bấm **Ghi nhận đã đóng**: hệ thống tạo thanh toán đã xác nhận và ghi vào sổ thu chi.
+4. **Nhắc đóng quỹ**: gửi email cho những người còn phải đóng (chưa đóng, đóng thiếu, quá hạn) ở các khoản thu đang mở; mỗi người một thư liệt kê các khoản. Người đang chờ xác nhận hoặc được miễn không bị nhắc.
+5. **Xuất Excel**: sheet "Thu chi" và "Đóng quỹ" (từng khoản thu của kỳ: phải đóng, đã đóng, còn thiếu, trạng thái).
 
 ### 11.2. Khoản thu và xác nhận thanh toán
 
-1. **Tạo khoản thu**: tên, loại (**Quỹ theo kỳ** / **Quỹ sự kiện** / **Khác**), số tiền, ngày bắt đầu, hạn đóng, mô tả → **Mở khoản thu**.
+1. **Tạo khoản thu**: tên, loại (**Quỹ theo kỳ** / **Quỹ sự kiện** / **Khác**), số tiền, ngày bắt đầu, hạn đóng, mô tả → **Mở khoản thu**. Khoản thu thuộc kỳ chứa ngày bắt đầu. Loại "Quỹ theo kỳ" chỉ tạo được khi kỳ đó chưa có quỹ kỳ.
 2. Thành viên gửi thanh toán, giao dịch hiện ở **Giao dịch chờ xác nhận**.
-3. Kiểm tra (đối chiếu sao kê, mã giao dịch) → **Xác nhận** hoặc **Từ chối**. Nếu hai người cùng duyệt một giao dịch, chỉ lượt đầu được ghi nhận.
+3. Kiểm tra (đối chiếu sao kê, mã giao dịch) → **Xác nhận** hoặc **Từ chối**. Xác nhận thì sổ thu chi tự có một dòng thu. Nếu hai người cùng duyệt một giao dịch, chỉ lượt đầu được ghi nhận.
 4. **Xuất báo cáo khoản thu** (trong nút Thao tác): file Excel phải đóng / đã đóng / còn thiếu của từng người với từng khoản thu.
 5. Miễn/giảm cho từng thành viên và đóng/hủy khoản thu hiện thực hiện qua REST API (xem `docs/DEVELOPER_GUIDE.md`, mục REST API).
 

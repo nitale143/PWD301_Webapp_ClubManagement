@@ -12,7 +12,7 @@ from PIL import Image
 
 from tests.support import csrf_for
 from app import create_app, db
-from app.models import AIProposal, AIReportSnapshot, AIUsageLog, ConversationPending, Attendance, Ban, ChatMessage, EmailProposal, EmailTemplate, Event, EventRegistration, EventTargetBan, FundCollection, FundDue, FundPayment, FundPeriod, MemberPlanningProfile, MemberRecord, Task, User, UserBan
+from app.models import AIProposal, AIReportSnapshot, AIUsageLog, ConversationPending, Attendance, Ban, ChatMessage, EmailProposal, EmailTemplate, Event, EventRegistration, EventTargetBan, FundCollection, FundPayment, FundPeriod, MemberPlanningProfile, MemberRecord, Task, User, UserBan
 from app.legacy_sqlite import migrate_email_recipients, migrate_legacy_money
 from app.services.common import DomainError, club_now, parse_datetime
 from app.services.briefings import daily_digest, report_data, report_text
@@ -410,11 +410,13 @@ class WorkflowTests(unittest.TestCase):
         period = FundPeriod(ten_ky="Fall 2027", ngay_bat_dau=date.today(), is_current=True)
         db.session.add(period)
         db.session.flush()
-        db.session.add_all([
-            FundDue(period_id=period.id, user_id=1, da_dong=True),
-            FundDue(period_id=period.id, user_id=3, da_dong=True),
-            FundDue(period_id=period.id, user_id=4, da_dong=False),
-        ])
+        quy_ky = FundCollection(ten_khoan_thu="Quỹ Fall 2027", loai="semester", so_tien=100, period_id=period.id,
+                                ngay_bat_dau=date.today(), han_dong=date.today() + timedelta(days=30),
+                                trang_thai="open", tao_boi_id=1)
+        db.session.add(quy_ky)
+        db.session.flush()
+        db.session.add_all([FundPayment(fund_id=quy_ky.id, user_id=user_id, so_tien=100, phuong_thuc="cash",
+                                        trang_thai="confirmed", xac_nhan_boi_id=2) for user_id in (1, 3)])
         db.session.commit()
         self.login(1)
         with patch("app.services.assistant.urlopen") as model, \
@@ -425,8 +427,8 @@ class WorkflowTests(unittest.TestCase):
             mail = self.csrf_request("POST", "/api/v1/assistant", json={
                 "question": "gửi mail cho Member 4"})
         self.assertEqual(overview.status_code, 200, overview.json)
-        self.assertIn("Fall 2027: đã đóng 2/3", overview.json["answer"])
-        self.assertIn("Khoản thu mới đang mở: 0", overview.json["answer"])
+        self.assertIn("Fall 2027 – Quỹ Fall 2027: đã đóng 2/4", overview.json["answer"])
+        self.assertIn("Khoản thu đang mở: 1", overview.json["answer"])
         self.assertEqual(unpaid.status_code, 200, unpaid.json)
         self.assertIn("Member 4", unpaid.json["answer"])
         self.assertNotIn("Member 3", unpaid.json["answer"])
@@ -898,7 +900,6 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(db.session.get(User, pending.id).status, "approved")
         self.assertEqual(db.session.get(User, pending.id).ky_tham_gia_id, period.id)
         self.assertIsNotNone(MemberRecord.query.filter_by(user_id=pending.id).first())
-        self.assertIsNotNone(FundDue.query.filter_by(user_id=pending.id, period_id=period.id).first())
         mail.assert_called_once()
         self.assertEqual(mail.call_args.args[0], "new@example.test")
         self.assertIn("duyệt", mail.call_args.args[2])

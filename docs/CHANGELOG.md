@@ -1,3 +1,25 @@
+# Quỹ: khoản thu là nguồn duy nhất, quỹ kỳ thành một khoản thu (05/11/2026)
+
+## Lỗi đã sửa
+- Hai cơ chế quỹ chạy song song không nối nhau: ô "đã đóng quỹ kỳ" bật tay (không có số tiền) và khoản thu có thanh toán. Đóng đủ khoản thu vẫn hiện "chưa đóng", vẫn bị nhắc; AI trả lời "ai chưa đóng" theo một nguồn, "ai đóng thiếu" theo nguồn khác.
+- Tiền thu qua khoản thu không vào sổ thu chi, nên số dư quỹ ở Tổng quan thiếu khoản này.
+
+## Cách hoạt động mới (`app/services/funds.py`)
+- Quỹ kỳ là một khoản thu loại "Quỹ theo kỳ" gắn với kỳ; mỗi kỳ tối đa một. **Mở kỳ mới** có ô số tiền và hạn đóng quỹ kỳ để tạo luôn khoản thu "Quỹ <tên kỳ>".
+- Mọi khoản thu thuộc một kỳ (`period_id`).
+- Xác nhận thanh toán tự ghi một dòng thu vào sổ thu chi (một thanh toán một dòng). Khoản chi vẫn ghi tay.
+- Bỏ nút "Đánh dấu đã đóng/chưa đóng". Tab **Đóng quỹ kỳ** hiện đã đóng / phải đóng của từng người; nút **Ghi nhận đã đóng** tạo thanh toán đã xác nhận (cho người đóng tiền mặt).
+- Mail **Nhắc đóng quỹ** gửi cho người còn phải đóng ở các khoản thu đang mở, mỗi người một thư liệt kê khoản và số còn thiếu (biến mới `{{danh_sach}}` trong mẫu email "Nhắc đóng quỹ").
+- Hồ sơ thành viên, Excel "Đóng quỹ", trợ lý AI ("chưa đóng", "quá hạn", "kiểm tra quỹ") đọc cùng nguồn khoản thu.
+
+## Đã xóa
+- Bảng `fund_due`, model `FundDue`, route `/funds/due/<id>/toggle`, việc tạo dòng "chưa đóng" khi duyệt thành viên và khi mở kỳ.
+
+## Database
+- Migration `0006`: thêm `fund_collection.period_id` (điền theo kỳ chứa ngày bắt đầu), `fund_transaction.payment_id`; chuyển dữ liệu `fund_due` thành quỹ kỳ + thanh toán đã xác nhận rồi xóa bảng. Cần `LEGACY_FUND_DUE_AMOUNT` nếu sổ cũ có người đã đóng (xem DEVELOPER_GUIDE mục 14).
+
+- Test mới: `tests/test_funds_unified.py` (6 test). Tổng 226 test.
+
 # Tách quyền Ban điều hành và quản lý sự kiện (05/11/2026)
 
 ## Lỗi đã sửa

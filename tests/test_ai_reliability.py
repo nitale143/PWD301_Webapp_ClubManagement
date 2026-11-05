@@ -17,7 +17,8 @@ from app.models import (
     ChatMessage,
     Event,
     EventRegistration,
-    FundDue,
+    FundCollection,
+    FundPayment,
     FundPeriod,
     MemberRecord,
     Task,
@@ -412,14 +413,20 @@ class AIAssistantReliabilityTests(unittest.TestCase):
                             ngay_ket_thuc=date(2027, 12, 31), is_current=True)
         db.session.add(period)
         db.session.flush()
-        db.session.add_all(FundDue(period_id=period.id, user_id=user.id, da_dong=True,
-                                   ngay_dong=date(2027, 10, 1)) for user in User.query.all())
+        quy_ky = FundCollection(ten_khoan_thu="Quỹ Fall 2027", loai="semester", so_tien=100,
+                                period_id=period.id, ngay_bat_dau=date(2027, 9, 1), han_dong=date(2027, 12, 31),
+                                trang_thai="open", tao_boi_id=1)
+        db.session.add(quy_ky)
+        db.session.flush()
+        db.session.add_all(FundPayment(fund_id=quy_ky.id, user_id=user.id, so_tien=100, phuong_thuc="cash",
+                                       trang_thai="confirmed", xac_nhan_boi_id=1)
+                           for user in User.query.filter(User.status == "approved").all())
         db.session.commit()
 
         no_debt = self._ask("Ai chưa đóng quỹ?")
         self.assertEqual(no_debt.status_code, 200, no_debt.json)
         self.assertNotIn("Không có dữ liệu quỹ", no_debt.json["answer"])
-        self.assertIn("không có ai chưa đóng", no_debt.json["answer"].lower())
+        self.assertIn("không còn khoản nào cần đóng", no_debt.json["answer"].lower())
 
     def test_multiple_current_fund_periods_require_clarification(self):
         self._login(1)

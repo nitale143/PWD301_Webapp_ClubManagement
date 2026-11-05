@@ -106,11 +106,12 @@ SYSTEM_EMAILS = {
                  "Vui lòng chuẩn bị nhập thông tin cho kỳ kế tiếp.\n\n-- CLB"),
     },
     "fund_reminder": {
-        "name": "Nhắc đóng quỹ kỳ", "description": "Gửi khi thủ quỹ bấm Nhắc đóng quỹ.",
-        "placeholders": ["ten", "ky"],
+        "name": "Nhắc đóng quỹ", "description": "Gửi khi thủ quỹ bấm Nhắc đóng quỹ: mỗi thành viên còn "
+                                                 "phải đóng nhận một thư liệt kê các khoản thu.",
+        "placeholders": ["ten", "ky", "danh_sach"],
         "subject": "[CLB] Nhắc đóng quỹ kỳ {{ky}}",
-        "body": ("Chào {{ten}},\n\nBạn chưa đóng quỹ CLB cho kỳ \"{{ky}}\". "
-                 "Vui lòng liên hệ thủ quỹ để hoàn tất.\n\n-- CLB"),
+        "body": ("Chào {{ten}},\n\nBạn còn các khoản cần đóng cho CLB (kỳ \"{{ky}}\"):\n{{danh_sach}}\n\n"
+                 "Vào trang Quỹ để gửi xác nhận thanh toán hoặc liên hệ thủ quỹ.\n\n-- CLB"),
     },
 }
 

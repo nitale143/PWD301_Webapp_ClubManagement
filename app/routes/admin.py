@@ -11,7 +11,7 @@ from flask_login import current_user, fresh_login_required, login_required
 from app import db
 from app.mail import send_email
 from app.models import (
-    DEFAULT_ROLES, SYSTEM_ADMIN_ROLE, Ban, FundDue, FundPeriod, Permission, User, UserBan, role_rank,
+    DEFAULT_ROLES, SYSTEM_ADMIN_ROLE, Ban, FundPeriod, Permission, User, UserBan, role_rank,
 )
 from app.permissions import any_permission_required, can_assign_role, permission_required
 from app.services.access import (
@@ -45,8 +45,8 @@ def approve_list():
 @login_required
 @permission_required(Permission.APPROVE_MEMBERS)
 def approve_user(user_id):
-    """Duyệt (accept) hoặc từ chối (reject) một đơn đăng ký; khi duyệt thì tạo MemberRecord và dòng
-    đóng quỹ kỳ hiện tại, sau đó gửi email thông báo.
+    """Duyệt (accept) hoặc từ chối (reject) một đơn đăng ký; khi duyệt thì tạo MemberRecord, ghi kỳ
+    tham gia, sau đó gửi email thông báo. Khoản thu "tất cả thành viên" tự áp dụng cho người mới.
     """
     user = db.get_or_404(User, user_id)
     if user.status != "pending":
@@ -57,8 +57,6 @@ def approve_user(user_id):
         ky_hien_tai = FundPeriod.query.filter_by(is_current=True).first()
         user.ky_tham_gia_id = ky_hien_tai.id if ky_hien_tai else None
         member_record(user)
-        if ky_hien_tai and not FundDue.query.filter_by(period_id=ky_hien_tai.id, user_id=user.id).first():
-            db.session.add(FundDue(period_id=ky_hien_tai.id, user_id=user.id, da_dong=False))
         audit(current_user, "member_approve", user)
         db.session.commit()
         mailed = send_email(user.email, *render_system_email(

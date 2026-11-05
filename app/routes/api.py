@@ -185,7 +185,8 @@ def fund_json(fund, member=None):
     item = {"id": fund.id, "name": fund.ten_khoan_thu, "type": fund.loai,
             "amount": str(fund.so_tien), "start_date": fund.ngay_bat_dau.isoformat(),
             "due_date": fund.han_dong.isoformat(), "status": fund.trang_thai,
-            "description": fund.mo_ta, "applies_to_all": fund.tat_ca_thanh_vien}
+            "description": fund.mo_ta, "applies_to_all": fund.tat_ca_thanh_vien,
+            "period_id": fund.period_id}
     if member:
         try:
             values = balance(fund, member)
@@ -387,7 +388,9 @@ def funds():
 @api_bp.post("/funds")
 def fund_create():
     """POST /funds – tạo khoản thu (MANAGE_FUNDS)."""
-    fund = create_collection(current_user, body())
+    data = body()
+    data.pop("commit", None)
+    fund = create_collection(current_user, data)
     return jsonify(fund_json(fund)), 201
 
 

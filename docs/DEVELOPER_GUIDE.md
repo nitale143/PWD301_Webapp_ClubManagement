@@ -188,13 +188,12 @@ Tên bảng và cột giữ tiếng Việt không dấu như database cũ. Thờ
 | Tài khoản & phân quyền | `user`, `role`, `user_ban`, `ban`, `member_record` | `user.chuc_vu` khớp `role.name`. `user_ban` là n-n User↔Ban (`is_truong_ban`). `member_record` 1-1 với user (tình trạng, lưu trữ). |
 | Sự kiện & task | `event`, `event_detail` (1-1), `event_target_ban`, `event_registration`, `attendance` (1-1 registration), `qr_checkin_log`, `event_feedback`, `task` | `task.assignee_id` bắt buộc; người phụ trách phải thuộc `task.ban_id`. |
 | Hoạt động | `member_activity` | Một dòng cho mỗi (thành viên, kỳ): số task, số sự kiện có mặt, điểm, mức. Nguồn duy nhất, xem [mục 5.1](#51-tình-trạng-hoạt-động). |
-| Quỹ theo kỳ | `fund_period`, `fund_transaction`, `fund_due` | Sổ thu chi + đánh dấu đóng quỹ theo kỳ. `fund_period` cũng là "kỳ" để tính hoạt động. |
-| Khoản thu | `fund_collection`, `fund_target_ban`, `fund_adjustment`, `fund_payment`, `payment_evidence` | Thu theo đợt, có xác nhận. |
+| Kỳ & sổ thu chi | `fund_period`, `fund_transaction` | `fund_period` là "kỳ" cho quỹ, hoạt động và `user.ky_tham_gia_id`. `fund_transaction` là sổ thu chi; dòng có `payment_id` do hệ thống ghi khi xác nhận thanh toán. |
+| Khoản thu | `fund_collection`, `fund_target_ban`, `fund_adjustment`, `fund_payment`, `payment_evidence` | Nguồn duy nhất cho "phải đóng / đã đóng". `fund_collection.period_id`: thuộc kỳ nào; quỹ kỳ = loại `semester`. Xem [mục 5.3](#53-quỹ-khoản-thu-là-nguồn-duy-nhất). |
 | AI | `chat_conversation`, `chat_message`, `conversation_pending`, `assistant_pending`, `ai_proposal`, `email_proposal`, `ai_report_snapshot`, `member_planning_profile`, `ai_usage_log` | |
 | Kho mẫu | `email_template`, `proposal_template` | `email_template.system_key` có giá trị = mẫu email tự động (+ `general`); rỗng = mẫu của CLB. `proposal_template.kind` = `event` / `task`, `content` là JSON, `is_default` = mẫu chung. Xem [mục 12.1](#121-kho-mẫu). |
 | Khác | `notification`, `audit_log` | |
 
-> **Hai hệ thống quỹ chạy song song.** `fund_period/fund_due/fund_transaction` (sổ quỹ theo kỳ) và `fund_collection/fund_payment` (khoản thu) **không tự đồng bộ** với nhau. Báo cáo AI chỉ tính `fund_payment` đã xác nhận. Gộp hai hệ thống là thay đổi dữ liệu lớn (`fund_period` còn được dùng làm "kỳ" cho `member_activity` và `user.ky_tham_gia_id`), nên cần migration dữ liệu riêng nếu muốn làm.
 
 ### 5.1. Tình trạng hoạt động
 
@@ -249,6 +248,21 @@ Mọi nơi hiển thị hoặc lọc tình trạng hoạt động (trang Thành 
 - Trợ lý AI đọc cùng trạng thái đã lưu: "sắp diễn ra" = `sap_dien_ra`; "đang diễn ra" = `dang_dien_ra` và chưa qua giờ kết thúc; "đã diễn ra" = `da_ket_thuc` hoặc chờ kết thúc.
 
 **Ai chạy rà soát:** job scheduler `sync_event_statuses` (5 phút/lần), hook `before_request` (`sync_if_due`, tối đa 1 lần / `EVENT_STATUS_SYNC_SECONDS` mỗi tiến trình; tắt bằng `EVENT_STATUS_AUTO_SYNC=false`), trang chi tiết sự kiện và `change_status` (áp ngay cho sự kiện đó), lệnh `flask --app run.py sync-event-status`. Test đóng băng đồng hồ nên đặt `EVENT_STATUS_AUTO_SYNC: False`.
+
+### 5.3. Quỹ: khoản thu là nguồn duy nhất
+
+Mọi câu hỏi "ai phải đóng, đã đóng bao nhiêu, còn thiếu" đều tính từ **khoản thu** qua `app/services/funds.py`. Không còn bảng đánh dấu đã đóng riêng (`fund_due` đã xóa ở migration 0006).
+
+| Khái niệm | Cách làm |
+|---|---|
+| Quỹ kỳ | Một khoản thu loại `semester` gắn `period_id`. Mỗi kỳ tối đa một (`create_collection` chặn trùng). Tạo khi **Mở kỳ mới** có nhập số tiền, hoặc tạo tay. `period_fund(period)` lấy ra. |
+| Kỳ của khoản thu | `period_id` truyền vào, nếu không thì kỳ chứa ngày bắt đầu, cuối cùng là kỳ hiện tại. |
+| Tình trạng một người | `balance(fund, member)` → `required`, `paid` (thanh toán đã xác nhận), `remaining`, `status` (`exempt`/`paid`/`partial`/`pending`/`overdue`/`unpaid`). |
+| Danh sách | `fund_member_rows(fund, member_ids)`, `member_balances(member, funds)`, `period_collections(period)`, `owing_by_member(funds)` (người còn phải đóng: `OWING_STATES` = chưa đóng, đóng thiếu, quá hạn; không gồm chờ xác nhận và được miễn). |
+| Sổ thu chi | `review_payment(..., "confirmed")` tự ghi một dòng thu (`FundTransaction.payment_id`, unique) vào kỳ của khoản thu. Từ chối thì không ghi. Khoản chi vẫn ghi tay. `ledger_totals(period)` = (thu, chi, số dư). |
+| Thủ quỹ ghi nhận đã đóng | `record_confirmed_payment` (nút **Ghi nhận đã đóng**, route `POST /funds/collections/<id>/members/<user_id>/paid`): tạo thanh toán và xác nhận luôn. |
+
+Nơi đọc: trang Quỹ (tab Khoản thu, Đóng quỹ kỳ, Thu/chi), hồ sơ thành viên, Excel (`/funds/export` sheet "Đóng quỹ" theo từng khoản thu của kỳ), mail nhắc (`/funds/nhac-dong-quy`: mỗi người còn phải đóng một thư, biến `{{danh_sach}}`), trợ lý AI ("chưa đóng", "quá hạn", "đóng thiếu", "kiểm tra quỹ", "tổng đã thu"), báo cáo tuần/tháng, API.
 
 ### Ràng buộc quan trọng
 
@@ -589,6 +603,7 @@ Schema do **Flask-Migrate (Alembic)** quản lý trong thư mục `migrations/`:
 | `0002` | Bảng `role` (+ seed quyền), cột xác thực trên `user`, email unique |
 | `0003` | Role `ADMIN`; `email_template` thêm `system_key`/`keywords`/`description`; bảng `proposal_template`; chuẩn hóa SĐT (`+84…`) và link Facebook cũ |
 | `0004` | `member_activity` tạo lại theo (thành viên, kỳ) với số task, số sự kiện có mặt, điểm; xóa `user.hoat_dong_status`, bảng `activity_point`, `club_setting` |
+| `0006` | `fund_collection.period_id`, `fund_transaction.payment_id`; chuyển `fund_due` sang quỹ kỳ (khoản thu) + thanh toán đã xác nhận rồi xóa bảng |
 | `0005` | `event.trang_thai` NOT NULL + CheckConstraint; thêm `event.trang_thai_doi_tay_luc`; đổi giá trị cũ `completed` → `da_ket_thuc`, `open`/`draft`/lạ → `sap_dien_ra` |
 
 **Quy trình thay đổi schema** (Ch5.2):
@@ -629,6 +644,15 @@ flask --app run.py db upgrade
 flask --app run.py recompute-activity   # tính lại tình trạng hoạt động mọi kỳ
 ```
 
+**Nâng cấp lên 0006** (quỹ): sổ `fund_due` cũ không lưu số tiền. Nếu có thành viên đã được đánh dấu "đã đóng", đặt số tiền quỹ mỗi kỳ trước khi nâng cấp; thiếu thì migration dừng trước khi đổi gì và báo kỳ nào:
+
+```bash
+LEGACY_FUND_DUE_AMOUNT=100000 flask --app run.py db upgrade                       # mọi kỳ cùng mức
+LEGACY_FUND_DUE_AMOUNT="Fall 2026=100000;Summer 2026=80000" flask --app run.py db upgrade
+```
+
+Mỗi kỳ có dữ liệu thành khoản thu "Quỹ <kỳ>" (kỳ hiện tại đang mở, kỳ cũ đã đóng); dòng "đã đóng" thành thanh toán đã xác nhận (ghi chú "Chuyển từ sổ đóng quỹ cũ", không ghi thêm vào sổ thu chi vì tiền đã ghi tay trước đây).
+
 **Nâng cấp lên 0005:**
 
 ```bash
@@ -657,6 +681,7 @@ python scripts/gen_function_reference.py                   # cập nhật FUNCTI
 | `test_two_role_security.py` | Ma trận quyền theo chức vụ, quy tắc gán vai trò, nhường chức vụ, BĐH cuối cùng |
 | `test_account_security.py` | Mật khẩu mạnh, xác minh email, quên/đặt lại, đổi mật khẩu vô hiệu phiên cũ, fresh login, remember me, mật khẩu tạm, Flask-Limiter, ProxyFix, scheduler, migration up/down |
 | `test_core_flows.py` | Quỹ theo kỳ, sự kiện → task → tính hoạt động, trang/xuất thành viên, lệnh CLI |
+| `test_funds_unified.py` | Quỹ kỳ là khoản thu (một kỳ một quỹ), xác nhận thanh toán ghi sổ thu chi đúng một lần, mail nhắc / AI / trang / hồ sơ cùng một số liệu, mở kỳ có và không có quỹ kỳ |
 | `test_permission_split.py` | Vai trò chỉ có MANAGE_EVENTS và vai trò chỉ có BOARD: mỗi trang, route, service và câu trả lời AI kiểm đúng quyền |
 | `test_event_status.py` | Quy tắc theo giờ, rà soát tự động chỉ đi tới, chuyển tay (bắt đầu sớm, kết thúc, hủy, mở lại), quyền, tính lại hoạt động khi tự kết thúc, trang/API/AI cùng một trạng thái |
 | `test_activity.py` | Công thức 50 % task + 50 % điểm danh, tạm nghỉ, chưa xếp loại, lọc SQL khớp Python, tính lại khi kết thúc sự kiện/sửa điểm danh, trang/Excel/API/AI cùng một số |

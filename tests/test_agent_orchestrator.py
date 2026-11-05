@@ -21,7 +21,6 @@ from app.models import (
     EmailProposal,
     Event,
     FundCollection,
-    FundDue,
     FundPayment,
     FundPeriod,
     MemberRecord,
@@ -346,8 +345,6 @@ class AgentOrchestratorTests(unittest.TestCase):
             ngay_ket_thuc=date(2026, 12, 31), is_current=True,
         )
         db.session.add(period)
-        db.session.flush()
-        db.session.add(FundDue(period_id=period.id, user_id=3, da_dong=False))
         db.session.commit()
         timeframe_planner = FakePlanner([
             tool_action("fund_query", "who has unpaid dues"),

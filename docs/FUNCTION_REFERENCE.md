@@ -147,11 +147,13 @@ Các form của webapp viết bằng Flask-WTF / WTForms (Ch4 – Web forms).
 | `EventForm.validate_thoi_gian_ket_thuc(self, field)` | 234 | Thời gian kết thúc phải sau thời gian bắt đầu. |
 | `EventForm.validate_han_dang_ky(self, field)` | 239 | Hạn đăng ký (nếu có) phải nằm trong khoảng [bắt đầu, kết thúc] vì thời gian sự kiện đã gồm cả setup và báo cáo sau sự kiện. |
 | `EventForm.validate_ma_su_kien(self, field)` | 247 | Mã sự kiện không được trùng sự kiện đã có. |
-| class `FundPeriodForm` | 257 | Form mở kỳ quỹ mới: tên kỳ, ngày bắt đầu, ngày kết thúc (tùy chọn). |
-| `FundPeriodForm.validate_ngay_ket_thuc(self, field)` | 265 | Ngày kết thúc (nếu có) không được trước ngày bắt đầu. |
-| class `FundTransactionForm` | 271 | Ghi một giao dịch thu (+) hoặc chi (số tiền bắt đầu bằng dấu -). |
-| `FundTransactionForm.validate_so_tien(self, field)` | 282 | Kiểm tra số tiền (cho phép dấu - với khoản chi) và lưu giá trị Decimal vào `self.amount`. |
-| class `AvatarForm` | 298 | Upload ảnh đại diện (Ch4 – slide 52-53). |
+| class `FundPeriodForm` | 257 | Form mở kỳ quỹ mới: tên kỳ, ngày bắt đầu, ngày kết thúc (tùy chọn) và quỹ kỳ (tùy chọn). Nhập số tiền quỹ kỳ thì hệ thống tạo khoản thu "Quỹ <tên kỳ>" cho mọi thành viên. |
+| `FundPeriodForm.validate_ngay_ket_thuc(self, field)` | 268 | Ngày kết thúc (nếu có) không được trước ngày bắt đầu. |
+| `FundPeriodForm.validate_so_tien_quy(self, field)` | 273 | Số tiền quỹ kỳ (nếu nhập) phải là số dương; lưu Decimal vào `self.fund_amount`. |
+| `FundPeriodForm.validate_han_dong_quy(self, field)` | 283 | Hạn đóng quỹ kỳ không được trước ngày bắt đầu kỳ. |
+| class `FundTransactionForm` | 289 | Ghi một giao dịch thu (+) hoặc chi (số tiền bắt đầu bằng dấu -). |
+| `FundTransactionForm.validate_so_tien(self, field)` | 300 | Kiểm tra số tiền (cho phép dấu - với khoản chi) và lưu giá trị Decimal vào `self.amount`. |
+| class `AvatarForm` | 316 | Upload ảnh đại diện (Ch4 – slide 52-53). |
 
 ### `app/mail.py`
 
@@ -211,35 +213,34 @@ Các model SQLAlchemy của webapp CLB (Ch5 – Database & ORM, Ch7 – RBAC).
 | `load_user(user_id)` | 348 | Nạp user từ session/cookie. Định dạng id: "<id>:<session_marker>". Nếu marker không khớp (mật khẩu đã đổi sau khi phiên được tạo) → coi như chưa đăng nhập. Dạng cũ chỉ có "<id>" chỉ được chấp nhận khi TESTING. |
 | class `Event` | 370 | Sự kiện của CLB; `tasks` là các task con. Trạng thái: sap_dien_ra &#124; dang_dien_ra &#124; da_ket_thuc &#124; cancelled – chỉ được đổi qua app/services/event_status.py (BĐH chuyển tay hoặc hệ thống tự chuyển theo giờ). |
 | class `Task` | 396 | Đầu việc thuộc một sự kiện, giao cho một người phụ trách (assignee) thuộc một ban. Trạng thái: dang_lam → cho_duyet → lam_lai/hoan_thanh, hoặc huy. |
-| class `FundPeriod` | 427 | Kỳ quỹ / kỳ hoạt động (Spring, Summer, Fall…). Chỉ một kỳ `is_current`; chứa sổ thu chi và trạng thái đóng quỹ theo kỳ. |
-| class `FundTransaction` | 446 | Một dòng trong sổ thu chi của kỳ: thu (số dương) hoặc chi (số âm). |
-| class `FundDue` | 458 | Trạng thái đóng quỹ của từng thành viên trong 1 kỳ (sổ quỹ theo kỳ). |
-| class `MemberActivity` | 474 | Tình trạng hoạt động của một thành viên trong một kỳ (tính bởi app/services/activities.py). Điểm = 50% tỉ lệ task hoàn thành + 50% tỉ lệ có mặt, chỉ trên sự kiện đã kết thúc trong kỳ. |
-| class `ChatMessage` | 504 | Một tin nhắn trong lịch sử chat AI (role 'user' hoặc 'ai'), thuộc một cuộc trò chuyện. |
-| class `ChatConversation` | 519 | A bounded, user-owned tab in the AI chat history. |
-| class `Notification` | 540 | Thông báo hiện ở chuông trên thanh trên cùng (nhắc deadline, nhắc kỳ mới…). |
-| class `MemberRecord` | 551 | Hồ sơ thành viên mở rộng: ngày gia nhập, tình trạng (active/paused/left), ghi chú, thời điểm lưu trữ. |
-| class `FundCollection` | 567 | Khoản thu (thu theo tháng/kỳ/năm/sự kiện/tự nguyện…), có số tiền, hạn đóng và trạng thái draft/open/closed/cancelled. |
-| class `FundTargetBan` | 592 | Ban áp dụng của một khoản thu (khi khoản thu không áp dụng cho tất cả thành viên). |
-| class `FundAdjustment` | 599 | Miễn (exempt) hoặc giảm (reduce) khoản thu cho một thành viên, bắt buộc có lý do. |
-| class `FundPayment` | 618 | Một lần đóng tiền cho khoản thu; chờ người quản lý quỹ xác nhận (pending → confirmed/rejected). |
-| class `PaymentEvidence` | 642 | Ảnh minh chứng thanh toán, lưu trong instance/payment_evidence với tên ngẫu nhiên. |
-| class `EventDetail` | 651 | Thông tin chi tiết của sự kiện: loại, nội dung, địa điểm, hạn đăng ký, người phụ trách (cột so_nguoi_toi_da giữ lại cho dữ liệu cũ, không còn dùng), khoản thu liên quan. |
-| class `EventTargetBan` | 672 | Ban được phép đăng ký sự kiện (khi sự kiện không mở cho tất cả). |
-| class `EventRegistration` | 679 | Đăng ký tham gia sự kiện: registered &#124; waitlist &#124; cancelled. |
-| class `Attendance` | 697 | Điểm danh của một lượt đăng ký: on_time &#124; late &#124; excused &#124; absent &#124; pending. |
-| class `QRCheckinLog` | 712 | Nhật ký mỗi lần quét QR điểm danh (phục vụ đối soát). |
-| class `EventFeedback` | 722 | Đánh giá 1–5 sao và bình luận của thành viên sau sự kiện. |
-| class `AuditLog` | 737 | Nhật ký thao tác: ai làm gì, trên đối tượng nào, lúc nào (không lưu mật khẩu/nội dung nhạy cảm). |
-| class `AIProposal` | 751 | An AI suggestion is inert until a board member explicitly approves it. |
-| class `EmailProposal` | 773 | Email draft: chat creation never sends; a separate BDH action does. |
-| class `EmailTemplate` | 796 | Mẫu email trong kho mẫu. - `system_key` có giá trị: mẫu của email tự động (xác minh email, giao task…) và mẫu chung `general`; chỉ sửa nội dung, không xóa/đổi tên. - `system_key` rỗng: mẫu do BĐH tạo, AI tìm theo tên/từ khóa khi soạn nháp. |
-| class `ProposalTemplate` | 819 | Mẫu sự kiện / mẫu chia task trong kho mẫu, AI dùng khi lập đề xuất. `content` (JSON): - kind="event": {"name", "content", "type", "location", "duration_hours"} - kind="task": {"tasks": [{"name", "description", "days_before"}]} `is_default=True`: mẫu chung, dùng khi không tìm thấy mẫu phù hợp hơn. |
-| class `AssistantPending` | 846 | The incomplete natural-language proposal currently being clarified. |
-| class `ConversationPending` | 857 | A pending clarification scoped to one conversation tab. |
-| class `AIReportSnapshot` | 869 | Immutable reviewed numbers and source rows for export/email. |
-| class `MemberPlanningProfile` | 880 | Member-provided task preferences; absent rows use conservative defaults. |
-| class `AIUsageLog` | 896 | Successful model calls, without prompts, replies, secrets or price guesses. |
+| class `FundPeriod` | 427 | Kỳ quỹ / kỳ hoạt động (Spring, Summer, Fall…). Chỉ một kỳ `is_current`; chứa sổ thu chi. Tiền phải đóng trong kỳ là các khoản thu (FundCollection.period_id), trong đó "quỹ kỳ" là khoản thu loại semester. |
+| class `FundTransaction` | 446 | Một dòng trong sổ thu chi của kỳ: thu (số dương) hoặc chi (số âm). Dòng có `payment_id` do hệ thống tự ghi khi thủ quỹ xác nhận một thanh toán khoản thu. |
+| class `MemberActivity` | 464 | Tình trạng hoạt động của một thành viên trong một kỳ (tính bởi app/services/activities.py). Điểm = 50% tỉ lệ task hoàn thành + 50% tỉ lệ có mặt, chỉ trên sự kiện đã kết thúc trong kỳ. |
+| class `ChatMessage` | 494 | Một tin nhắn trong lịch sử chat AI (role 'user' hoặc 'ai'), thuộc một cuộc trò chuyện. |
+| class `ChatConversation` | 509 | A bounded, user-owned tab in the AI chat history. |
+| class `Notification` | 530 | Thông báo hiện ở chuông trên thanh trên cùng (nhắc deadline, nhắc kỳ mới…). |
+| class `MemberRecord` | 541 | Hồ sơ thành viên mở rộng: ngày gia nhập, tình trạng (active/paused/left), ghi chú, thời điểm lưu trữ. |
+| class `FundCollection` | 557 | Khoản thu – nguồn DUY NHẤT cho "phải đóng / đã đóng" (xem app/services/funds.py). Thuộc một kỳ (`period_id`); quỹ kỳ là khoản thu loại semester (mỗi kỳ tối đa một). Trạng thái draft/open/closed/cancelled. |
+| class `FundTargetBan` | 585 | Ban áp dụng của một khoản thu (khi khoản thu không áp dụng cho tất cả thành viên). |
+| class `FundAdjustment` | 592 | Miễn (exempt) hoặc giảm (reduce) khoản thu cho một thành viên, bắt buộc có lý do. |
+| class `FundPayment` | 611 | Một lần đóng tiền cho khoản thu; chờ người quản lý quỹ xác nhận (pending → confirmed/rejected). |
+| class `PaymentEvidence` | 635 | Ảnh minh chứng thanh toán, lưu trong instance/payment_evidence với tên ngẫu nhiên. |
+| class `EventDetail` | 644 | Thông tin chi tiết của sự kiện: loại, nội dung, địa điểm, hạn đăng ký, người phụ trách (cột so_nguoi_toi_da giữ lại cho dữ liệu cũ, không còn dùng), khoản thu liên quan. |
+| class `EventTargetBan` | 665 | Ban được phép đăng ký sự kiện (khi sự kiện không mở cho tất cả). |
+| class `EventRegistration` | 672 | Đăng ký tham gia sự kiện: registered &#124; waitlist &#124; cancelled. |
+| class `Attendance` | 690 | Điểm danh của một lượt đăng ký: on_time &#124; late &#124; excused &#124; absent &#124; pending. |
+| class `QRCheckinLog` | 705 | Nhật ký mỗi lần quét QR điểm danh (phục vụ đối soát). |
+| class `EventFeedback` | 715 | Đánh giá 1–5 sao và bình luận của thành viên sau sự kiện. |
+| class `AuditLog` | 730 | Nhật ký thao tác: ai làm gì, trên đối tượng nào, lúc nào (không lưu mật khẩu/nội dung nhạy cảm). |
+| class `AIProposal` | 744 | An AI suggestion is inert until a board member explicitly approves it. |
+| class `EmailProposal` | 766 | Email draft: chat creation never sends; a separate BDH action does. |
+| class `EmailTemplate` | 789 | Mẫu email trong kho mẫu. - `system_key` có giá trị: mẫu của email tự động (xác minh email, giao task…) và mẫu chung `general`; chỉ sửa nội dung, không xóa/đổi tên. - `system_key` rỗng: mẫu do BĐH tạo, AI tìm theo tên/từ khóa khi soạn nháp. |
+| class `ProposalTemplate` | 812 | Mẫu sự kiện / mẫu chia task trong kho mẫu, AI dùng khi lập đề xuất. `content` (JSON): - kind="event": {"name", "content", "type", "location", "duration_hours"} - kind="task": {"tasks": [{"name", "description", "days_before"}]} `is_default=True`: mẫu chung, dùng khi không tìm thấy mẫu phù hợp hơn. |
+| class `AssistantPending` | 839 | The incomplete natural-language proposal currently being clarified. |
+| class `ConversationPending` | 850 | A pending clarification scoped to one conversation tab. |
+| class `AIReportSnapshot` | 862 | Immutable reviewed numbers and source rows for export/email. |
+| class `MemberPlanningProfile` | 873 | Member-provided task preferences; absent rows use conservative defaults. |
+| class `AIUsageLog` | 889 | Successful model calls, without prompts, replies, secrets or price guesses. |
 
 ### `app/legacy_sqlite.py`
 
@@ -315,11 +316,11 @@ Khu vực Ban điều hành: duyệt thành viên, phân vai trò, nhường ch�
 |---|---|---|
 | `_role_counts()` | 26 | Đếm số người đang giữ mỗi chức vụ (chỉ tính thành viên còn hoạt động). |
 | `approve_list()` | 38 | Trang danh sách đơn đăng ký đang chờ duyệt (cần quyền APPROVE_MEMBERS).<br>route: `admin_bp.route('/approve')` · bảo vệ: `login_required`, `permission_required(Permission.APPROVE_MEMBERS)` |
-| `approve_user(user_id)` | 47 | Duyệt (accept) hoặc từ chối (reject) một đơn đăng ký; khi duyệt thì tạo MemberRecord và dòng đóng quỹ kỳ hiện tại, sau đó gửi email thông báo.<br>route: `admin_bp.route('/approve/<int:user_id>', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.APPROVE_MEMBERS)` |
-| `role_list()` | 84 | Trang vai trò & phân quyền: danh sách thành viên, nút gán chức vụ (chỉ với người thấp cấp hơn) và hộp nhường chức vụ.<br>route: `admin_bp.route('/roles')` · bảo vệ: `login_required`, `any_permission_required(Permission.ASSIGN_ROLES, Permission.HANDOFF_ROLE)` |
-| `assign_role(user_id)` | 109 | Gán chức vụ mới cho một thành viên sau khi kiểm tra cấp bậc, giới hạn số lượng và quy tắc "không hạ BĐH cuối cùng" (cần fresh login + ASSIGN_ROLES).<br>route: `admin_bp.route('/roles/<int:user_id>/assign', methods=['POST'])` · bảo vệ: `login_required`, `fresh_login_required`, `permission_required(Permission.ASSIGN_ROLES)` |
-| `nhuong_quyen()` | 155 | Nhường chức vụ: người BĐH hiện tại giao chức vụ của mình cho một thành viên thường (target) và tự trở thành THANH_VIEN.<br>route: `admin_bp.route('/roles/nhuong-quyen', methods=['POST'])` · bảo vệ: `login_required`, `fresh_login_required`, `permission_required(Permission.HANDOFF_ROLE)` |
-| `issue_temp_password(user_id)` | 202 | Cấp mật khẩu tạm khi thành viên quên mật khẩu mà email không dùng được. Mật khẩu tạm chỉ hiển thị MỘT lần trên trang kết quả (không đưa vào flash vì flash nằm trong cookie session). Thành viên bị bắt đổi mật khẩu ngay lần đăng nhập kế tiếp.<br>route: `admin_bp.route('/members/<int:user_id>/temp-password', methods=['POST'])` · bảo vệ: `login_required`, `fresh_login_required`, `permission_required(Permission.MANAGE_MEMBERS)` |
+| `approve_user(user_id)` | 47 | Duyệt (accept) hoặc từ chối (reject) một đơn đăng ký; khi duyệt thì tạo MemberRecord, ghi kỳ tham gia, sau đó gửi email thông báo. Khoản thu "tất cả thành viên" tự áp dụng cho người mới.<br>route: `admin_bp.route('/approve/<int:user_id>', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.APPROVE_MEMBERS)` |
+| `role_list()` | 82 | Trang vai trò & phân quyền: danh sách thành viên, nút gán chức vụ (chỉ với người thấp cấp hơn) và hộp nhường chức vụ.<br>route: `admin_bp.route('/roles')` · bảo vệ: `login_required`, `any_permission_required(Permission.ASSIGN_ROLES, Permission.HANDOFF_ROLE)` |
+| `assign_role(user_id)` | 107 | Gán chức vụ mới cho một thành viên sau khi kiểm tra cấp bậc, giới hạn số lượng và quy tắc "không hạ BĐH cuối cùng" (cần fresh login + ASSIGN_ROLES).<br>route: `admin_bp.route('/roles/<int:user_id>/assign', methods=['POST'])` · bảo vệ: `login_required`, `fresh_login_required`, `permission_required(Permission.ASSIGN_ROLES)` |
+| `nhuong_quyen()` | 153 | Nhường chức vụ: người BĐH hiện tại giao chức vụ của mình cho một thành viên thường (target) và tự trở thành THANH_VIEN.<br>route: `admin_bp.route('/roles/nhuong-quyen', methods=['POST'])` · bảo vệ: `login_required`, `fresh_login_required`, `permission_required(Permission.HANDOFF_ROLE)` |
+| `issue_temp_password(user_id)` | 200 | Cấp mật khẩu tạm khi thành viên quên mật khẩu mà email không dùng được. Mật khẩu tạm chỉ hiển thị MỘT lần trên trang kết quả (không đưa vào flash vì flash nằm trong cookie session). Thành viên bị bắt đổi mật khẩu ngay lần đăng nhập kế tiếp.<br>route: `admin_bp.route('/members/<int:user_id>/temp-password', methods=['POST'])` · bảo vệ: `login_required`, `fresh_login_required`, `permission_required(Permission.MANAGE_MEMBERS)` |
 
 ### `app/routes/main.py`
 
@@ -344,11 +345,11 @@ Khu vực Ban điều hành: duyệt thành viên, phân vai trò, nhường ch�
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `_allowed_avatar(filename)` | 21 | Đuôi file ảnh đại diện nằm trong ALLOWED_AVATAR_EXTENSIONS. |
-| `_sanitize_avatar(file, extension)` | 29 | Kiểm tra ảnh thật bằng Pillow (đúng định dạng, không quá lớn, chống decompression bomb) và lưu lại bản sạch, bỏ metadata. |
-| `view_profile(user_id=None)` | 72 | Xem hồ sơ. Không truyền user_id → xem chính mình. Xem người khác cần quyền quản lý thành viên (MANAGE_MEMBERS).<br>route: `profile_bp.route('/profile')` · bảo vệ: `login_required`, `approved_required` |
-| `task_preferences()` | 110 | Members control the information used by AI task suggestions.<br>route: `profile_bp.route('/profile/task-preferences', methods=['POST'])` · bảo vệ: `login_required`, `approved_required` |
-| `upload_avatar()` | 143 | Upload ảnh đại diện (AvatarForm: FileRequired + FileAllowed), rồi kiểm tra nội dung thật bằng Pillow và lưu lại ảnh đã làm sạch.<br>route: `profile_bp.route('/profile/avatar', methods=['POST'])` · bảo vệ: `login_required`, `approved_required` |
+| `_allowed_avatar(filename)` | 22 | Đuôi file ảnh đại diện nằm trong ALLOWED_AVATAR_EXTENSIONS. |
+| `_sanitize_avatar(file, extension)` | 30 | Kiểm tra ảnh thật bằng Pillow (đúng định dạng, không quá lớn, chống decompression bomb) và lưu lại bản sạch, bỏ metadata. |
+| `view_profile(user_id=None)` | 73 | Xem hồ sơ. Không truyền user_id → xem chính mình. Xem người khác cần quyền quản lý thành viên (MANAGE_MEMBERS).<br>route: `profile_bp.route('/profile')` · bảo vệ: `login_required`, `approved_required` |
+| `task_preferences()` | 114 | Members control the information used by AI task suggestions.<br>route: `profile_bp.route('/profile/task-preferences', methods=['POST'])` · bảo vệ: `login_required`, `approved_required` |
+| `upload_avatar()` | 147 | Upload ảnh đại diện (AvatarForm: FileRequired + FileAllowed), rồi kiểm tra nội dung thật bằng Pillow và lưu lại ảnh đã làm sạch.<br>route: `profile_bp.route('/profile/avatar', methods=['POST'])` · bảo vệ: `login_required`, `approved_required` |
 
 ### `app/routes/event.py`
 
@@ -377,17 +378,17 @@ Khu vực Ban điều hành: duyệt thành viên, phân vai trò, nhường ch�
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `_flash_form_errors(form)` | 21 | Hiển thị mọi lỗi validate của form dưới dạng flash. |
-| `_is_thu_quy()` | 28 | Người đang đăng nhập có quyền quản lý quỹ (MANAGE_FUNDS). |
-| `period_new()` | 36 | Mở kỳ quỹ mới (Spring/Summer/Fall…). Kỳ đang mở tự đóng lại – tại một thời điểm chỉ có đúng một kỳ hiện tại.<br>route: `funds_bp.route('/funds/period/new', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_FUNDS)` |
-| `funds_home()` | 69 | Trang Quỹ: kỳ hiện tại, sổ thu chi (người quản lý quỹ), tình trạng đóng quỹ, khoản thu và thanh toán chờ xác nhận.<br>route: `funds_bp.route('/funds')` · bảo vệ: `login_required`, `approved_required` |
-| `collection_new()` | 124 | Mở khoản thu mới từ form trên trang Quỹ (MANAGE_FUNDS, kiểm tra trong service).<br>route: `funds_bp.post('/funds/collections/new')` · bảo vệ: `login_required`, `approved_required` |
-| `collection_pay(fund_id)` | 144 | Thành viên khai báo đã đóng tiền cho khoản thu (chờ xác nhận).<br>route: `funds_bp.post('/funds/collections/<int:fund_id>/payments')` · bảo vệ: `login_required`, `approved_required` |
-| `collection_payment_review(payment_id)` | 160 | Người quản lý quỹ xác nhận/từ chối một lần thanh toán.<br>route: `funds_bp.post('/funds/payments/<int:payment_id>/review')` · bảo vệ: `login_required`, `approved_required` |
-| `transaction_new()` | 176 | Ghi một giao dịch vào sổ thu chi của kỳ đang mở (FundTransactionForm).<br>route: `funds_bp.route('/funds/transaction/new', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_FUNDS)` |
-| `toggle_due(user_id)` | 205 | Đánh dấu đã đóng / chưa đóng quỹ kỳ hiện tại cho một thành viên.<br>route: `funds_bp.route('/funds/due/<int:user_id>/toggle', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_FUNDS)` |
-| `remind_unpaid()` | 230 | Gửi mail nhắc các thành viên chưa đóng quỹ trong kỳ hiện tại.<br>route: `funds_bp.route('/funds/nhac-dong-quy', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_FUNDS)` |
-| `export_funds_excel()` | 254 | Xuất Excel kỳ hiện tại: sổ thu chi (chỉ người quản lý quỹ) và tình trạng đóng quỹ (thành viên chỉ thấy dòng của mình).<br>route: `funds_bp.route('/funds/export')` · bảo vệ: `login_required`, `approved_required` |
+| `_flash_form_errors(form)` | 27 | Hiển thị mọi lỗi validate của form dưới dạng flash. |
+| `_is_thu_quy()` | 34 | Người đang đăng nhập có quyền quản lý quỹ (MANAGE_FUNDS). |
+| `period_new()` | 42 | Mở kỳ quỹ mới (Spring/Summer/Fall…). Kỳ đang mở tự đóng lại – tại một thời điểm chỉ có đúng một kỳ hiện tại. Nhập số tiền quỹ kỳ thì tạo luôn khoản thu "Quỹ <tên kỳ>" cho mọi thành viên.<br>route: `funds_bp.route('/funds/period/new', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_FUNDS)` |
+| `funds_home()` | 84 | Trang Quỹ: kỳ hiện tại, sổ thu chi (người quản lý quỹ), tình trạng đóng quỹ, khoản thu và thanh toán chờ xác nhận.<br>route: `funds_bp.route('/funds')` · bảo vệ: `login_required`, `approved_required` |
+| `collection_new()` | 139 | Mở khoản thu mới từ form trên trang Quỹ (MANAGE_FUNDS, kiểm tra trong service).<br>route: `funds_bp.post('/funds/collections/new')` · bảo vệ: `login_required`, `approved_required` |
+| `collection_pay(fund_id)` | 159 | Thành viên khai báo đã đóng tiền cho khoản thu (chờ xác nhận).<br>route: `funds_bp.post('/funds/collections/<int:fund_id>/payments')` · bảo vệ: `login_required`, `approved_required` |
+| `collection_payment_review(payment_id)` | 175 | Người quản lý quỹ xác nhận/từ chối một lần thanh toán.<br>route: `funds_bp.post('/funds/payments/<int:payment_id>/review')` · bảo vệ: `login_required`, `approved_required` |
+| `transaction_new()` | 191 | Ghi một giao dịch vào sổ thu chi của kỳ đang mở (FundTransactionForm).<br>route: `funds_bp.route('/funds/transaction/new', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_FUNDS)` |
+| `collection_record_paid(fund_id, user_id)` | 220 | Thủ quỹ ghi nhận một thành viên đã đóng đủ (vd. tiền mặt): tạo thanh toán đã xác nhận và tự ghi vào sổ thu chi. Thay cho ô bật/tắt "đã đóng" trước đây.<br>route: `funds_bp.post('/funds/collections/<int:fund_id>/members/<int:user_id>/paid')` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_FUNDS)` |
+| `remind_unpaid()` | 238 | Gửi mail nhắc những thành viên còn phải đóng (chưa đóng, đóng thiếu, quá hạn) ở các khoản thu đang mở; mỗi người một mail liệt kê các khoản.<br>route: `funds_bp.route('/funds/nhac-dong-quy', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_FUNDS)` |
+| `export_funds_excel()` | 265 | Xuất Excel kỳ hiện tại: sổ thu chi (chỉ người quản lý quỹ) và tình trạng đóng từng khoản thu của kỳ (thành viên chỉ thấy dòng của mình).<br>route: `funds_bp.route('/funds/export')` · bảo vệ: `login_required`, `approved_required` |
 
 ### `app/routes/ai.py`
 
@@ -424,54 +425,54 @@ REST API /api/v1 (Ch9): thành viên, quỹ, sự kiện, điểm danh, trợ l�
 | `member_json(user)` | 120 | Chuyển User thành JSON (gồm liên hệ, ban, trạng thái thành viên) – chỉ trả cho người có quyền xem. |
 | `_create_member(data)` | 133 | Tạo thành viên đã duyệt từ dữ liệu JSON/CSV (quyền MANAGE_MEMBERS); bắt đổi mật khẩu ở lần đăng nhập đầu. |
 | `fund_json(fund, member=None)` | 183 | Chuyển khoản thu thành JSON; kèm số dư của `member` nếu có. |
-| `payment_json(payment)` | 199 | Chuyển một lần thanh toán thành JSON. |
-| `event_json(event)` | 209 | Chuyển sự kiện (và chi tiết) thành JSON. |
-| `can_manage_event(event)` | 225 | Người đang đăng nhập có quyền quản lý sự kiện (MANAGE_EVENTS). |
-| `members()` | 231 | GET /members – danh sách thành viên trong phạm vi được xem, lọc theo q, department_id, status.<br>route: `api_bp.get('/members')` |
-| `member_create()` | 251 | POST /members – tạo một thành viên (MANAGE_MEMBERS).<br>route: `api_bp.post('/members')` |
-| `members_import()` | 262 | POST /members/import – nhập tối đa 500 thành viên từ CSV/XLSX, nguyên tử (lỗi một dòng thì không tạo dòng nào).<br>route: `api_bp.post('/members/import')` |
-| `member_detail(user_id)` | 311 | GET /members/<id> – hồ sơ một thành viên (chính mình hoặc người có MANAGE_MEMBERS).<br>route: `api_bp.get('/members/<int:user_id>')` |
-| `member_update(user_id)` | 319 | PATCH /members/<id> – sửa tên, SĐT, trạng thái, ghi chú của thành viên khác.<br>route: `api_bp.patch('/members/<int:user_id>')` |
-| `member_archive(user_id)` | 351 | POST /members/<id>/archive – lưu trữ thành viên (không cho lưu trữ BĐH cuối cùng).<br>route: `api_bp.post('/members/<int:user_id>/archive')` |
-| `member_activity(user_id)` | 366 | GET /members/<id>/activity – tình trạng hoạt động kỳ hiện tại (task + điểm danh).<br>route: `api_bp.get('/members/<int:user_id>/activity')` |
-| `funds()` | 376 | GET /funds – khoản thu (người quản lý quỹ thấy tất cả, thành viên chỉ thấy khoản áp dụng cho mình).<br>route: `api_bp.get('/funds')` |
-| `fund_create()` | 388 | POST /funds – tạo khoản thu (MANAGE_FUNDS).<br>route: `api_bp.post('/funds')` |
-| `fund_detail(fund_id)` | 395 | GET /funds/<id> – chi tiết khoản thu kèm số dư của người xem.<br>route: `api_bp.get('/funds/<int:fund_id>')` |
-| `fund_status(fund_id)` | 403 | PATCH /funds/<id>/status – chuyển trạng thái khoản thu theo luồng draft→open→closed/cancelled.<br>route: `api_bp.patch('/funds/<int:fund_id>/status')` |
-| `fund_balances(fund_id)` | 421 | GET /funds/<id>/balances – số phải đóng/đã đóng/còn thiếu của từng thành viên.<br>route: `api_bp.get('/funds/<int:fund_id>/balances')` |
-| `payment_create(fund_id)` | 431 | POST /funds/<id>/payments – ghi nhận một lần đóng tiền (chờ xác nhận).<br>route: `api_bp.post('/funds/<int:fund_id>/payments')` |
-| `payments()` | 441 | GET /payments – danh sách thanh toán (thành viên chỉ thấy của mình), lọc theo trạng thái.<br>route: `api_bp.get('/payments')` |
-| `payment_review(payment_id)` | 452 | POST /payments/<id>/review – xác nhận hoặc từ chối thanh toán (MANAGE_FUNDS).<br>route: `api_bp.post('/payments/<int:payment_id>/review')` |
-| `payment_evidence_upload(payment_id)` | 461 | POST /payments/<id>/evidence – tải ảnh minh chứng (PNG/JPEG/WebP ≤ 3MB), lưu ngoài thư mục static.<br>route: `api_bp.post('/payments/<int:payment_id>/evidence')` |
-| `payment_evidence_download(evidence_id)` | 498 | GET /payments/evidence/<id> – tải ảnh minh chứng (chủ thanh toán hoặc người quản lý quỹ).<br>route: `api_bp.get('/payments/evidence/<int:evidence_id>')` |
-| `fund_adjustment(fund_id, user_id)` | 508 | PUT /funds/<id>/adjustments/<user_id> – miễn/giảm khoản thu cho một thành viên.<br>route: `api_bp.put('/funds/<int:fund_id>/adjustments/<int:user_id>')` |
-| `events()` | 517 | GET /events – danh sách sự kiện, lọc theo status.<br>route: `api_bp.get('/events')` |
-| `event_create()` | 526 | POST /events – tạo sự kiện kèm chi tiết, ban áp dụng, người phụ trách (MANAGE_EVENTS).<br>route: `api_bp.post('/events')` |
-| `event_detail(event_id)` | 570 | GET /events/<id> – chi tiết sự kiện.<br>route: `api_bp.get('/events/<int:event_id>')` |
-| `event_update(event_id)` | 576 | PATCH /events/<id> – sửa sự kiện (hạn đăng ký phải nằm trong khoảng bắt đầu – kết thúc).<br>route: `api_bp.patch('/events/<int:event_id>')` |
-| `event_copy(event_id)` | 613 | POST /events/<id>/copy – nhân bản sự kiện sang thời gian mới.<br>route: `api_bp.post('/events/<int:event_id>/copy')` |
-| `event_cancel(event_id)` | 644 | POST /events/<id>/cancel – hủy sự kiện (không hủy được sự kiện đã điểm danh).<br>route: `api_bp.post('/events/<int:event_id>/cancel')` |
-| `event_status_change(event_id)` | 653 | POST /events/<id>/status – chuyển trạng thái bằng tay {status}: dang_dien_ra (bắt đầu sớm / mở lại), da_ket_thuc (kết thúc), cancelled (hủy).<br>route: `api_bp.post('/events/<int:event_id>/status')` |
-| `event_register(event_id)` | 663 | POST /events/<id>/registrations – đăng ký tham gia (không giới hạn số người).<br>route: `api_bp.post('/events/<int:event_id>/registrations')` |
-| `registration_cancel(registration_id)` | 673 | POST /registrations/<id>/cancel – hủy đăng ký; người đầu danh sách chờ được đôn lên.<br>route: `api_bp.post('/registrations/<int:registration_id>/cancel')` |
-| `event_registrations(event_id)` | 681 | GET /events/<id>/registrations – danh sách đăng ký và điểm danh (MANAGE_EVENTS hoặc người phụ trách).<br>route: `api_bp.get('/events/<int:event_id>/registrations')` |
-| `event_qr(event_id)` | 693 | GET /events/<id>/qr – token QR điểm danh (hiệu lực 15 phút).<br>route: `api_bp.get('/events/<int:event_id>/qr')` |
-| `event_qr_png(event_id)` | 700 | GET /events/<id>/qr.png – ảnh QR chứa link điểm danh.<br>route: `api_bp.get('/events/<int:event_id>/qr.png')` |
-| `event_checkin()` | 711 | POST /attendance/checkin – điểm danh bằng token QR.<br>route: `api_bp.post('/attendance/checkin')` |
-| `attendance_manual(registration_id)` | 719 | PUT /registrations/<id>/attendance – điểm danh thủ công (có mặt/muộn/có phép/vắng).<br>route: `api_bp.put('/registrations/<int:registration_id>/attendance')` |
-| `event_feedback(event_id)` | 728 | POST /events/<id>/feedback – đánh giá sự kiện sau khi kết thúc.<br>route: `api_bp.post('/events/<int:event_id>/feedback')` |
-| `assistant()` | 737 | POST /assistant – hỏi trợ lý AI (chế độ thường hoặc Agent); lưu câu hỏi/trả lời vào cuộc trò chuyện.<br>route: `api_bp.post('/assistant')` |
-| `assistant_conversations()` | 788 | GET/POST /assistant/conversations – liệt kê hoặc tạo cuộc trò chuyện.<br>route: `api_bp.route('/assistant/conversations', methods=['GET', 'POST'])` |
-| `assistant_conversation_messages(conversation_id)` | 802 | GET /assistant/conversations/<id>/messages – tin nhắn theo trang (before/after).<br>route: `api_bp.get('/assistant/conversations/<int:conversation_id>/messages')` |
-| `assistant_conversation_rename(conversation_id)` | 814 | PATCH /assistant/conversations/<id> – đổi tên cuộc trò chuyện.<br>route: `api_bp.patch('/assistant/conversations/<int:conversation_id>')` |
-| `assistant_conversation_archive(conversation_id)` | 825 | POST /assistant/conversations/<id>/archive – lưu trữ/khôi phục cuộc trò chuyện.<br>route: `api_bp.post('/assistant/conversations/<int:conversation_id>/archive')` |
-| `proposal_json(proposal)` | 838 | Chuyển đề xuất AI thành JSON (kèm bản xem trước). |
-| `assistant_proposals()` | 848 | GET /assistant/proposals – danh sách đề xuất AI (MANAGE_EVENTS).<br>route: `api_bp.get('/assistant/proposals')` |
-| `assistant_proposal_create()` | 858 | POST /assistant/proposals – tạo đề xuất AI.<br>route: `api_bp.post('/assistant/proposals')` |
-| `assistant_proposal_review(proposal_id)` | 866 | POST /assistant/proposals/<id>/review – duyệt/từ chối đề xuất AI.<br>route: `api_bp.post('/assistant/proposals/<int:proposal_id>/review')` |
-| `dashboard()` | 876 | GET /dashboard – số liệu tổng quan: thành viên, hoạt động, tình hình quỹ, sự kiện sắp tới (theo phạm vi quyền).<br>route: `api_bp.get('/dashboard')` |
-| `fund_report()` | 907 | GET /reports/funds.xlsx – báo cáo tình trạng đóng quỹ (MANAGE_FUNDS).<br>route: `api_bp.get('/reports/funds.xlsx')` |
-| `member_report()` | 927 | GET /reports/members.xlsx – danh sách thành viên (MANAGE_MEMBERS).<br>route: `api_bp.get('/reports/members.xlsx')` |
+| `payment_json(payment)` | 200 | Chuyển một lần thanh toán thành JSON. |
+| `event_json(event)` | 210 | Chuyển sự kiện (và chi tiết) thành JSON. |
+| `can_manage_event(event)` | 226 | Người đang đăng nhập có quyền quản lý sự kiện (MANAGE_EVENTS). |
+| `members()` | 232 | GET /members – danh sách thành viên trong phạm vi được xem, lọc theo q, department_id, status.<br>route: `api_bp.get('/members')` |
+| `member_create()` | 252 | POST /members – tạo một thành viên (MANAGE_MEMBERS).<br>route: `api_bp.post('/members')` |
+| `members_import()` | 263 | POST /members/import – nhập tối đa 500 thành viên từ CSV/XLSX, nguyên tử (lỗi một dòng thì không tạo dòng nào).<br>route: `api_bp.post('/members/import')` |
+| `member_detail(user_id)` | 312 | GET /members/<id> – hồ sơ một thành viên (chính mình hoặc người có MANAGE_MEMBERS).<br>route: `api_bp.get('/members/<int:user_id>')` |
+| `member_update(user_id)` | 320 | PATCH /members/<id> – sửa tên, SĐT, trạng thái, ghi chú của thành viên khác.<br>route: `api_bp.patch('/members/<int:user_id>')` |
+| `member_archive(user_id)` | 352 | POST /members/<id>/archive – lưu trữ thành viên (không cho lưu trữ BĐH cuối cùng).<br>route: `api_bp.post('/members/<int:user_id>/archive')` |
+| `member_activity(user_id)` | 367 | GET /members/<id>/activity – tình trạng hoạt động kỳ hiện tại (task + điểm danh).<br>route: `api_bp.get('/members/<int:user_id>/activity')` |
+| `funds()` | 377 | GET /funds – khoản thu (người quản lý quỹ thấy tất cả, thành viên chỉ thấy khoản áp dụng cho mình).<br>route: `api_bp.get('/funds')` |
+| `fund_create()` | 389 | POST /funds – tạo khoản thu (MANAGE_FUNDS).<br>route: `api_bp.post('/funds')` |
+| `fund_detail(fund_id)` | 398 | GET /funds/<id> – chi tiết khoản thu kèm số dư của người xem.<br>route: `api_bp.get('/funds/<int:fund_id>')` |
+| `fund_status(fund_id)` | 406 | PATCH /funds/<id>/status – chuyển trạng thái khoản thu theo luồng draft→open→closed/cancelled.<br>route: `api_bp.patch('/funds/<int:fund_id>/status')` |
+| `fund_balances(fund_id)` | 424 | GET /funds/<id>/balances – số phải đóng/đã đóng/còn thiếu của từng thành viên.<br>route: `api_bp.get('/funds/<int:fund_id>/balances')` |
+| `payment_create(fund_id)` | 434 | POST /funds/<id>/payments – ghi nhận một lần đóng tiền (chờ xác nhận).<br>route: `api_bp.post('/funds/<int:fund_id>/payments')` |
+| `payments()` | 444 | GET /payments – danh sách thanh toán (thành viên chỉ thấy của mình), lọc theo trạng thái.<br>route: `api_bp.get('/payments')` |
+| `payment_review(payment_id)` | 455 | POST /payments/<id>/review – xác nhận hoặc từ chối thanh toán (MANAGE_FUNDS).<br>route: `api_bp.post('/payments/<int:payment_id>/review')` |
+| `payment_evidence_upload(payment_id)` | 464 | POST /payments/<id>/evidence – tải ảnh minh chứng (PNG/JPEG/WebP ≤ 3MB), lưu ngoài thư mục static.<br>route: `api_bp.post('/payments/<int:payment_id>/evidence')` |
+| `payment_evidence_download(evidence_id)` | 501 | GET /payments/evidence/<id> – tải ảnh minh chứng (chủ thanh toán hoặc người quản lý quỹ).<br>route: `api_bp.get('/payments/evidence/<int:evidence_id>')` |
+| `fund_adjustment(fund_id, user_id)` | 511 | PUT /funds/<id>/adjustments/<user_id> – miễn/giảm khoản thu cho một thành viên.<br>route: `api_bp.put('/funds/<int:fund_id>/adjustments/<int:user_id>')` |
+| `events()` | 520 | GET /events – danh sách sự kiện, lọc theo status.<br>route: `api_bp.get('/events')` |
+| `event_create()` | 529 | POST /events – tạo sự kiện kèm chi tiết, ban áp dụng, người phụ trách (MANAGE_EVENTS).<br>route: `api_bp.post('/events')` |
+| `event_detail(event_id)` | 573 | GET /events/<id> – chi tiết sự kiện.<br>route: `api_bp.get('/events/<int:event_id>')` |
+| `event_update(event_id)` | 579 | PATCH /events/<id> – sửa sự kiện (hạn đăng ký phải nằm trong khoảng bắt đầu – kết thúc).<br>route: `api_bp.patch('/events/<int:event_id>')` |
+| `event_copy(event_id)` | 616 | POST /events/<id>/copy – nhân bản sự kiện sang thời gian mới.<br>route: `api_bp.post('/events/<int:event_id>/copy')` |
+| `event_cancel(event_id)` | 647 | POST /events/<id>/cancel – hủy sự kiện (không hủy được sự kiện đã điểm danh).<br>route: `api_bp.post('/events/<int:event_id>/cancel')` |
+| `event_status_change(event_id)` | 656 | POST /events/<id>/status – chuyển trạng thái bằng tay {status}: dang_dien_ra (bắt đầu sớm / mở lại), da_ket_thuc (kết thúc), cancelled (hủy).<br>route: `api_bp.post('/events/<int:event_id>/status')` |
+| `event_register(event_id)` | 666 | POST /events/<id>/registrations – đăng ký tham gia (không giới hạn số người).<br>route: `api_bp.post('/events/<int:event_id>/registrations')` |
+| `registration_cancel(registration_id)` | 676 | POST /registrations/<id>/cancel – hủy đăng ký; người đầu danh sách chờ được đôn lên.<br>route: `api_bp.post('/registrations/<int:registration_id>/cancel')` |
+| `event_registrations(event_id)` | 684 | GET /events/<id>/registrations – danh sách đăng ký và điểm danh (MANAGE_EVENTS hoặc người phụ trách).<br>route: `api_bp.get('/events/<int:event_id>/registrations')` |
+| `event_qr(event_id)` | 696 | GET /events/<id>/qr – token QR điểm danh (hiệu lực 15 phút).<br>route: `api_bp.get('/events/<int:event_id>/qr')` |
+| `event_qr_png(event_id)` | 703 | GET /events/<id>/qr.png – ảnh QR chứa link điểm danh.<br>route: `api_bp.get('/events/<int:event_id>/qr.png')` |
+| `event_checkin()` | 714 | POST /attendance/checkin – điểm danh bằng token QR.<br>route: `api_bp.post('/attendance/checkin')` |
+| `attendance_manual(registration_id)` | 722 | PUT /registrations/<id>/attendance – điểm danh thủ công (có mặt/muộn/có phép/vắng).<br>route: `api_bp.put('/registrations/<int:registration_id>/attendance')` |
+| `event_feedback(event_id)` | 731 | POST /events/<id>/feedback – đánh giá sự kiện sau khi kết thúc.<br>route: `api_bp.post('/events/<int:event_id>/feedback')` |
+| `assistant()` | 740 | POST /assistant – hỏi trợ lý AI (chế độ thường hoặc Agent); lưu câu hỏi/trả lời vào cuộc trò chuyện.<br>route: `api_bp.post('/assistant')` |
+| `assistant_conversations()` | 791 | GET/POST /assistant/conversations – liệt kê hoặc tạo cuộc trò chuyện.<br>route: `api_bp.route('/assistant/conversations', methods=['GET', 'POST'])` |
+| `assistant_conversation_messages(conversation_id)` | 805 | GET /assistant/conversations/<id>/messages – tin nhắn theo trang (before/after).<br>route: `api_bp.get('/assistant/conversations/<int:conversation_id>/messages')` |
+| `assistant_conversation_rename(conversation_id)` | 817 | PATCH /assistant/conversations/<id> – đổi tên cuộc trò chuyện.<br>route: `api_bp.patch('/assistant/conversations/<int:conversation_id>')` |
+| `assistant_conversation_archive(conversation_id)` | 828 | POST /assistant/conversations/<id>/archive – lưu trữ/khôi phục cuộc trò chuyện.<br>route: `api_bp.post('/assistant/conversations/<int:conversation_id>/archive')` |
+| `proposal_json(proposal)` | 841 | Chuyển đề xuất AI thành JSON (kèm bản xem trước). |
+| `assistant_proposals()` | 851 | GET /assistant/proposals – danh sách đề xuất AI (MANAGE_EVENTS).<br>route: `api_bp.get('/assistant/proposals')` |
+| `assistant_proposal_create()` | 861 | POST /assistant/proposals – tạo đề xuất AI.<br>route: `api_bp.post('/assistant/proposals')` |
+| `assistant_proposal_review(proposal_id)` | 869 | POST /assistant/proposals/<id>/review – duyệt/từ chối đề xuất AI.<br>route: `api_bp.post('/assistant/proposals/<int:proposal_id>/review')` |
+| `dashboard()` | 879 | GET /dashboard – số liệu tổng quan: thành viên, hoạt động, tình hình quỹ, sự kiện sắp tới (theo phạm vi quyền).<br>route: `api_bp.get('/dashboard')` |
+| `fund_report()` | 910 | GET /reports/funds.xlsx – báo cáo tình trạng đóng quỹ (MANAGE_FUNDS).<br>route: `api_bp.get('/reports/funds.xlsx')` |
+| `member_report()` | 930 | GET /reports/members.xlsx – danh sách thành viên (MANAGE_MEMBERS).<br>route: `api_bp.get('/reports/members.xlsx')` |
 
 ## Services (nghiệp vụ & trợ lý AI)
 
@@ -616,13 +617,13 @@ Bounded, model-selected loop over deterministic club data tools.
 | class `RulesProvider` | 122 | Câu hỏi chỉ ánh xạ tới các truy vấn ORM được định nghĩa trước. |
 | `RulesProvider.answer(self, actor, question, history=None)` | 125 | Trả lời bằng truy vấn cố định (không dùng model) và gắn mức kiểm chứng. |
 | `RulesProvider._answer(self, actor, question)` | 153 | Bộ luật nhận diện câu hỏi (quỹ, chưa đóng, tổng đã thu, không hoạt động, vắng nhiều nhất, báo cáo…) và truy vấn dữ liệu theo phạm vi quyền. |
-| class `AnthropicProvider` | 339 | Read-only Claude Messages API adapter; never gives the model write tools. |
-| `AnthropicProvider.complete(self, system, prompt, max_tokens=800, response_schema=None, purpose='chat')` | 344 | Gọi Claude API với giới hạn quota/timeout và ghi nhận usage. |
-| `AnthropicProvider.answer(self, actor, question, history=None)` | 384 | Ưu tiên dữ liệu kiểm chứng; chỉ dùng model cho câu hỏi chung khi AI_STRICT_FACTS tắt. |
-| class `GeminiProvider` | 449 | Gemini transport with the same scoped, read-only context as Claude. |
-| `GeminiProvider.complete(self, system, prompt, max_tokens=800, response_schema=None, purpose='chat')` | 454 | Gọi Gemini API với giới hạn quota/timeout và ghi nhận usage. |
-| `GeminiProvider.answer(self, actor, question, history=None)` | 510 | Như Anthropic; lỗi tạm thời thì quay về RulesProvider. |
-| `get_provider()` | 521 | Chọn nhà cung cấp theo AI_PROVIDER và API key đã cấu hình (mặc định RulesProvider). |
+| class `AnthropicProvider` | 327 | Read-only Claude Messages API adapter; never gives the model write tools. |
+| `AnthropicProvider.complete(self, system, prompt, max_tokens=800, response_schema=None, purpose='chat')` | 332 | Gọi Claude API với giới hạn quota/timeout và ghi nhận usage. |
+| `AnthropicProvider.answer(self, actor, question, history=None)` | 372 | Ưu tiên dữ liệu kiểm chứng; chỉ dùng model cho câu hỏi chung khi AI_STRICT_FACTS tắt. |
+| class `GeminiProvider` | 437 | Gemini transport with the same scoped, read-only context as Claude. |
+| `GeminiProvider.complete(self, system, prompt, max_tokens=800, response_schema=None, purpose='chat')` | 442 | Gọi Gemini API với giới hạn quota/timeout và ghi nhận usage. |
+| `GeminiProvider.answer(self, actor, question, history=None)` | 498 | Như Anthropic; lỗi tạm thời thì quay về RulesProvider. |
+| `get_provider()` | 509 | Chọn nhà cung cấp theo AI_PROVIDER và API key đã cấu hình (mặc định RulesProvider). |
 
 ### `app/services/briefings.py`
 
@@ -748,18 +749,18 @@ Kho mẫu email (plain text). Thay biến bằng str.replace, không bao giờ c
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `_require_manager(actor)` | 120 | Chỉ người có MANAGE_TEMPLATES (Quản trị hệ thống, CN, PCN) được sửa mẫu email. |
-| `allowed_placeholders(template)` | 126 | Biến được phép trong một mẫu (mẫu hệ thống có bộ biến riêng). |
-| `_validate_text(subject, body, allowed=PLACEHOLDERS)` | 133 | Kiểm tra tiêu đề (1 dòng ≤180) / nội dung (≤3000) và chỉ cho phép các biến trong `allowed`. |
-| `save_template(actor, name, subject, body, template=None, keywords='', description='')` | 150 | Tạo mới hoặc cập nhật mẫu email (MANAGE_TEMPLATES). Mẫu hệ thống chỉ sửa tiêu đề/nội dung. |
-| `set_template_active(actor, template, active)` | 184 | Bật/tắt mẫu email của CLB (mẫu hệ thống luôn bật). |
-| `reset_system_template(actor, template)` | 194 | Khôi phục nội dung mặc định cho một mẫu email hệ thống. |
-| `_fill(text, values)` | 205 | Thay {{bien}} bằng giá trị (chuỗi); biến không có giá trị → chuỗi rỗng. |
-| `render_template(template, display_name, code, email, purpose='')` | 210 | Điền thông tin người nhận vào mẫu email của CLB. |
-| `system_template(key)` | 223 | (subject, body) của mẫu hệ thống: lấy trong kho; thiếu/không hợp lệ thì dùng mặc định. |
-| `render_system_email(key, **values)` | 235 | Nội dung email tự động đã điền biến, ví dụ: ``send_email(user.email, *render_system_email("member_approved", ten=..., mssv=...))``. |
-| `find_email_template(text)` | 244 | Tìm mẫu email của CLB phù hợp nhất với câu yêu cầu: tên mẫu hoặc từ khóa xuất hiện trong câu. Trả về EmailTemplate hoặc None (khi đó AI dùng mẫu chung `general`). |
-| `seed_system_templates()` | 260 | Nạp các mẫu email hệ thống còn thiếu vào kho (không ghi đè mẫu đã sửa). |
+| `_require_manager(actor)` | 121 | Chỉ người có MANAGE_TEMPLATES (Quản trị hệ thống, CN, PCN) được sửa mẫu email. |
+| `allowed_placeholders(template)` | 127 | Biến được phép trong một mẫu (mẫu hệ thống có bộ biến riêng). |
+| `_validate_text(subject, body, allowed=PLACEHOLDERS)` | 134 | Kiểm tra tiêu đề (1 dòng ≤180) / nội dung (≤3000) và chỉ cho phép các biến trong `allowed`. |
+| `save_template(actor, name, subject, body, template=None, keywords='', description='')` | 151 | Tạo mới hoặc cập nhật mẫu email (MANAGE_TEMPLATES). Mẫu hệ thống chỉ sửa tiêu đề/nội dung. |
+| `set_template_active(actor, template, active)` | 185 | Bật/tắt mẫu email của CLB (mẫu hệ thống luôn bật). |
+| `reset_system_template(actor, template)` | 195 | Khôi phục nội dung mặc định cho một mẫu email hệ thống. |
+| `_fill(text, values)` | 206 | Thay {{bien}} bằng giá trị (chuỗi); biến không có giá trị → chuỗi rỗng. |
+| `render_template(template, display_name, code, email, purpose='')` | 211 | Điền thông tin người nhận vào mẫu email của CLB. |
+| `system_template(key)` | 224 | (subject, body) của mẫu hệ thống: lấy trong kho; thiếu/không hợp lệ thì dùng mặc định. |
+| `render_system_email(key, **values)` | 236 | Nội dung email tự động đã điền biến, ví dụ: ``send_email(user.email, *render_system_email("member_approved", ten=..., mssv=...))``. |
+| `find_email_template(text)` | 245 | Tìm mẫu email của CLB phù hợp nhất với câu yêu cầu: tên mẫu hoặc từ khóa xuất hiện trong câu. Trả về EmailTemplate hoặc None (khi đó AI dùng mẫu chung `general`). |
+| `seed_system_templates()` | 261 | Nạp các mẫu email hệ thống còn thiếu vào kho (không ghi đè mẫu đã sửa). |
 
 ### `app/services/event_status.py`
 
@@ -807,15 +808,25 @@ Treat user-controlled workbook values as text, never executable formulas.
 
 ### `app/services/funds.py`
 
+Quỹ CLB – khoản thu là nguồn DUY NHẤT cho "phải đóng / đã đóng".
+
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `target_members(fund)` | 20 | Query thành viên phải đóng khoản thu (tất cả hoặc theo ban áp dụng), bỏ người đã rời/lưu trữ. |
-| `applies_to_member(fund, member)` | 35 | True nếu khoản thu áp dụng cho thành viên. |
-| `create_collection(actor, data)` | 40 | Tạo khoản thu mới sau khi kiểm tra tên, loại, số tiền, ngày, ban áp dụng (MANAGE_FUNDS). |
-| `balance(fund, member, as_of=None)` | 81 | Số phải đóng (sau miễn/giảm), đã đóng (đã xác nhận), còn thiếu và trạng thái (exempt/paid/partial/overdue/unpaid) của một thành viên. |
-| `record_payment(actor, fund, member, data)` | 114 | Ghi nhận một lần đóng tiền (pending); chặn khi khoản thu không mở, sai phương thức, hoặc số tiền vượt phần còn thiếu (tính cả khoản đang chờ xác nhận). |
-| `review_payment(actor, payment, decision, note='')` | 157 | Xác nhận/từ chối thanh toán đang chờ bằng UPDATE có điều kiện (chống hai người duyệt cùng lúc). |
-| `adjust_fund(actor, fund, member, data)` | 181 | Miễn hoặc giảm khoản thu cho một thành viên, bắt buộc lý do. |
+| `target_members(fund)` | 34 | Query thành viên phải đóng khoản thu (tất cả hoặc theo ban áp dụng), bỏ người đã rời/lưu trữ. |
+| `applies_to_member(fund, member)` | 49 | True nếu khoản thu áp dụng cho thành viên. |
+| `period_fund(period)` | 54 | Quỹ kỳ của một kỳ (khoản thu loại semester chưa hủy) hoặc None. |
+| `period_collections(period, states=VISIBLE_STATES)` | 64 | Các khoản thu thuộc kỳ (mặc định: đang mở hoặc đã đóng sổ). |
+| `member_balances(member, funds)` | 73 | [(khoản thu, balance)] cho các khoản thu áp dụng với thành viên. |
+| `fund_member_rows(fund, member_ids=None)` | 78 | [(thành viên, balance)] của một khoản thu; `member_ids` giới hạn phạm vi được xem. |
+| `owing_by_member(funds, member_ids=None)` | 86 | {thành viên: [(khoản thu, balance)]} những người còn phải đóng (chưa đóng, đóng thiếu, quá hạn). |
+| `ledger_totals(period)` | 96 | (tổng thu, tổng chi, số dư) sổ thu chi của kỳ. |
+| `create_collection(actor, data)` | 107 | Tạo khoản thu mới sau khi kiểm tra tên, loại, số tiền, ngày, ban áp dụng (MANAGE_FUNDS). Kỳ của khoản thu: `period_id` nếu truyền, ngược lại kỳ chứa ngày bắt đầu (hoặc kỳ hiện tại). Mỗi kỳ chỉ có một quỹ kỳ (loại semester). |
+| `balance(fund, member, as_of=None)` | 157 | Số phải đóng (sau miễn/giảm), đã đóng (đã xác nhận), còn thiếu và trạng thái (exempt/paid/partial/overdue/unpaid) của một thành viên. |
+| `record_payment(actor, fund, member, data)` | 190 | Ghi nhận một lần đóng tiền (pending); chặn khi khoản thu không mở, sai phương thức, hoặc số tiền vượt phần còn thiếu (tính cả khoản đang chờ xác nhận). |
+| `review_payment(actor, payment, decision, note='')` | 233 | Xác nhận/từ chối thanh toán đang chờ bằng UPDATE có điều kiện (chống hai người duyệt cùng lúc). |
+| `_post_to_ledger(actor, payment)` | 259 | Ghi một dòng thu vào sổ thu chi của kỳ cho thanh toán vừa xác nhận (một thanh toán một dòng). |
+| `record_confirmed_payment(actor, fund, member, method='cash', amount=None, note='')` | 279 | Thủ quỹ ghi nhận thành viên đã đóng (vd. tiền mặt) và xác nhận luôn; mặc định đóng đủ số còn thiếu. |
+| `adjust_fund(actor, fund, member, data)` | 287 | Miễn hoặc giảm khoản thu cho một thành viên, bắt buộc lý do. |
 
 ### `app/services/natural_datetime.py`
 
