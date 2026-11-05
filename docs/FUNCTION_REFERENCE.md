@@ -35,7 +35,7 @@ Lệnh quản trị chạy bằng `flask --app run.py <lệnh>` (Ch11 – vận 
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `register_cli(app)` | 23 | Đăng ký các lệnh `flask --app run.py ...` (init-db, sync-roles, create-admin, reset-admin-password, seed-templates, run-scheduler, migrate-*) vào app. |
+| `register_cli(app)` | 24 | Đăng ký các lệnh `flask --app run.py ...` (init-db, sync-roles, create-admin, reset-admin-password, seed-templates, recompute-activity, run-scheduler, migrate-*) vào app. |
 
 ### `app/limiter.py`
 
@@ -185,74 +185,61 @@ Các model SQLAlchemy của webapp CLB (Ch5 – Database & ORM, Ch7 – RBAC).
 | class `UserBan` | 142 | Bảng trung gian nhiều-nhiều User ↔ Ban; `is_truong_ban` đánh dấu Trưởng ban của ban đó. |
 | class `Ban` | 155 | Ban hoạt động: Kỹ thuật, Nhân sự, Truyền thông. |
 | class `User` | 164 | Tài khoản thành viên CLB: thông tin cá nhân, trạng thái duyệt, chức vụ (khớp Role.name), xác thực (hash mật khẩu, xác minh email, bắt đổi mật khẩu). |
-| `User.password(self)` | 210 | Không cho đọc mật khẩu (chỉ lưu hash). |
-| `User.password(self, raw_password)` | 215 | Gán mật khẩu mới: tự băm và lưu vào password_hash. |
-| `User.set_password(self, raw_password)` | 219 | Băm mật khẩu bằng Werkzeug (scrypt) và ghi lại thời điểm đổi mật khẩu. |
-| `User.check_password(self, raw_password)` | 224 | So sánh mật khẩu nhập vào với hash đã lưu. |
-| `User.session_marker(self)` | 230 | Đổi mỗi khi đổi mật khẩu → mọi phiên/cookie ghi nhớ cũ tự mất hiệu lực. |
-| `User.get_id(self)` | 235 | Định danh lưu trong session/cookie của Flask-Login: "<id>:<session_marker>". |
-| `User.generate_token(self, purpose)` | 240 | Token ký bằng SECRET_KEY. purpose: 'confirm' hoặc 'reset'. Token reset gắn với hash mật khẩu hiện tại nên chỉ dùng được một lần: đổi mật khẩu xong thì token cũ tự mất hiệu lực. |
-| `User.from_token(token, purpose, max_age)` | 255 | Trả về User nếu token hợp lệ, còn hạn và đúng mục đích; ngược lại None. |
-| `User.confirm_email(self)` | 270 | Đánh dấu email đã xác minh và ghi thời điểm xác minh. |
-| `User.permissions(self)` | 280 | Tổng bit quyền của chức vụ hiện tại. |
-| `User.can(self, perm)` | 284 | True nếu chức vụ hiện tại có quyền `perm` (chưa xét trạng thái duyệt). |
-| `User.is_administrator(self)` | 288 | True nếu chức vụ có quyền phân vai trò (CN/PCN theo bảng mặc định). |
-| `User.rank(self)` | 293 | Cấp bậc của chức vụ hiện tại (số nhỏ = cấp cao). |
-| `User.role_label(self)` | 298 | Tên hiển thị tiếng Việt của chức vụ. |
-| `User.outranks(self, other_user)` | 302 | True khi người BĐH nhường chức vụ cho một thành viên thường. |
-| `User.is_bdh(self)` | 307 | Thuộc Ban điều hành (có quyền BOARD). |
-| `User.is_system_admin(self)` | 312 | Tài khoản quản trị hệ thống (không phải thành viên CLB). |
-| `User.quan_ly_ban_ids(self)` | 316 | Các ban_id mà Trưởng ban này quản lý (rỗng nếu không phải TB). |
-| `User.__repr__(self)` | 322 | Chuỗi mô tả user khi debug. |
-| class `AnonymousUser` | 327 | Người chưa đăng nhập: không có quyền nào (để template gọi can() an toàn). |
-| `AnonymousUser.can(self, perm)` | 333 | Người chưa đăng nhập không có quyền nào. |
-| `AnonymousUser.is_bdh(self)` | 337 | Người chưa đăng nhập không thuộc BĐH. |
-| `AnonymousUser.is_administrator(self)` | 341 | Người chưa đăng nhập không phải quản trị. |
-| `load_user(user_id)` | 352 | Nạp user từ session/cookie. Định dạng id: "<id>:<session_marker>". Nếu marker không khớp (mật khẩu đã đổi sau khi phiên được tạo) → coi như chưa đăng nhập. Dạng cũ chỉ có "<id>" chỉ được chấp nhận khi TESTING. |
-| class `Event` | 374 | Sự kiện của CLB; `tasks` là các task con. Trạng thái: sap_dien_ra &#124; dang_dien_ra &#124; da_ket_thuc &#124; cancelled. |
-| class `Task` | 391 | Đầu việc thuộc một sự kiện, giao cho một người phụ trách (assignee) thuộc một ban. Trạng thái: dang_lam → cho_duyet → lam_lai/hoan_thanh, hoặc huy. |
-| class `FundPeriod` | 422 | Kỳ quỹ / kỳ hoạt động (Spring, Summer, Fall…). Chỉ một kỳ `is_current`; chứa sổ thu chi và trạng thái đóng quỹ theo kỳ. |
-| class `FundTransaction` | 441 | Một dòng trong sổ thu chi của kỳ: thu (số dương) hoặc chi (số âm). |
-| class `FundDue` | 453 | Trạng thái đóng quỹ của từng thành viên trong 1 kỳ (sổ quỹ theo kỳ). |
-| class `MemberActivity` | 469 | Kết quả tính % hoạt động của một thành viên theo (ban, kỳ). |
-| class `ChatMessage` | 495 | Một tin nhắn trong lịch sử chat AI (role 'user' hoặc 'ai'), thuộc một cuộc trò chuyện. |
-| class `ChatConversation` | 510 | A bounded, user-owned tab in the AI chat history. |
-| class `Notification` | 531 | Thông báo hiện ở chuông trên thanh trên cùng (nhắc deadline, nhắc kỳ mới…). |
-| class `MemberRecord` | 542 | Hồ sơ thành viên mở rộng: ngày gia nhập, tình trạng (active/paused/left), ghi chú, thời điểm lưu trữ. |
-| class `FundCollection` | 558 | Khoản thu (thu theo tháng/kỳ/năm/sự kiện/tự nguyện…), có số tiền, hạn đóng và trạng thái draft/open/closed/cancelled. |
-| class `FundTargetBan` | 583 | Ban áp dụng của một khoản thu (khi khoản thu không áp dụng cho tất cả thành viên). |
-| class `FundAdjustment` | 590 | Miễn (exempt) hoặc giảm (reduce) khoản thu cho một thành viên, bắt buộc có lý do. |
-| class `FundPayment` | 609 | Một lần đóng tiền cho khoản thu; chờ người quản lý quỹ xác nhận (pending → confirmed/rejected). |
-| class `PaymentEvidence` | 633 | Ảnh minh chứng thanh toán, lưu trong instance/payment_evidence với tên ngẫu nhiên. |
-| class `EventDetail` | 642 | Thông tin chi tiết của sự kiện: loại, nội dung, địa điểm, hạn đăng ký, người phụ trách (cột so_nguoi_toi_da giữ lại cho dữ liệu cũ, không còn dùng), khoản thu liên quan. |
-| class `EventTargetBan` | 663 | Ban được phép đăng ký sự kiện (khi sự kiện không mở cho tất cả). |
-| class `EventRegistration` | 670 | Đăng ký tham gia sự kiện: registered &#124; waitlist &#124; cancelled. |
-| class `Attendance` | 688 | Điểm danh của một lượt đăng ký: on_time &#124; late &#124; excused &#124; absent &#124; pending. |
-| class `QRCheckinLog` | 703 | Nhật ký mỗi lần quét QR điểm danh (phục vụ đối soát). |
-| class `EventFeedback` | 713 | Đánh giá 1–5 sao và bình luận của thành viên sau sự kiện. |
-| class `ActivityPoint` | 728 | Điểm hoạt động cộng/trừ cho thành viên (điểm danh tự động hoặc BĐH điều chỉnh có lý do). |
-| class `ClubSetting` | 745 | Cấu hình nghiệp vụ dạng key → JSON (vd: bảng điểm hoạt động, ngưỡng xếp loại). |
-| class `AuditLog` | 753 | Nhật ký thao tác: ai làm gì, trên đối tượng nào, lúc nào (không lưu mật khẩu/nội dung nhạy cảm). |
-| class `AIProposal` | 767 | An AI suggestion is inert until a board member explicitly approves it. |
-| class `EmailProposal` | 789 | Email draft: chat creation never sends; a separate BDH action does. |
-| class `EmailTemplate` | 812 | Mẫu email trong kho mẫu. - `system_key` có giá trị: mẫu của email tự động (xác minh email, giao task…) và mẫu chung `general`; chỉ sửa nội dung, không xóa/đổi tên. - `system_key` rỗng: mẫu do BĐH tạo, AI tìm theo tên/từ khóa khi soạn nháp. |
-| class `ProposalTemplate` | 835 | Mẫu sự kiện / mẫu chia task trong kho mẫu, AI dùng khi lập đề xuất. `content` (JSON): - kind="event": {"name", "content", "type", "location", "duration_hours"} - kind="task": {"tasks": [{"name", "description", "days_before"}]} `is_default=True`: mẫu chung, dùng khi không tìm thấy mẫu phù hợp hơn. |
-| class `AssistantPending` | 862 | The incomplete natural-language proposal currently being clarified. |
-| class `ConversationPending` | 873 | A pending clarification scoped to one conversation tab. |
-| class `AIReportSnapshot` | 885 | Immutable reviewed numbers and source rows for export/email. |
-| class `MemberPlanningProfile` | 896 | Member-provided task preferences; absent rows use conservative defaults. |
-| class `AIUsageLog` | 912 | Successful model calls, without prompts, replies, secrets or price guesses. |
-
-### `app/activity.py`
-
-Tính tình trạng hoạt động của thành viên theo từng (thành viên, ban, kỳ).
-
-| Hàm / class | Dòng | Mô tả |
-|---|---|---|
-| `_tim_ky_cua_ngay(ngay)` | 19 | Tìm FundPeriod có khoảng [ngay_bat_dau, ngay_ket_thuc] chứa `ngay`. |
-| `_xep_loai(phan_tram)` | 27 | Đổi % hoàn thành task thành nhãn tình trạng (tich_cuc / hoat_dong / it_hoat_dong / khong_hoat_dong) theo Config.ACTIVITY_THRESHOLDS. |
-| `_tinh_lai_mot_cap(user_id, ban_id, period_id)` | 37 | Tính lại % hoạt động cho 1 bộ (thành viên, ban, kỳ) và lưu vào MemberActivity. |
-| `cap_nhat_hoat_dong_khi_event_ket_thuc(event)` | 85 | Gọi ngay sau khi một Event được đánh dấu 'da_ket_thuc': tính lại % cho mọi cặp (thành viên, ban) xuất hiện trong các task của sự kiện. |
+| `User.password(self)` | 209 | Không cho đọc mật khẩu (chỉ lưu hash). |
+| `User.password(self, raw_password)` | 214 | Gán mật khẩu mới: tự băm và lưu vào password_hash. |
+| `User.set_password(self, raw_password)` | 218 | Băm mật khẩu bằng Werkzeug (scrypt) và ghi lại thời điểm đổi mật khẩu. |
+| `User.check_password(self, raw_password)` | 223 | So sánh mật khẩu nhập vào với hash đã lưu. |
+| `User.session_marker(self)` | 229 | Đổi mỗi khi đổi mật khẩu → mọi phiên/cookie ghi nhớ cũ tự mất hiệu lực. |
+| `User.get_id(self)` | 234 | Định danh lưu trong session/cookie của Flask-Login: "<id>:<session_marker>". |
+| `User.generate_token(self, purpose)` | 239 | Token ký bằng SECRET_KEY. purpose: 'confirm' hoặc 'reset'. Token reset gắn với hash mật khẩu hiện tại nên chỉ dùng được một lần: đổi mật khẩu xong thì token cũ tự mất hiệu lực. |
+| `User.from_token(token, purpose, max_age)` | 254 | Trả về User nếu token hợp lệ, còn hạn và đúng mục đích; ngược lại None. |
+| `User.confirm_email(self)` | 269 | Đánh dấu email đã xác minh và ghi thời điểm xác minh. |
+| `User.permissions(self)` | 279 | Tổng bit quyền của chức vụ hiện tại. |
+| `User.can(self, perm)` | 283 | True nếu chức vụ hiện tại có quyền `perm` (chưa xét trạng thái duyệt). |
+| `User.is_administrator(self)` | 287 | True nếu chức vụ có quyền phân vai trò (CN/PCN theo bảng mặc định). |
+| `User.rank(self)` | 292 | Cấp bậc của chức vụ hiện tại (số nhỏ = cấp cao). |
+| `User.role_label(self)` | 297 | Tên hiển thị tiếng Việt của chức vụ. |
+| `User.outranks(self, other_user)` | 301 | True khi người BĐH nhường chức vụ cho một thành viên thường. |
+| `User.is_bdh(self)` | 306 | Thuộc Ban điều hành (có quyền BOARD). |
+| `User.is_system_admin(self)` | 311 | Tài khoản quản trị hệ thống (không phải thành viên CLB). |
+| `User.quan_ly_ban_ids(self)` | 315 | Các ban_id mà Trưởng ban này quản lý (rỗng nếu không phải TB). |
+| `User.__repr__(self)` | 321 | Chuỗi mô tả user khi debug. |
+| class `AnonymousUser` | 326 | Người chưa đăng nhập: không có quyền nào (để template gọi can() an toàn). |
+| `AnonymousUser.can(self, perm)` | 332 | Người chưa đăng nhập không có quyền nào. |
+| `AnonymousUser.is_bdh(self)` | 336 | Người chưa đăng nhập không thuộc BĐH. |
+| `AnonymousUser.is_administrator(self)` | 340 | Người chưa đăng nhập không phải quản trị. |
+| `load_user(user_id)` | 351 | Nạp user từ session/cookie. Định dạng id: "<id>:<session_marker>". Nếu marker không khớp (mật khẩu đã đổi sau khi phiên được tạo) → coi như chưa đăng nhập. Dạng cũ chỉ có "<id>" chỉ được chấp nhận khi TESTING. |
+| class `Event` | 373 | Sự kiện của CLB; `tasks` là các task con. Trạng thái: sap_dien_ra &#124; dang_dien_ra &#124; da_ket_thuc &#124; cancelled. |
+| class `Task` | 390 | Đầu việc thuộc một sự kiện, giao cho một người phụ trách (assignee) thuộc một ban. Trạng thái: dang_lam → cho_duyet → lam_lai/hoan_thanh, hoặc huy. |
+| class `FundPeriod` | 421 | Kỳ quỹ / kỳ hoạt động (Spring, Summer, Fall…). Chỉ một kỳ `is_current`; chứa sổ thu chi và trạng thái đóng quỹ theo kỳ. |
+| class `FundTransaction` | 440 | Một dòng trong sổ thu chi của kỳ: thu (số dương) hoặc chi (số âm). |
+| class `FundDue` | 452 | Trạng thái đóng quỹ của từng thành viên trong 1 kỳ (sổ quỹ theo kỳ). |
+| class `MemberActivity` | 468 | Tình trạng hoạt động của một thành viên trong một kỳ (tính bởi app/services/activities.py). Điểm = 50% tỉ lệ task hoàn thành + 50% tỉ lệ có mặt, chỉ trên sự kiện đã kết thúc trong kỳ. |
+| class `ChatMessage` | 498 | Một tin nhắn trong lịch sử chat AI (role 'user' hoặc 'ai'), thuộc một cuộc trò chuyện. |
+| class `ChatConversation` | 513 | A bounded, user-owned tab in the AI chat history. |
+| class `Notification` | 534 | Thông báo hiện ở chuông trên thanh trên cùng (nhắc deadline, nhắc kỳ mới…). |
+| class `MemberRecord` | 545 | Hồ sơ thành viên mở rộng: ngày gia nhập, tình trạng (active/paused/left), ghi chú, thời điểm lưu trữ. |
+| class `FundCollection` | 561 | Khoản thu (thu theo tháng/kỳ/năm/sự kiện/tự nguyện…), có số tiền, hạn đóng và trạng thái draft/open/closed/cancelled. |
+| class `FundTargetBan` | 586 | Ban áp dụng của một khoản thu (khi khoản thu không áp dụng cho tất cả thành viên). |
+| class `FundAdjustment` | 593 | Miễn (exempt) hoặc giảm (reduce) khoản thu cho một thành viên, bắt buộc có lý do. |
+| class `FundPayment` | 612 | Một lần đóng tiền cho khoản thu; chờ người quản lý quỹ xác nhận (pending → confirmed/rejected). |
+| class `PaymentEvidence` | 636 | Ảnh minh chứng thanh toán, lưu trong instance/payment_evidence với tên ngẫu nhiên. |
+| class `EventDetail` | 645 | Thông tin chi tiết của sự kiện: loại, nội dung, địa điểm, hạn đăng ký, người phụ trách (cột so_nguoi_toi_da giữ lại cho dữ liệu cũ, không còn dùng), khoản thu liên quan. |
+| class `EventTargetBan` | 666 | Ban được phép đăng ký sự kiện (khi sự kiện không mở cho tất cả). |
+| class `EventRegistration` | 673 | Đăng ký tham gia sự kiện: registered &#124; waitlist &#124; cancelled. |
+| class `Attendance` | 691 | Điểm danh của một lượt đăng ký: on_time &#124; late &#124; excused &#124; absent &#124; pending. |
+| class `QRCheckinLog` | 706 | Nhật ký mỗi lần quét QR điểm danh (phục vụ đối soát). |
+| class `EventFeedback` | 716 | Đánh giá 1–5 sao và bình luận của thành viên sau sự kiện. |
+| class `AuditLog` | 731 | Nhật ký thao tác: ai làm gì, trên đối tượng nào, lúc nào (không lưu mật khẩu/nội dung nhạy cảm). |
+| class `AIProposal` | 745 | An AI suggestion is inert until a board member explicitly approves it. |
+| class `EmailProposal` | 767 | Email draft: chat creation never sends; a separate BDH action does. |
+| class `EmailTemplate` | 790 | Mẫu email trong kho mẫu. - `system_key` có giá trị: mẫu của email tự động (xác minh email, giao task…) và mẫu chung `general`; chỉ sửa nội dung, không xóa/đổi tên. - `system_key` rỗng: mẫu do BĐH tạo, AI tìm theo tên/từ khóa khi soạn nháp. |
+| class `ProposalTemplate` | 813 | Mẫu sự kiện / mẫu chia task trong kho mẫu, AI dùng khi lập đề xuất. `content` (JSON): - kind="event": {"name", "content", "type", "location", "duration_hours"} - kind="task": {"tasks": [{"name", "description", "days_before"}]} `is_default=True`: mẫu chung, dùng khi không tìm thấy mẫu phù hợp hơn. |
+| class `AssistantPending` | 840 | The incomplete natural-language proposal currently being clarified. |
+| class `ConversationPending` | 851 | A pending clarification scoped to one conversation tab. |
+| class `AIReportSnapshot` | 863 | Immutable reviewed numbers and source rows for export/email. |
+| class `MemberPlanningProfile` | 874 | Member-provided task preferences; absent rows use conservative defaults. |
+| class `AIUsageLog` | 890 | Successful model calls, without prompts, replies, secrets or price guesses. |
 
 ### `app/legacy_sqlite.py`
 
@@ -337,30 +324,30 @@ Khu vực Ban điều hành: duyệt thành viên, phân vai trò, nhường ch�
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `_task_scope(actor, query)` | 23 | Admins see the club-wide task board; members see only their own tasks. |
-| `_recent_attendance_chart(now)` | 30 | Số lượt điểm danh có mặt của 6 tháng gần nhất và đường SVG cho biểu đồ trang Tổng quan. |
-| `_format_currency(value)` | 73 | Định dạng số tiền kiểu 1.000.000 ₫. |
-| `home()` | 84 | Trang Tổng quan: thông báo, sự kiện sắp tới, số liệu thành viên/task, số dư quỹ (người quản lý quỹ), biểu đồ điểm danh.<br>route: `main_bp.route('/home')` · bảo vệ: `login_required`, `approved_required` |
-| `tasks()` | 163 | Bảng công việc: người quản lý sự kiện thấy mọi task, thành viên chỉ thấy task của mình; lọc theo trạng thái, xem dạng bảng/danh sách.<br>route: `main_bp.get('/tasks')` · bảo vệ: `login_required`, `approved_required` |
+| `_task_scope(actor, query)` | 24 | Admins see the club-wide task board; members see only their own tasks. |
+| `_recent_attendance_chart(now)` | 31 | Số lượt điểm danh có mặt của 6 tháng gần nhất và đường SVG cho biểu đồ trang Tổng quan. |
+| `_format_currency(value)` | 74 | Định dạng số tiền kiểu 1.000.000 ₫. |
+| `home()` | 85 | Trang Tổng quan: thông báo, sự kiện sắp tới, số liệu thành viên/task, số dư quỹ (người quản lý quỹ), biểu đồ điểm danh.<br>route: `main_bp.route('/home')` · bảo vệ: `login_required`, `approved_required` |
+| `tasks()` | 162 | Bảng công việc: người quản lý sự kiện thấy mọi task, thành viên chỉ thấy task của mình; lọc theo trạng thái, xem dạng bảng/danh sách.<br>route: `main_bp.get('/tasks')` · bảo vệ: `login_required`, `approved_required` |
 
 ### `app/routes/member.py`
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `_parse_filters()` | 12 | Đọc bộ lọc của trang Thành viên: q, ban_id, sort, status. |
-| `_filtered_members(base_query)` | 21 | Áp bộ lọc và sắp xếp lên `base_query` (danh bạ hoặc phạm vi xem chi tiết). |
-| `member_list()` | 48 | Trang Thành viên: mọi thành viên thấy danh bạ CLB (thông tin cơ bản); người có MANAGE_MEMBERS thấy thêm liên hệ, tình trạng hoạt động và hồ sơ chi tiết.<br>route: `member_bp.route('/member')` · bảo vệ: `login_required`, `approved_required` |
-| `export_excel()` | 82 | Xuất danh sách thành viên (theo bộ lọc hiện tại) ra file Excel.<br>route: `member_bp.route('/member/export')` · bảo vệ: `login_required`, `approved_required` |
+| `_parse_filters()` | 15 | Đọc bộ lọc của trang Thành viên: q, ban_id, sort, status. |
+| `_filtered_members(base_query)` | 24 | Áp bộ lọc và sắp xếp lên `base_query` (danh bạ hoặc phạm vi xem chi tiết). |
+| `member_list()` | 51 | Trang Thành viên: mọi thành viên thấy danh bạ CLB (thông tin cơ bản); người có MANAGE_MEMBERS thấy thêm liên hệ, tình trạng hoạt động và hồ sơ chi tiết.<br>route: `member_bp.route('/member')` · bảo vệ: `login_required`, `approved_required` |
+| `export_excel()` | 88 | Xuất danh sách thành viên (theo bộ lọc hiện tại) ra file Excel.<br>route: `member_bp.route('/member/export')` · bảo vệ: `login_required`, `approved_required` |
 
 ### `app/routes/profile.py`
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `_allowed_avatar(filename)` | 20 | Đuôi file ảnh đại diện nằm trong ALLOWED_AVATAR_EXTENSIONS. |
-| `_sanitize_avatar(file, extension)` | 28 | Kiểm tra ảnh thật bằng Pillow (đúng định dạng, không quá lớn, chống decompression bomb) và lưu lại bản sạch, bỏ metadata. |
-| `view_profile(user_id=None)` | 71 | Xem hồ sơ. Không truyền user_id → xem chính mình. Xem người khác cần quyền quản lý thành viên (MANAGE_MEMBERS).<br>route: `profile_bp.route('/profile')` · bảo vệ: `login_required`, `approved_required` |
-| `task_preferences()` | 106 | Members control the information used by AI task suggestions.<br>route: `profile_bp.route('/profile/task-preferences', methods=['POST'])` · bảo vệ: `login_required`, `approved_required` |
-| `upload_avatar()` | 139 | Upload ảnh đại diện (AvatarForm: FileRequired + FileAllowed), rồi kiểm tra nội dung thật bằng Pillow và lưu lại ảnh đã làm sạch.<br>route: `profile_bp.route('/profile/avatar', methods=['POST'])` · bảo vệ: `login_required`, `approved_required` |
+| `_allowed_avatar(filename)` | 21 | Đuôi file ảnh đại diện nằm trong ALLOWED_AVATAR_EXTENSIONS. |
+| `_sanitize_avatar(file, extension)` | 29 | Kiểm tra ảnh thật bằng Pillow (đúng định dạng, không quá lớn, chống decompression bomb) và lưu lại bản sạch, bỏ metadata. |
+| `view_profile(user_id=None)` | 72 | Xem hồ sơ. Không truyền user_id → xem chính mình. Xem người khác cần quyền quản lý thành viên (MANAGE_MEMBERS).<br>route: `profile_bp.route('/profile')` · bảo vệ: `login_required`, `approved_required` |
+| `task_preferences()` | 110 | Members control the information used by AI task suggestions.<br>route: `profile_bp.route('/profile/task-preferences', methods=['POST'])` · bảo vệ: `login_required`, `approved_required` |
+| `upload_avatar()` | 143 | Upload ảnh đại diện (AvatarForm: FileRequired + FileAllowed), rồi kiểm tra nội dung thật bằng Pillow và lưu lại ảnh đã làm sạch.<br>route: `profile_bp.route('/profile/avatar', methods=['POST'])` · bảo vệ: `login_required`, `approved_required` |
 
 ### `app/routes/event.py`
 
@@ -381,7 +368,7 @@ Khu vực Ban điều hành: duyệt thành viên, phân vai trò, nhường ch�
 | `task_reassign(task_id)` | 334 | Đổi người phụ trách một task đã tồn tại (vẫn là chỉ định, không phải xung phong).<br>route: `event_bp.route('/task/<int:task_id>/chi-dinh-lai', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
 | `task_submit(task_id)` | 365 | Chỉ người được giao task mới được nộp; nộp xong trạng thái chuyển sang cho_duyet.<br>route: `event_bp.route('/task/<int:task_id>/nop-san-pham', methods=['POST'])` · bảo vệ: `login_required`, `approved_required` |
 | `task_update_status(task_id)` | 399 | Duyệt task: lam_lai (bắt buộc nhận xét) / hoan_thanh / huy. Không được đặt 'dang_lam' hay 'cho_duyet'.<br>route: `event_bp.route('/task/<int:task_id>/cap-nhat-trang-thai', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
-| `event_end(event_id)` | 434 | Đánh dấu sự kiện đã kết thúc. Đây là thời điểm duy nhất tình trạng hoạt động của các thành viên liên quan (theo ban) được tính lại.<br>route: `event_bp.route('/event/<int:event_id>/ket-thuc', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
+| `event_end(event_id)` | 434 | Đánh dấu sự kiện đã kết thúc rồi tính lại tình trạng hoạt động (task + điểm danh) của mọi thành viên trong kỳ chứa ngày kết thúc sự kiện.<br>route: `event_bp.route('/event/<int:event_id>/ket-thuc', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
 
 ### `app/routes/funds.py`
 
@@ -443,47 +430,44 @@ REST API /api/v1 (Ch9): thành viên, quỹ, sự kiện, điểm danh, trợ l�
 | `member_detail(user_id)` | 309 | GET /members/<id> – hồ sơ một thành viên (chính mình hoặc người có MANAGE_MEMBERS).<br>route: `api_bp.get('/members/<int:user_id>')` |
 | `member_update(user_id)` | 317 | PATCH /members/<id> – sửa tên, SĐT, trạng thái, ghi chú của thành viên khác.<br>route: `api_bp.patch('/members/<int:user_id>')` |
 | `member_archive(user_id)` | 349 | POST /members/<id>/archive – lưu trữ thành viên (không cho lưu trữ BĐH cuối cùng).<br>route: `api_bp.post('/members/<int:user_id>/archive')` |
-| `member_activity(user_id)` | 364 | GET /members/<id>/activity – thống kê tham gia/điểm hoạt động.<br>route: `api_bp.get('/members/<int:user_id>/activity')` |
-| `member_points(user_id)` | 374 | POST /members/<id>/points – cộng/trừ điểm hoạt động thủ công, bắt buộc lý do.<br>route: `api_bp.post('/members/<int:user_id>/points')` |
-| `funds()` | 385 | GET /funds – khoản thu (người quản lý quỹ thấy tất cả, thành viên chỉ thấy khoản áp dụng cho mình).<br>route: `api_bp.get('/funds')` |
-| `fund_create()` | 397 | POST /funds – tạo khoản thu (MANAGE_FUNDS).<br>route: `api_bp.post('/funds')` |
-| `fund_detail(fund_id)` | 404 | GET /funds/<id> – chi tiết khoản thu kèm số dư của người xem.<br>route: `api_bp.get('/funds/<int:fund_id>')` |
-| `fund_status(fund_id)` | 412 | PATCH /funds/<id>/status – chuyển trạng thái khoản thu theo luồng draft→open→closed/cancelled.<br>route: `api_bp.patch('/funds/<int:fund_id>/status')` |
-| `fund_balances(fund_id)` | 430 | GET /funds/<id>/balances – số phải đóng/đã đóng/còn thiếu của từng thành viên.<br>route: `api_bp.get('/funds/<int:fund_id>/balances')` |
-| `payment_create(fund_id)` | 440 | POST /funds/<id>/payments – ghi nhận một lần đóng tiền (chờ xác nhận).<br>route: `api_bp.post('/funds/<int:fund_id>/payments')` |
-| `payments()` | 450 | GET /payments – danh sách thanh toán (thành viên chỉ thấy của mình), lọc theo trạng thái.<br>route: `api_bp.get('/payments')` |
-| `payment_review(payment_id)` | 461 | POST /payments/<id>/review – xác nhận hoặc từ chối thanh toán (MANAGE_FUNDS).<br>route: `api_bp.post('/payments/<int:payment_id>/review')` |
-| `payment_evidence_upload(payment_id)` | 470 | POST /payments/<id>/evidence – tải ảnh minh chứng (PNG/JPEG/WebP ≤ 3MB), lưu ngoài thư mục static.<br>route: `api_bp.post('/payments/<int:payment_id>/evidence')` |
-| `payment_evidence_download(evidence_id)` | 507 | GET /payments/evidence/<id> – tải ảnh minh chứng (chủ thanh toán hoặc người quản lý quỹ).<br>route: `api_bp.get('/payments/evidence/<int:evidence_id>')` |
-| `fund_adjustment(fund_id, user_id)` | 517 | PUT /funds/<id>/adjustments/<user_id> – miễn/giảm khoản thu cho một thành viên.<br>route: `api_bp.put('/funds/<int:fund_id>/adjustments/<int:user_id>')` |
-| `events()` | 526 | GET /events – danh sách sự kiện, lọc theo status.<br>route: `api_bp.get('/events')` |
-| `event_create()` | 535 | POST /events – tạo sự kiện kèm chi tiết, ban áp dụng, người phụ trách (MANAGE_EVENTS).<br>route: `api_bp.post('/events')` |
-| `event_detail(event_id)` | 579 | GET /events/<id> – chi tiết sự kiện.<br>route: `api_bp.get('/events/<int:event_id>')` |
-| `event_update(event_id)` | 585 | PATCH /events/<id> – sửa sự kiện (hạn đăng ký phải nằm trong khoảng bắt đầu – kết thúc).<br>route: `api_bp.patch('/events/<int:event_id>')` |
-| `event_copy(event_id)` | 620 | POST /events/<id>/copy – nhân bản sự kiện sang thời gian mới.<br>route: `api_bp.post('/events/<int:event_id>/copy')` |
-| `event_cancel(event_id)` | 651 | POST /events/<id>/cancel – hủy sự kiện.<br>route: `api_bp.post('/events/<int:event_id>/cancel')` |
-| `event_register(event_id)` | 667 | POST /events/<id>/registrations – đăng ký tham gia (không giới hạn số người).<br>route: `api_bp.post('/events/<int:event_id>/registrations')` |
-| `registration_cancel(registration_id)` | 677 | POST /registrations/<id>/cancel – hủy đăng ký; người đầu danh sách chờ được đôn lên.<br>route: `api_bp.post('/registrations/<int:registration_id>/cancel')` |
-| `event_registrations(event_id)` | 685 | GET /events/<id>/registrations – danh sách đăng ký và điểm danh (MANAGE_EVENTS hoặc người phụ trách).<br>route: `api_bp.get('/events/<int:event_id>/registrations')` |
-| `event_qr(event_id)` | 697 | GET /events/<id>/qr – token QR điểm danh (hiệu lực 15 phút).<br>route: `api_bp.get('/events/<int:event_id>/qr')` |
-| `event_qr_png(event_id)` | 704 | GET /events/<id>/qr.png – ảnh QR chứa link điểm danh.<br>route: `api_bp.get('/events/<int:event_id>/qr.png')` |
-| `event_checkin()` | 715 | POST /attendance/checkin – điểm danh bằng token QR.<br>route: `api_bp.post('/attendance/checkin')` |
-| `attendance_manual(registration_id)` | 723 | PUT /registrations/<id>/attendance – điểm danh thủ công (có mặt/muộn/có phép/vắng).<br>route: `api_bp.put('/registrations/<int:registration_id>/attendance')` |
-| `event_feedback(event_id)` | 732 | POST /events/<id>/feedback – đánh giá sự kiện sau khi kết thúc.<br>route: `api_bp.post('/events/<int:event_id>/feedback')` |
-| `assistant()` | 741 | POST /assistant – hỏi trợ lý AI (chế độ thường hoặc Agent); lưu câu hỏi/trả lời vào cuộc trò chuyện.<br>route: `api_bp.post('/assistant')` |
-| `assistant_conversations()` | 792 | GET/POST /assistant/conversations – liệt kê hoặc tạo cuộc trò chuyện.<br>route: `api_bp.route('/assistant/conversations', methods=['GET', 'POST'])` |
-| `assistant_conversation_messages(conversation_id)` | 806 | GET /assistant/conversations/<id>/messages – tin nhắn theo trang (before/after).<br>route: `api_bp.get('/assistant/conversations/<int:conversation_id>/messages')` |
-| `assistant_conversation_rename(conversation_id)` | 818 | PATCH /assistant/conversations/<id> – đổi tên cuộc trò chuyện.<br>route: `api_bp.patch('/assistant/conversations/<int:conversation_id>')` |
-| `assistant_conversation_archive(conversation_id)` | 829 | POST /assistant/conversations/<id>/archive – lưu trữ/khôi phục cuộc trò chuyện.<br>route: `api_bp.post('/assistant/conversations/<int:conversation_id>/archive')` |
-| `proposal_json(proposal)` | 842 | Chuyển đề xuất AI thành JSON (kèm bản xem trước). |
-| `assistant_proposals()` | 852 | GET /assistant/proposals – danh sách đề xuất AI (MANAGE_EVENTS).<br>route: `api_bp.get('/assistant/proposals')` |
-| `assistant_proposal_create()` | 862 | POST /assistant/proposals – tạo đề xuất AI.<br>route: `api_bp.post('/assistant/proposals')` |
-| `assistant_proposal_review(proposal_id)` | 870 | POST /assistant/proposals/<id>/review – duyệt/từ chối đề xuất AI.<br>route: `api_bp.post('/assistant/proposals/<int:proposal_id>/review')` |
-| `activity_settings()` | 880 | GET /settings/activity – bảng điểm và ngưỡng xếp loại hoạt động (MANAGE_MEMBERS).<br>route: `api_bp.get('/settings/activity')` |
-| `activity_settings_update()` | 888 | PUT /settings/activity – cập nhật bảng điểm/ngưỡng hoạt động.<br>route: `api_bp.put('/settings/activity')` |
-| `dashboard()` | 916 | GET /dashboard – số liệu tổng quan: thành viên, hoạt động, tình hình quỹ, sự kiện sắp tới (theo phạm vi quyền).<br>route: `api_bp.get('/dashboard')` |
-| `fund_report()` | 946 | GET /reports/funds.xlsx – báo cáo tình trạng đóng quỹ (MANAGE_FUNDS).<br>route: `api_bp.get('/reports/funds.xlsx')` |
-| `member_report()` | 966 | GET /reports/members.xlsx – danh sách thành viên (MANAGE_MEMBERS).<br>route: `api_bp.get('/reports/members.xlsx')` |
+| `member_activity(user_id)` | 364 | GET /members/<id>/activity – tình trạng hoạt động kỳ hiện tại (task + điểm danh).<br>route: `api_bp.get('/members/<int:user_id>/activity')` |
+| `funds()` | 374 | GET /funds – khoản thu (người quản lý quỹ thấy tất cả, thành viên chỉ thấy khoản áp dụng cho mình).<br>route: `api_bp.get('/funds')` |
+| `fund_create()` | 386 | POST /funds – tạo khoản thu (MANAGE_FUNDS).<br>route: `api_bp.post('/funds')` |
+| `fund_detail(fund_id)` | 393 | GET /funds/<id> – chi tiết khoản thu kèm số dư của người xem.<br>route: `api_bp.get('/funds/<int:fund_id>')` |
+| `fund_status(fund_id)` | 401 | PATCH /funds/<id>/status – chuyển trạng thái khoản thu theo luồng draft→open→closed/cancelled.<br>route: `api_bp.patch('/funds/<int:fund_id>/status')` |
+| `fund_balances(fund_id)` | 419 | GET /funds/<id>/balances – số phải đóng/đã đóng/còn thiếu của từng thành viên.<br>route: `api_bp.get('/funds/<int:fund_id>/balances')` |
+| `payment_create(fund_id)` | 429 | POST /funds/<id>/payments – ghi nhận một lần đóng tiền (chờ xác nhận).<br>route: `api_bp.post('/funds/<int:fund_id>/payments')` |
+| `payments()` | 439 | GET /payments – danh sách thanh toán (thành viên chỉ thấy của mình), lọc theo trạng thái.<br>route: `api_bp.get('/payments')` |
+| `payment_review(payment_id)` | 450 | POST /payments/<id>/review – xác nhận hoặc từ chối thanh toán (MANAGE_FUNDS).<br>route: `api_bp.post('/payments/<int:payment_id>/review')` |
+| `payment_evidence_upload(payment_id)` | 459 | POST /payments/<id>/evidence – tải ảnh minh chứng (PNG/JPEG/WebP ≤ 3MB), lưu ngoài thư mục static.<br>route: `api_bp.post('/payments/<int:payment_id>/evidence')` |
+| `payment_evidence_download(evidence_id)` | 496 | GET /payments/evidence/<id> – tải ảnh minh chứng (chủ thanh toán hoặc người quản lý quỹ).<br>route: `api_bp.get('/payments/evidence/<int:evidence_id>')` |
+| `fund_adjustment(fund_id, user_id)` | 506 | PUT /funds/<id>/adjustments/<user_id> – miễn/giảm khoản thu cho một thành viên.<br>route: `api_bp.put('/funds/<int:fund_id>/adjustments/<int:user_id>')` |
+| `events()` | 515 | GET /events – danh sách sự kiện, lọc theo status.<br>route: `api_bp.get('/events')` |
+| `event_create()` | 524 | POST /events – tạo sự kiện kèm chi tiết, ban áp dụng, người phụ trách (MANAGE_EVENTS).<br>route: `api_bp.post('/events')` |
+| `event_detail(event_id)` | 568 | GET /events/<id> – chi tiết sự kiện.<br>route: `api_bp.get('/events/<int:event_id>')` |
+| `event_update(event_id)` | 574 | PATCH /events/<id> – sửa sự kiện (hạn đăng ký phải nằm trong khoảng bắt đầu – kết thúc).<br>route: `api_bp.patch('/events/<int:event_id>')` |
+| `event_copy(event_id)` | 609 | POST /events/<id>/copy – nhân bản sự kiện sang thời gian mới.<br>route: `api_bp.post('/events/<int:event_id>/copy')` |
+| `event_cancel(event_id)` | 640 | POST /events/<id>/cancel – hủy sự kiện.<br>route: `api_bp.post('/events/<int:event_id>/cancel')` |
+| `event_register(event_id)` | 656 | POST /events/<id>/registrations – đăng ký tham gia (không giới hạn số người).<br>route: `api_bp.post('/events/<int:event_id>/registrations')` |
+| `registration_cancel(registration_id)` | 666 | POST /registrations/<id>/cancel – hủy đăng ký; người đầu danh sách chờ được đôn lên.<br>route: `api_bp.post('/registrations/<int:registration_id>/cancel')` |
+| `event_registrations(event_id)` | 674 | GET /events/<id>/registrations – danh sách đăng ký và điểm danh (MANAGE_EVENTS hoặc người phụ trách).<br>route: `api_bp.get('/events/<int:event_id>/registrations')` |
+| `event_qr(event_id)` | 686 | GET /events/<id>/qr – token QR điểm danh (hiệu lực 15 phút).<br>route: `api_bp.get('/events/<int:event_id>/qr')` |
+| `event_qr_png(event_id)` | 693 | GET /events/<id>/qr.png – ảnh QR chứa link điểm danh.<br>route: `api_bp.get('/events/<int:event_id>/qr.png')` |
+| `event_checkin()` | 704 | POST /attendance/checkin – điểm danh bằng token QR.<br>route: `api_bp.post('/attendance/checkin')` |
+| `attendance_manual(registration_id)` | 712 | PUT /registrations/<id>/attendance – điểm danh thủ công (có mặt/muộn/có phép/vắng).<br>route: `api_bp.put('/registrations/<int:registration_id>/attendance')` |
+| `event_feedback(event_id)` | 721 | POST /events/<id>/feedback – đánh giá sự kiện sau khi kết thúc.<br>route: `api_bp.post('/events/<int:event_id>/feedback')` |
+| `assistant()` | 730 | POST /assistant – hỏi trợ lý AI (chế độ thường hoặc Agent); lưu câu hỏi/trả lời vào cuộc trò chuyện.<br>route: `api_bp.post('/assistant')` |
+| `assistant_conversations()` | 781 | GET/POST /assistant/conversations – liệt kê hoặc tạo cuộc trò chuyện.<br>route: `api_bp.route('/assistant/conversations', methods=['GET', 'POST'])` |
+| `assistant_conversation_messages(conversation_id)` | 795 | GET /assistant/conversations/<id>/messages – tin nhắn theo trang (before/after).<br>route: `api_bp.get('/assistant/conversations/<int:conversation_id>/messages')` |
+| `assistant_conversation_rename(conversation_id)` | 807 | PATCH /assistant/conversations/<id> – đổi tên cuộc trò chuyện.<br>route: `api_bp.patch('/assistant/conversations/<int:conversation_id>')` |
+| `assistant_conversation_archive(conversation_id)` | 818 | POST /assistant/conversations/<id>/archive – lưu trữ/khôi phục cuộc trò chuyện.<br>route: `api_bp.post('/assistant/conversations/<int:conversation_id>/archive')` |
+| `proposal_json(proposal)` | 831 | Chuyển đề xuất AI thành JSON (kèm bản xem trước). |
+| `assistant_proposals()` | 841 | GET /assistant/proposals – danh sách đề xuất AI (MANAGE_EVENTS).<br>route: `api_bp.get('/assistant/proposals')` |
+| `assistant_proposal_create()` | 851 | POST /assistant/proposals – tạo đề xuất AI.<br>route: `api_bp.post('/assistant/proposals')` |
+| `assistant_proposal_review(proposal_id)` | 859 | POST /assistant/proposals/<id>/review – duyệt/từ chối đề xuất AI.<br>route: `api_bp.post('/assistant/proposals/<int:proposal_id>/review')` |
+| `dashboard()` | 869 | GET /dashboard – số liệu tổng quan: thành viên, hoạt động, tình hình quỹ, sự kiện sắp tới (theo phạm vi quyền).<br>route: `api_bp.get('/dashboard')` |
+| `fund_report()` | 900 | GET /reports/funds.xlsx – báo cáo tình trạng đóng quỹ (MANAGE_FUNDS).<br>route: `api_bp.get('/reports/funds.xlsx')` |
+| `member_report()` | 920 | GET /reports/members.xlsx – danh sách thành viên (MANAGE_MEMBERS).<br>route: `api_bp.get('/reports/members.xlsx')` |
 
 ## Services (nghiệp vụ & trợ lý AI)
 
@@ -523,12 +507,32 @@ Chính sách phân quyền tập trung (Ch7 – RBAC).
 
 ### `app/services/activities.py`
 
+Tình trạng hoạt động của thành viên – nguồn DUY NHẤT cho toàn hệ thống.
+
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `setting(key, defaults)` | 14 | Đọc cấu hình ClubSetting và trộn với giá trị mặc định. |
-| `sync_attendance_point(attendance, actor)` | 20 | Cập nhật điểm hoạt động tương ứng trạng thái điểm danh (mỗi sự kiện một dòng điểm). |
-| `manual_point(actor, member, points, reason, event=None, kind='manual')` | 38 | Cộng/trừ điểm thủ công cho thành viên (MANAGE_MEMBERS), bắt buộc có lý do. |
-| `activity_stats(member, now=None)` | 63 | Thống kê hoạt động của một thành viên: số sự kiện đủ điều kiện, đã tham gia, tỉ lệ, điểm, xếp loại, lần hoạt động gần nhất. |
+| `current_period()` | 38 | Kỳ đang mở (FundPeriod.is_current) hoặc None. |
+| `period_of(day)` | 43 | Kỳ có khoảng [ngày bắt đầu, ngày kết thúc] chứa `day` (kỳ chưa có ngày kết thúc = còn mở). |
+| `_in_period(event, period)` | 51 | Sự kiện kết thúc trong kỳ. |
+| `_ended_events(period)` | 57 | Các sự kiện đã kết thúc thuộc kỳ. |
+| `_target_bans(event_ids)` | 63 | {event_id: tập ban áp dụng} – chỉ cho sự kiện không mở cho mọi người. |
+| `score_to_level(score)` | 76 | Đổi điểm 0–100 thành mã mức theo Config.ACTIVITY_THRESHOLDS; None → chưa xếp loại. |
+| `combine(task_rate, attendance_rate)` | 86 | Gộp hai tỉ lệ (%, có thể None) theo trọng số; thiếu một phần thì dùng phần còn lại. |
+| `_rate(done, total)` | 96 | — |
+| `compute(member, period, events=None, targets=None)` | 100 | Số liệu hoạt động của một thành viên trong một kỳ (không ghi database). |
+| `_save(member, period, data)` | 138 | — |
+| `_members()` | 153 | Thành viên được xếp loại: đã duyệt, chưa lưu trữ/rời CLB, không phải tài khoản quản trị. |
+| `refresh_period(period)` | 160 | Tính lại và lưu tình trạng của mọi thành viên trong một kỳ. Trả về số dòng đã ghi. |
+| `refresh_for_event(event)` | 173 | Gọi khi sự kiện đã kết thúc thay đổi dữ liệu: tính lại kỳ chứa ngày kết thúc của sự kiện. |
+| `refresh_all()` | 180 | Tính lại mọi kỳ (dùng sau khi nâng cấp hoặc sửa dữ liệu hàng loạt). |
+| `_paused(member)` | 186 | — |
+| `stored(member, period=None)` | 191 | Dòng MemberActivity của kỳ (mặc định kỳ hiện tại) hoặc None. |
+| `level_of(member, period=None)` | 199 | Mã tình trạng hiển thị của thành viên: tạm nghỉ ghi đè, chưa có dữ liệu = chưa xếp loại. |
+| `levels_for(members, period=None)` | 207 | {user_id: mã tình trạng} cho nhiều thành viên bằng 2 truy vấn (dùng cho bảng danh sách). |
+| `label_of(member, period=None)` | 224 | Nhãn tiếng Việt của tình trạng hiện tại. |
+| `summary(member, period=None)` | 229 | Số liệu đã lưu để hiển thị / trả lời AI / API (không tính lại). |
+| `level_filter(level, period=None)` | 249 | Điều kiện SQL lọc User theo mã tình trạng của kỳ hiện tại (dùng subquery, không JOIN). |
+| `rules_note()` | 266 | Một câu giải thích công thức đang áp dụng (cho người đọc / trợ lý AI). |
 
 ### `app/services/agent.py`
 
@@ -595,25 +599,25 @@ Bounded, model-selected loop over deterministic club data tools.
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `_normalize(text)` | 29 | Chuẩn hóa chuỗi để so khớp: chữ thường, bỏ dấu tiếng Việt, đ → d. |
-| `_money(value)` | 35 | Định dạng số tiền cho câu trả lời (vd: 150,000 đ). |
-| `_matching_periods(text)` | 40 | Các kỳ quỹ có tên xuất hiện trong câu hỏi. |
-| `_has_specific_timeframe(text)` | 46 | True nếu câu hỏi có mốc thời gian cụ thể (năm, ngày/tháng, quý…). |
-| `_model_quota()` | 59 | Bound shared-key use per member; the final approval gates remain separate. |
-| `_record_model_use(provider, model, purpose, data, elapsed_ms)` | 90 | Ghi AIUsageLog: nhà cung cấp, model, số token, thời gian (không lưu prompt/nội dung). |
-| class `AssistantProvider` | 110 | Lớp cơ sở cho nhà cung cấp trả lời chat. |
-| `AssistantProvider.answer(self, actor, question, history=None)` | 114 | Trả lời câu hỏi; lớp con phải cài đặt. |
-| class `TemporaryAIError` | 119 | A transient provider failure; safe to answer from verified local rules. |
-| class `RulesProvider` | 123 | Câu hỏi chỉ ánh xạ tới các truy vấn ORM được định nghĩa trước. |
-| `RulesProvider.answer(self, actor, question, history=None)` | 126 | Trả lời bằng truy vấn cố định (không dùng model) và gắn mức kiểm chứng. |
-| `RulesProvider._answer(self, actor, question)` | 154 | Bộ luật nhận diện câu hỏi (quỹ, chưa đóng, tổng đã thu, không hoạt động, vắng nhiều nhất, báo cáo…) và truy vấn dữ liệu theo phạm vi quyền. |
-| class `AnthropicProvider` | 361 | Read-only Claude Messages API adapter; never gives the model write tools. |
-| `AnthropicProvider.complete(self, system, prompt, max_tokens=800, response_schema=None, purpose='chat')` | 366 | Gọi Claude API với giới hạn quota/timeout và ghi nhận usage. |
-| `AnthropicProvider.answer(self, actor, question, history=None)` | 406 | Ưu tiên dữ liệu kiểm chứng; chỉ dùng model cho câu hỏi chung khi AI_STRICT_FACTS tắt. |
-| class `GeminiProvider` | 472 | Gemini transport with the same scoped, read-only context as Claude. |
-| `GeminiProvider.complete(self, system, prompt, max_tokens=800, response_schema=None, purpose='chat')` | 477 | Gọi Gemini API với giới hạn quota/timeout và ghi nhận usage. |
-| `GeminiProvider.answer(self, actor, question, history=None)` | 533 | Như Anthropic; lỗi tạm thời thì quay về RulesProvider. |
-| `get_provider()` | 544 | Chọn nhà cung cấp theo AI_PROVIDER và API key đã cấu hình (mặc định RulesProvider). |
+| `_normalize(text)` | 28 | Chuẩn hóa chuỗi để so khớp: chữ thường, bỏ dấu tiếng Việt, đ → d. |
+| `_money(value)` | 34 | Định dạng số tiền cho câu trả lời (vd: 150,000 đ). |
+| `_matching_periods(text)` | 39 | Các kỳ quỹ có tên xuất hiện trong câu hỏi. |
+| `_has_specific_timeframe(text)` | 45 | True nếu câu hỏi có mốc thời gian cụ thể (năm, ngày/tháng, quý…). |
+| `_model_quota()` | 58 | Bound shared-key use per member; the final approval gates remain separate. |
+| `_record_model_use(provider, model, purpose, data, elapsed_ms)` | 89 | Ghi AIUsageLog: nhà cung cấp, model, số token, thời gian (không lưu prompt/nội dung). |
+| class `AssistantProvider` | 109 | Lớp cơ sở cho nhà cung cấp trả lời chat. |
+| `AssistantProvider.answer(self, actor, question, history=None)` | 113 | Trả lời câu hỏi; lớp con phải cài đặt. |
+| class `TemporaryAIError` | 118 | A transient provider failure; safe to answer from verified local rules. |
+| class `RulesProvider` | 122 | Câu hỏi chỉ ánh xạ tới các truy vấn ORM được định nghĩa trước. |
+| `RulesProvider.answer(self, actor, question, history=None)` | 125 | Trả lời bằng truy vấn cố định (không dùng model) và gắn mức kiểm chứng. |
+| `RulesProvider._answer(self, actor, question)` | 153 | Bộ luật nhận diện câu hỏi (quỹ, chưa đóng, tổng đã thu, không hoạt động, vắng nhiều nhất, báo cáo…) và truy vấn dữ liệu theo phạm vi quyền. |
+| class `AnthropicProvider` | 340 | Read-only Claude Messages API adapter; never gives the model write tools. |
+| `AnthropicProvider.complete(self, system, prompt, max_tokens=800, response_schema=None, purpose='chat')` | 345 | Gọi Claude API với giới hạn quota/timeout và ghi nhận usage. |
+| `AnthropicProvider.answer(self, actor, question, history=None)` | 385 | Ưu tiên dữ liệu kiểm chứng; chỉ dùng model cho câu hỏi chung khi AI_STRICT_FACTS tắt. |
+| class `GeminiProvider` | 451 | Gemini transport with the same scoped, read-only context as Claude. |
+| `GeminiProvider.complete(self, system, prompt, max_tokens=800, response_schema=None, purpose='chat')` | 456 | Gọi Gemini API với giới hạn quota/timeout và ghi nhận usage. |
+| `GeminiProvider.answer(self, actor, question, history=None)` | 512 | Như Anthropic; lỗi tạm thời thì quay về RulesProvider. |
+| `get_provider()` | 523 | Chọn nhà cung cấp theo AI_PROVIDER và API key đã cấu hình (mặc định RulesProvider). |
 
 ### `app/services/briefings.py`
 
@@ -659,29 +663,28 @@ Công cụ đọc dữ liệu CÓ THAM SỐ cho trợ lý AI.
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `is_highest_absence(text)` | 81 | Câu hỏi "sự kiện nào vắng nhiều nhất" (luật cũ trong RulesProvider xử lý). |
-| `_has(pattern, text)` | 86 | Tìm cụm từ trọn vẹn (không khớp giữa chừng một từ khác). |
-| `_empty_args()` | 91 | Bộ tham số rỗng (mọi khóa đều có mặt). |
-| `_bans_in(text)` | 97 | Các ban có tên xuất hiện trong câu (đã chuẩn hóa). |
-| `_events_in(text)` | 107 | Các sự kiện (không tính nháp) có mã hoặc tên xuất hiện trong câu. Bỏ khớp nằm gọn trong khớp dài hơn của sự kiện khác (vd. "CTF" trong "FIA CTF Fall"). |
-| `parse_args(question)` | 123 | Trích tham số từ câu hỏi gốc bằng luật (không dùng model). |
-| `merge_args(question, model_args)` | 174 | Gộp tham số luật trích được với gợi ý của model. - Giá trị luật trích được từ chính câu chữ luôn thắng (không để model bỏ bộ lọc). - Giá trị liệt kê (enum) của model chỉ được dùng khi luật không thấy gì (model hiểu cách nói khác, vd. "chăm đi sự kiện" = tích cực). - Ban / sự kiện do model nêu chỉ được dùng nếu thực sự xuất hiện trong câu hỏi. |
-| `_member_target(actor, question, scope)` | 212 | Một thành viên được nhắc đích danh (MSSV/họ tên) hoặc chính người hỏi; None nếu không có. |
-| `detect_tool(question)` | 228 | Đoán công cụ phù hợp chỉ bằng luật; None nếu không chắc (để luật cũ xử lý). |
-| `_result(intent, answer, sources=None, verification='database', facts=None)` | 267 | Kết quả chuẩn cho chat/agent. |
-| `_clarify(answer)` | 278 | Câu hỏi cần nói rõ thêm (không đoán). |
-| `_unsupported(answer)` | 283 | Bộ lọc chưa hỗ trợ: báo rõ thay vì trả dữ liệu rộng hơn câu hỏi. |
-| `_criteria_note()` | 293 | Giải thích ngắn quy tắc xếp loại hoạt động hiện tại của CLB. |
-| `member_stats(actor, args, question)` | 301 | Đếm/liệt kê thành viên theo ban, mức hoạt động, trạng thái (trong phạm vi được xem). |
-| `_one_member_activity(member)` | 359 | Mức hoạt động của một thành viên kèm số liệu để người đọc tự kiểm. |
-| `_timing_label(event, now)` | 373 | Nhãn theo thời gian thực (cột trạng thái có thể chưa được cập nhật). |
-| `_live_events()` | 384 | Sự kiện không phải nháp và chưa hủy. |
-| `_has_attendance(event)` | 389 | Sự kiện đã có ít nhất một kết quả điểm danh (khác "pending"). |
-| `_pick_event(args)` | 395 | Chọn đúng MỘT sự kiện theo selector; trả (event, câu hỏi lại nếu chưa chọn được). |
-| `event_participation(actor, args, question)` | 435 | Đăng ký và điểm danh của một sự kiện (hoặc của một thành viên trong sự kiện đó). |
-| `event_list(actor, args, question)` | 523 | Sự kiện sắp tới / đang diễn ra / đã diễn ra gần đây (thông tin chung, ai cũng xem được). |
-| `run_tool(actor, tool, question, model_args=None)` | 546 | Chạy một công cụ có tham số; tham số được gộp và kiểm tra theo câu hỏi gốc. |
-| `answer_by_rules(actor, question)` | 558 | Đường dự phòng không dùng model: nhận diện bằng luật rồi chạy công cụ. |
+| `is_highest_absence(text)` | 79 | Câu hỏi "sự kiện nào vắng nhiều nhất" (luật cũ trong RulesProvider xử lý). |
+| `_has(pattern, text)` | 84 | Tìm cụm từ trọn vẹn (không khớp giữa chừng một từ khác). |
+| `_empty_args()` | 89 | Bộ tham số rỗng (mọi khóa đều có mặt). |
+| `_bans_in(text)` | 95 | Các ban có tên xuất hiện trong câu (đã chuẩn hóa). |
+| `_events_in(text)` | 105 | Các sự kiện (không tính nháp) có mã hoặc tên xuất hiện trong câu. Bỏ khớp nằm gọn trong khớp dài hơn của sự kiện khác (vd. "CTF" trong "FIA CTF Fall"). |
+| `parse_args(question)` | 121 | Trích tham số từ câu hỏi gốc bằng luật (không dùng model). |
+| `merge_args(question, model_args)` | 172 | Gộp tham số luật trích được với gợi ý của model. - Giá trị luật trích được từ chính câu chữ luôn thắng (không để model bỏ bộ lọc). - Giá trị liệt kê (enum) của model chỉ được dùng khi luật không thấy gì (model hiểu cách nói khác, vd. "chăm đi sự kiện" = tích cực). - Ban / sự kiện do model nêu chỉ được dùng nếu thực sự xuất hiện trong câu hỏi. |
+| `_member_target(actor, question, scope)` | 210 | Một thành viên được nhắc đích danh (MSSV/họ tên) hoặc chính người hỏi; None nếu không có. |
+| `detect_tool(question)` | 226 | Đoán công cụ phù hợp chỉ bằng luật; None nếu không chắc (để luật cũ xử lý). |
+| `_result(intent, answer, sources=None, verification='database', facts=None)` | 262 | Kết quả chuẩn cho chat/agent. |
+| `_clarify(answer)` | 273 | Câu hỏi cần nói rõ thêm (không đoán). |
+| `_unsupported(answer)` | 278 | Bộ lọc chưa hỗ trợ: báo rõ thay vì trả dữ liệu rộng hơn câu hỏi. |
+| `member_stats(actor, args, question)` | 288 | Đếm/liệt kê thành viên theo ban, mức hoạt động, trạng thái (trong phạm vi được xem). |
+| `_one_member_activity(member)` | 347 | Mức hoạt động của một thành viên kèm số liệu để người đọc tự kiểm. |
+| `_timing_label(event, now)` | 363 | Nhãn theo thời gian thực (cột trạng thái có thể chưa được cập nhật). |
+| `_live_events()` | 374 | Sự kiện không phải nháp và chưa hủy. |
+| `_has_attendance(event)` | 379 | Sự kiện đã có ít nhất một kết quả điểm danh (khác "pending"). |
+| `_pick_event(args)` | 385 | Chọn đúng MỘT sự kiện theo selector; trả (event, câu hỏi lại nếu chưa chọn được). |
+| `event_participation(actor, args, question)` | 425 | Đăng ký và điểm danh của một sự kiện (hoặc của một thành viên trong sự kiện đó). |
+| `event_list(actor, args, question)` | 513 | Sự kiện sắp tới / đang diễn ra / đã diễn ra gần đây (thông tin chung, ai cũng xem được). |
+| `run_tool(actor, tool, question, model_args=None)` | 536 | Chạy một công cụ có tham số; tham số được gộp và kiểm tra theo câu hỏi gốc. |
+| `answer_by_rules(actor, question)` | 548 | Đường dự phòng không dùng model: nhận diện bằng luật rồi chạy công cụ. |
 
 ### `app/services/common.py`
 
@@ -762,7 +765,7 @@ Kho mẫu email (plain text). Thay biến bằng str.replace, không bao giờ c
 | `cancel_registration(actor, registration)` | 85 | Hủy đăng ký (không cho hủy sau khi đã điểm danh); dữ liệu waitlist cũ (nếu có) vẫn được đôn lên. |
 | `qr_token(actor, event)` | 109 | Tạo token QR điểm danh có chữ ký (MANAGE_EVENTS). |
 | `qr_checkin(actor, token, now=None, expected_event_id=None)` | 115 | Điểm danh bằng token QR: kiểm tra chữ ký, hạn 15 phút, đúng sự kiện, đã đăng ký, trong thời gian sự kiện; xác định đúng giờ/muộn. |
-| `manual_attendance(actor, registration, state, note='')` | 154 | Điểm danh thủ công cho lượt đăng ký chính thức và đồng bộ điểm hoạt động. |
+| `manual_attendance(actor, registration, state, note='')` | 153 | Điểm danh thủ công cho lượt đăng ký chính thức (sự kiện đã kết thúc thì tính lại hoạt động). |
 | `feedback(actor, event, rating, comment='')` | 176 | Lưu/cập nhật đánh giá 1–5 sao của người đã tham gia, sau khi sự kiện kết thúc. |
 
 ### `app/services/export_security.py`

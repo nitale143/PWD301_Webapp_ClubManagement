@@ -24,18 +24,15 @@ from .access import (
     active_members, approved, can_manage_events, can_manage_members, directory_members, is_board,
     require, visible_members,
 )
-from .activities import DEFAULT_THRESHOLDS, activity_stats, setting
+from .activities import LABELS as _ACTIVITY_LABELS, levels_for, rules_note, summary as activity_summary
 from .assistant import _normalize
 from .common import club_now
 
 TOOLS = ("member_stats", "event_participation", "event_list")
 
-ACTIVITY_LEVELS = {
-    "tich_cuc": "Tích cực",
-    "binh_thuong": "Bình thường",
-    "it_hoat_dong": "Ít hoạt động",
-    "khong_hoat_dong": "Không hoạt động",
-}
+# Mức hoạt động model được phép chọn (nhãn lấy từ nguồn chung app/services/activities.py).
+ACTIVITY_LEVELS = {key: _ACTIVITY_LABELS[key] for key in
+                   ("tich_cuc", "hoat_dong", "it_hoat_dong", "khong_hoat_dong", "chua_xep_loai")}
 MEMBER_STATES = {"active": "đang sinh hoạt", "paused": "tạm nghỉ"}
 EVENT_SELECTORS = ("next", "latest", "ongoing", "named")
 EVENT_DETAILS = ("summary", "registered", "present", "absent")
@@ -61,7 +58,8 @@ _LIST_LIMIT = 50
 _ACTIVITY_PHRASES = (
     ("khong_hoat_dong", ("khong hoat dong", "khong con hoat dong", "khong tham gia")),
     ("it_hoat_dong", ("it hoat dong", "it tham gia", "hoat dong it", "hoat dong yeu")),
-    ("binh_thuong", ("binh thuong", "trung binh")),
+    ("chua_xep_loai", ("chua xep loai", "chua co xep loai", "chua danh gia")),
+    ("hoat_dong", ("binh thuong", "trung binh", "muc hoat dong binh thuong")),
     ("tich_cuc", ("tich cuc", "nang dong", "cham chi", "hoat dong nhieu", "tham gia nhieu",
                   "hoat dong tot", "cham di", "hay di", "di deu", "nhiet tinh", "sieng")),
 )
@@ -241,8 +239,7 @@ def detect_tool(question):
     activity = any(_has(phrase, text) for _level, phrases in _ACTIVITY_PHRASES for phrase in phrases)
     picks_event = named_event or re.search(
         r"\b(?:sap|dang dien ra|gan nhat|vua roi|vua qua|vua dien ra|hom nay)\b", text)
-    if activity and not picks_event and not any(
-            _has(phrase, text) for phrase in ("khong hoat dong", "khong tham gia")):
+    if activity and not picks_event:
         return "member_stats"  # "mấy bạn chăm đi sự kiện là ai" hỏi về thành viên
     if has_event and _PARTICIPATION_WORDS.search(text):
         return "event_participation"
@@ -250,8 +247,6 @@ def detect_tool(question):
         if re.search(r"\b(?:dang dien ra|dang to chuc|da dien ra|da ket thuc|da qua|gan day|vua qua)\b", text):
             return "event_list"
         return None
-    if any(_has(phrase, text) for phrase in ("khong hoat dong", "khong tham gia", "60 ngay")):
-        return None  # luật cũ: danh sách không hoạt động
     if _has("tam nghi", text):
         return "member_stats"
     if _bans_in(text) and (_COUNT_WORDS.search(text) or _LIST_WORDS.search(text)):
@@ -286,18 +281,10 @@ def _unsupported(answer):
 
 
 _TIME_FILTER = re.compile(r"\b20\d{2}\b|\b\d{1,2}[/-]\d{1,2}\b|\b(?:thang|tuan|ky|nam)\s+"
-                          r"(?:nay|truoc|sau|\d{1,2})\b|\b(?:hom qua|ngay mai)\b")
+                          r"(?:nay|truoc|sau|\d{1,2})\b|\b(?:hom qua|ngay mai)\b|\b\d{1,3}\s+ngay\b")
 
 
 # ---------------------------------------------------------------- member_stats
-def _criteria_note():
-    """Giải thích ngắn quy tắc xếp loại hoạt động hiện tại của CLB."""
-    rules = setting("activity_thresholds", DEFAULT_THRESHOLDS)
-    return (f"Quy tắc xếp loại: Tích cực ≥ {rules['active']}% sự kiện đủ điều kiện, "
-            f"Bình thường ≥ {rules['normal']}%, thấp hơn là Ít hoạt động; "
-            f"không có lần điểm danh nào trong {rules['inactive_days']} ngày là Không hoạt động.")
-
-
 def member_stats(actor, args, question):
     """Đếm/liệt kê thành viên theo ban, mức hoạt động, trạng thái (trong phạm vi được xem)."""
     text = _normalize(question)
@@ -338,7 +325,8 @@ def member_stats(actor, args, question):
     members = query.distinct().order_by(User.ho_ten, User.id).all()
     if level:
         label = ACTIVITY_LEVELS[level]
-        members = [row for row in members if activity_stats(row)["classification"] == label]
+        levels = levels_for(members)
+        members = [row for row in members if levels[row.id] == level]
         filters.append(f"mức {label}")
     scope = ", ".join(filters) or "toàn CLB"
     names = [f"- {row.ho_ten} ({row.mssv})" for row in members[:_LIST_LIMIT]]
@@ -349,24 +337,26 @@ def member_stats(actor, args, question):
         if len(members) > _LIST_LIMIT:
             lines.append(f"(Đang hiển thị {_LIST_LIMIT}/{len(members)} người; xem đầy đủ ở trang Thành viên.)")
     if level:
-        lines.append(_criteria_note())
+        lines.append(rules_note())
     lines.append("Nguồn: danh sách thành viên đang hoạt động trong database CLB"
-                 + (" và thống kê điểm danh." if level else "."))
+                 + (" và bảng tình trạng hoạt động của kỳ hiện tại." if level else "."))
     return _result("member_stats", "\n".join(lines), {"user": [row.id for row in members[:300]]},
                    facts={"count": len(members), "filters": scope})
 
 
 def _one_member_activity(member):
     """Mức hoạt động của một thành viên kèm số liệu để người đọc tự kiểm."""
-    stats = activity_stats(member)
-    latest = f"{stats['latest']:%d/%m/%Y}" if stats["latest"] else "chưa có"
-    answer = (f"{member.ho_ten} ({member.mssv}) đang được xếp loại: {stats['classification']}.\n"
-              f"- Có mặt {stats['present']}/{stats['eligible']} sự kiện đủ điều kiện ({stats['rate']}%), "
-              f"vắng {stats['absent']}, vắng có phép {stats['excused']}, đi muộn {stats['late']}.\n"
-              f"- Điểm hoạt động: {stats['points']}; lần điểm danh gần nhất: {latest}.\n"
-              + _criteria_note())
+    stats = activity_summary(member)
+    period = f" trong kỳ {stats['period']}" if stats["period"] else ""
+    score = f" ({stats['score']:g} điểm)" if stats["score"] is not None else ""
+    task_rate = f" ({stats['task_rate']:g}%)" if stats["task_rate"] is not None else ""
+    attendance_rate = f" ({stats['attendance_rate']:g}%)" if stats["attendance_rate"] is not None else ""
+    answer = (f"{member.ho_ten} ({member.mssv}) đang được xếp loại{period}: {stats['label']}{score}.\n"
+              f"- Task hoàn thành {stats['task_done']}/{stats['task_total']}{task_rate}.\n"
+              f"- Có mặt {stats['event_present']}/{stats['event_total']} sự kiện phải tham gia"
+              f"{attendance_rate}.\n" + rules_note())
     return _result("member_activity", answer, {"user": [member.id]},
-                   facts={"classification": stats["classification"]})
+                   facts={"classification": stats["label"]})
 
 
 # ---------------------------------------------------------------- sự kiện

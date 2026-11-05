@@ -102,7 +102,7 @@ Vào bằng tên của bạn ở góc dưới thanh bên trái, hoặc avatar �
 | Khả năng nhận task | Ghi kỹ năng (cách nhau bằng dấu phẩy, tối đa 10), số task đang làm tối đa (1–10), ngày tạm không nhận task. AI dùng các thông tin này khi gợi ý phân công. |
 | Bảo mật tài khoản | Xem email đã xác minh chưa, **Gửi lại email xác minh**, **Đổi mật khẩu**. |
 | Ảnh đại diện | Tải ảnh PNG, JPG, JPEG, GIF hoặc WEBP, tối đa 3 MB. Hệ thống kiểm tra ảnh thật và tự xóa thông tin ẩn (vị trí GPS…) trong ảnh. |
-| Hoạt động theo ban/kỳ | Tỉ lệ task hoàn thành theo từng ban, từng kỳ. |
+| Hoạt động theo kỳ | Số task hoàn thành / được giao, số sự kiện có mặt / phải tham gia, điểm và xếp loại của từng kỳ. Cách tính xem [mục 4.5](#45-tình-trạng-hoạt-động). |
 | Tình trạng đóng quỹ | Đã đóng hoặc chưa đóng quỹ theo từng kỳ. |
 
 **Trang Thành viên**: mọi thành viên đều thấy danh bạ CLB với thông tin cơ bản (tên, MSSV, ban, vai trò) và chỉ mở được hồ sơ chi tiết của chính mình. Người có quyền quản lý thành viên thấy thêm tình trạng hoạt động, cột **Liên hệ** (số điện thoại ở trên, link Facebook ở dưới), mở được hồ sơ mọi người và bấm **Xuất danh sách** ra Excel. Chọn tìm kiếm / ban / sắp xếp rồi bấm **Áp dụng**. Danh bạ không gồm tài khoản Quản trị hệ thống.
@@ -130,7 +130,7 @@ Vào bằng tên của bạn ở góc dưới thanh bên trái, hoặc avatar �
    - Mã QR còn hạn (mỗi mã dùng được 15 phút).
 4. Quét trước giờ bắt đầu được tính **đúng giờ**, sau giờ bắt đầu được tính **đi muộn**. Mỗi người chỉ điểm danh một lần.
 
-Điểm hoạt động mặc định: đúng giờ +10, đi muộn +6, có phép 0, vắng −5.
+Đúng giờ và đi muộn đều tính là **có mặt** khi xếp loại hoạt động; vắng có phép không bị tính (xem [mục 4.5](#45-tình-trạng-hoạt-động)).
 
 ### 4.3. Đánh giá sự kiện
 
@@ -154,7 +154,26 @@ Sau khi sự kiện **kết thúc**, người đã tham gia có thể chấm 1�
    └──── Làm lại ◄───┘          (BĐH có thể Hủy ở bất kỳ bước nào trước khi hoàn thành)
 ```
 
-Tỉ lệ hoạt động = số task hoàn thành / tổng task (không tính task hủy), tính theo từng ban và từng kỳ, cập nhật khi sự kiện kết thúc. Kỳ bạn mới được duyệt vào CLB chưa bị tính.
+### 4.5. Tình trạng hoạt động
+
+Mỗi kỳ (Spring, Summer, Fall…), hệ thống chấm cho mỗi thành viên một **điểm từ 0 đến 100**:
+
+> **Điểm = 50% tỉ lệ task hoàn thành + 50% tỉ lệ có mặt ở sự kiện**
+
+- **Tỉ lệ task** = task hoàn thành / task được giao. Task bị hủy không tính.
+- **Tỉ lệ có mặt** = số sự kiện bạn có mặt (đúng giờ hoặc đi muộn) / số sự kiện bạn phải tham gia. Sự kiện phải tham gia là sự kiện mở cho mọi người hoặc cho ban của bạn. Vắng có phép không tính; không đăng ký hoặc không điểm danh tính là vắng.
+- Chỉ tính các sự kiện **đã kết thúc** trong kỳ. Nếu bạn chưa có task nào thì điểm chỉ tính theo điểm danh, và ngược lại.
+
+| Điểm | Xếp loại |
+|---|---|
+| từ 80 | Tích cực |
+| từ 50 | Hoạt động |
+| trên 0 | Ít hoạt động |
+| 0 | Không hoạt động |
+| chưa có task và chưa có sự kiện phải tham gia, hoặc kỳ bạn mới vào CLB | Chưa xếp loại |
+| BĐH ghi bạn đang tạm nghỉ | Tạm nghỉ |
+
+Điểm được tính lại khi BĐH bấm **Kết thúc sự kiện** hoặc sửa điểm danh của sự kiện đã kết thúc. Xem điểm của bạn ở **Hồ sơ**, hoặc hỏi Trợ lý AI "Tôi có tích cực không?".
 
 ---
 
@@ -191,7 +210,7 @@ Vào **Trợ lý AI**. Trợ lý trả lời các câu hỏi về dữ liệu CL
 | `Tôi còn khoản quỹ nào chưa đóng?` | Các khoản chưa đóng hoặc quá hạn của bạn |
 | `Các sự kiện sắp diễn ra` | Sự kiện sắp tới |
 | `Ban Kỹ thuật có bao nhiêu thành viên?` / `Ban Truyền thông gồm những ai?` | Số lượng và danh sách thành viên của ban |
-| `Tôi có tích cực không?` | Mức hoạt động của bạn kèm số sự kiện đã tham gia |
+| `Tôi có tích cực không?` | Xếp loại và điểm của bạn trong kỳ, kèm số task hoàn thành và số sự kiện có mặt |
 | `Tôi đã đăng ký FIA CTF Fall chưa?` | Tình trạng đăng ký và điểm danh của bạn ở sự kiện đó |
 | `Sự kiện nào đang diễn ra?` / `Các sự kiện đã diễn ra gần đây` | Danh sách sự kiện theo thời gian |
 
@@ -247,7 +266,7 @@ Nút nào không thuộc quyền của bạn sẽ bị ẩn. Kể cả khi gửi
 
 - Trang **Thành viên**: lọc, sắp xếp, **Xuất danh sách** Excel kèm SĐT, email, tình trạng hoạt động.
 - Bấm vào một thành viên để xem hồ sơ đầy đủ.
-- Qua REST API (dành cho người biết dùng API): sửa tên/SĐT/ghi chú/tình trạng, lưu trữ thành viên rời CLB, nhập danh sách từ CSV/XLSX, cộng/trừ điểm hoạt động có lý do. Xem `docs/DEVELOPER_GUIDE.md` mục REST API.
+- Qua REST API (dành cho người biết dùng API): sửa tên/SĐT/ghi chú/tình trạng, lưu trữ thành viên rời CLB, nhập danh sách từ CSV/XLSX. Xem `docs/DEVELOPER_GUIDE.md` mục REST API.
 - Thành viên tạo qua file nhập sẽ bị **bắt đổi mật khẩu** ở lần đăng nhập đầu tiên.
 
 ### 8.3. Cấp mật khẩu tạm
@@ -318,7 +337,7 @@ Dùng khi bàn giao nhiệm kỳ.
 
 ### 10.4. Kết thúc sự kiện
 
-Bấm **Kết thúc sự kiện** khi sự kiện xong. Đây là lúc hệ thống **tính lại tỉ lệ hoạt động** của các thành viên có task trong sự kiện, theo kỳ chứa ngày kết thúc. Hãy duyệt hết task trước khi bấm.
+Bấm **Kết thúc sự kiện** khi sự kiện xong. Đây là lúc hệ thống **tính lại tình trạng hoạt động** (task + điểm danh) của mọi thành viên trong kỳ chứa ngày kết thúc. Hãy duyệt hết task và hoàn tất điểm danh trước khi bấm. Sửa điểm danh sau khi kết thúc vẫn được, hệ thống tự tính lại.
 
 ---
 

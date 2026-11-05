@@ -3,8 +3,6 @@
 {% set role_labels = {'CN': 'Chủ nhiệm', 'PCN': 'Phó chủ nhiệm', 'TB': 'Trưởng ban', 'THUKY_THUQUY': 'Thư ký / Thủ quỹ', 'THANH_VIEN': 'Thành viên'} %}
 {% set role_label = role_labels.get(member.chuc_vu, member.chuc_vu) %}
 {% set team_names = member.ban_links|map(attribute='ban.ten_ban')|join(', ') %}
-{% set activity_labels = {'tich_cuc': 'Tích cực', 'hoat_dong': 'Đang hoạt động', 'it_hoat_dong': 'Ít hoạt động', 'khong_hoat_dong': 'Không hoạt động', 'ngung_hoat_dong': 'Ngừng hoạt động'} %}
-{% set activity_label = activity_labels.get(member.hoat_dong_status, member.hoat_dong_status or 'Chưa xác định') %}
 {% block title %}Hồ sơ · {{ member.ho_ten }}{% endblock %}
 {% block content %}
 <div class="page-stack profile-page">
@@ -36,7 +34,7 @@
                     <div><dt>Ngày sinh</dt><dd>{{ member.ngay_sinh.strftime('%d/%m/%Y') }}</dd></div>
                     <div><dt>Chức vụ</dt><dd>{{ role_label }}</dd></div>
                     <div><dt>Ban hoạt động</dt><dd>{{ team_names or 'Chưa có ban hoạt động' }}</dd></div>
-                    <div><dt>Tình trạng hoạt động</dt><dd>{{ activity_label }}</dd></div>
+                    <div><dt>Tình trạng hoạt động</dt><dd>{{ activity.label }}{% if activity.score is not none %} · {{ '%.0f'|format(activity.score) }} điểm{% endif %}{% if activity.period %} <span class="small muted">({{ activity.period }})</span>{% endif %}</dd></div>
                 </dl>
             </div>
         </section>
@@ -117,12 +115,12 @@
 
         {% if can_see_full %}
         <section class="span-12 card">
-            <div class="card-header"><div><h2>Hoạt động theo ban / kỳ</h2><p class="small muted">Tổng hợp từ các kỳ hoạt động đã được ghi nhận.</p></div>{{ icon('calendar') }}</div>
+            <div class="card-header"><div><h2>Hoạt động theo kỳ</h2><p class="small muted">{{ activity_rules }}</p></div>{{ icon('calendar') }}</div>
             {% if activities %}
             <div class="table-wrap"><table class="data-table">
-                <thead><tr><th>Kỳ</th><th>Ban</th><th>Task hoàn thành / tổng</th><th>Tỷ lệ</th><th>Đánh giá</th></tr></thead>
-                <tbody>{% for activity in activities %}
-                    <tr><td>{{ activity.period.ten_ky }}</td><td>{{ activity.ban.ten_ban }}</td><td>{{ activity.task_hoan_thanh }} / {{ activity.tong_task }}</td><td>{{ '%.0f'|format(activity.phan_tram) }}%</td><td>{{ activity.trang_thai }}</td></tr>
+                <thead><tr><th>Kỳ</th><th>Task hoàn thành / được giao</th><th>Có mặt / sự kiện phải tham gia</th><th>Điểm</th><th>Xếp loại</th></tr></thead>
+                <tbody>{% for row in activities %}
+                    <tr><td>{{ row.period.ten_ky }}</td><td>{{ row.task_hoan_thanh }} / {{ row.tong_task }}</td><td>{{ row.su_kien_co_mat }} / {{ row.tong_su_kien }}</td><td>{{ '%.0f'|format(row.diem) if row.diem is not none else '—' }}</td><td>{{ activity_labels.get(row.trang_thai, row.trang_thai) }}</td></tr>
                 {% endfor %}</tbody>
             </table></div>
             {% else %}

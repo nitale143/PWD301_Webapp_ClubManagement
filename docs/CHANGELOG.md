@@ -1,3 +1,30 @@
+# Tình trạng hoạt động: một nguồn, 50% task + 50% điểm danh (05/11/2026)
+
+## Lỗi đã sửa
+- Trang Thành viên, Tổng quan và file Excel đọc cột `user.hoat_dong_status`, nhưng không có code nào ghi vào cột này nên ai cũng hiện "Đang hoạt động". Trước đó có 4 cách đo "hoạt động" không khớp nhau: cột này, % task theo ban (`member_activity`, không trang nào hiển thị), tỉ lệ điểm danh (`activity_stats`, trợ lý AI dùng) và điểm cộng/trừ (`activity_point`).
+
+## Cách tính mới (`app/services/activities.py`)
+- Điểm mỗi kỳ = 50% tỉ lệ task hoàn thành + 50% tỉ lệ có mặt, chỉ trên sự kiện đã kết thúc trong kỳ. Thiếu một phần thì phần còn lại chiếm 100%; thiếu cả hai là "Chưa xếp loại".
+- Xếp loại: ≥ 80 Tích cực, ≥ 50 Hoạt động, > 0 Ít hoạt động, 0 Không hoạt động. Tạm nghỉ ghi đè điểm. Kỳ mới vào CLB là "Chưa xếp loại".
+- Vắng có phép không tính vào mẫu số; không đăng ký hay chưa điểm danh tính là vắng. Sự kiện chỉ mở cho một số ban chỉ tính với thành viên các ban đó.
+- Tính lại khi kết thúc sự kiện, khi sửa điểm danh của sự kiện đã kết thúc, hoặc bằng `flask recompute-activity` (cũng chạy trong `init-db`).
+- Trang Thành viên (số liệu, bộ lọc, cột tình trạng), Tổng quan, hồ sơ, Excel, API `/members/<id>/activity`, `/dashboard` và trợ lý AI cùng đọc một nguồn. Nhãn chung ở `Config.ACTIVITY_LABELS`.
+- Hồ sơ hiển thị điểm kỳ hiện tại và bảng theo kỳ: task hoàn thành/được giao, có mặt/phải tham gia, điểm, xếp loại.
+
+## Đã xóa (không còn dùng)
+- Cột `user.hoat_dong_status`; bảng `activity_point` (điểm +10/+6/−5) và `club_setting` (chỉ chứa bảng điểm/ngưỡng cũ). Migration `0004`; downgrade không khôi phục dữ liệu.
+- `app/activity.py`, `activity_stats`, `sync_attendance_point`, `manual_point`; API `POST /members/<id>/points`, `GET/PUT /settings/activity`.
+- Mức "Ngừng hoạt động" và "Bình thường" (gộp thành "Hoạt động"). Nhánh "không hoạt động 60 ngày" của trợ lý AI; câu hỏi kèm số ngày nay được báo là chưa hỗ trợ.
+- API `/dashboard`: `average_participation` đổi thành `average_activity_score`.
+
+## Nâng cấp
+```bash
+flask --app run.py db upgrade
+flask --app run.py recompute-activity
+```
+
+- Test mới: `tests/test_activity.py` (13 test). Tổng 206 test.
+
 # Giao diện: logo mới, favicon, bỏ tìm nhanh (03/11/2026)
 
 - Logo CLB mới (`static/assets/fia-club-logo.png`), dùng cho thanh bên, trang giới thiệu và khung chào trang Tổng quan (thay khối tròn "CLB FIA").

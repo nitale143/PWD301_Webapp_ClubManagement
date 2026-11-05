@@ -66,7 +66,7 @@ Nginx (TLS, static) ──► Gunicorn ──► ProxyFix (WSGI middleware)
 ├── gunicorn.conf.py        # cấu hình Gunicorn
 ├── Dockerfile, docker-compose.yml, .dockerignore
 ├── deploy/                 # nginx.conf, systemd units
-├── migrations/             # Flask-Migrate (Alembic): 0001 baseline, 0002 roles/auth, 0003 admin/kho mẫu/định dạng
+├── migrations/             # Flask-Migrate (Alembic): 0001 baseline, 0002 roles/auth, 0003 admin/kho mẫu/định dạng, 0004 tình trạng hoạt động
 ├── scripts/gen_function_reference.py
 ├── docs/                   # tài liệu
 ├── tests/                  # unittest (+ support.py) và script Playwright (.cjs)
@@ -84,7 +84,6 @@ Nginx (TLS, static) ──► Gunicorn ──► ProxyFix (WSGI middleware)
     ├── limiter.py          # Flask-Limiter
     ├── mail.py             # gửi SMTP an toàn (+ outbox khi dev)
     ├── scheduler.py        # job định kỳ (APScheduler)
-    ├── activity.py         # tính % hoạt động khi sự kiện kết thúc
     ├── legacy_sqlite.py    # nâng cấp DB SQLite tạo trước khi có migrations/
     ├── timeutil.py         # utcnow() thay datetime.utcnow()
     ├── routes/             # Blueprint: auth, main, member, profile, event, funds, ai, admin, api, kho_mau
@@ -185,8 +184,8 @@ Tên bảng và cột giữ tiếng Việt không dấu như database cũ. Thờ
 | Nhóm | Bảng | Ghi chú |
 |---|---|---|
 | Tài khoản & phân quyền | `user`, `role`, `user_ban`, `ban`, `member_record` | `user.chuc_vu` khớp `role.name`. `user_ban` là n-n User↔Ban (`is_truong_ban`). `member_record` 1-1 với user (tình trạng, lưu trữ). |
-| Sự kiện & task | `event`, `event_detail` (1-1), `event_target_ban`, `event_registration`, `attendance` (1-1 registration), `qr_checkin_log`, `event_feedback`, `task` | `task.assignee_id` bắt buộc, `task.ban_id` để tính hoạt động theo ban. |
-| Hoạt động | `member_activity`, `activity_point`, `club_setting` | `member_activity`: % task theo (user, ban, kỳ). `activity_point`: điểm danh / điều chỉnh tay. |
+| Sự kiện & task | `event`, `event_detail` (1-1), `event_target_ban`, `event_registration`, `attendance` (1-1 registration), `qr_checkin_log`, `event_feedback`, `task` | `task.assignee_id` bắt buộc; người phụ trách phải thuộc `task.ban_id`. |
+| Hoạt động | `member_activity` | Một dòng cho mỗi (thành viên, kỳ): số task, số sự kiện có mặt, điểm, mức. Nguồn duy nhất, xem [mục 5.1](#51-tình-trạng-hoạt-động). |
 | Quỹ theo kỳ | `fund_period`, `fund_transaction`, `fund_due` | Sổ thu chi + đánh dấu đóng quỹ theo kỳ. `fund_period` cũng là "kỳ" để tính hoạt động. |
 | Khoản thu | `fund_collection`, `fund_target_ban`, `fund_adjustment`, `fund_payment`, `payment_evidence` | Thu theo đợt, có xác nhận. |
 | AI | `chat_conversation`, `chat_message`, `conversation_pending`, `assistant_pending`, `ai_proposal`, `email_proposal`, `ai_report_snapshot`, `member_planning_profile`, `ai_usage_log` | |
@@ -194,6 +193,41 @@ Tên bảng và cột giữ tiếng Việt không dấu như database cũ. Thờ
 | Khác | `notification`, `audit_log` | |
 
 > **Hai hệ thống quỹ chạy song song.** `fund_period/fund_due/fund_transaction` (sổ quỹ theo kỳ) và `fund_collection/fund_payment` (khoản thu) **không tự đồng bộ** với nhau. Báo cáo AI chỉ tính `fund_payment` đã xác nhận. Gộp hai hệ thống là thay đổi dữ liệu lớn (`fund_period` còn được dùng làm "kỳ" cho `member_activity` và `user.ky_tham_gia_id`), nên cần migration dữ liệu riêng nếu muốn làm.
+
+### 5.1. Tình trạng hoạt động
+
+Mọi nơi hiển thị hoặc lọc tình trạng hoạt động (trang Thành viên, Tổng quan, hồ sơ, xuất Excel, API, trợ lý AI) đều đi qua **`app/services/activities.py`**. Không đọc hay ghi `member_activity` ở chỗ khác.
+
+**Công thức** (cho một thành viên trong một kỳ `fund_period`):
+
+| Thành phần | Tính | Ghi chú |
+|---|---|---|
+| Tỉ lệ task | task `hoan_thanh` / task được giao | Không tính task `huy`. Chỉ task thuộc sự kiện **đã kết thúc** trong kỳ. |
+| Tỉ lệ điểm danh | sự kiện có mặt (`on_time`, `late`) / sự kiện phải tham gia | Sự kiện phải tham gia = sự kiện đã kết thúc trong kỳ, mở cho mọi người hoặc cho ban của thành viên. `excused` không tính vào mẫu số; không đăng ký hay chưa điểm danh là vắng. |
+| Điểm | `Config.ACTIVITY_WEIGHTS` (mặc định 50 % + 50 %) | Thiếu một thành phần thì thành phần còn lại chiếm 100 %. Thiếu cả hai → `chua_xep_loai`. |
+| Mức | `Config.ACTIVITY_THRESHOLDS` | ≥ 80 `tich_cuc`, ≥ 50 `hoat_dong`, > 0 `it_hoat_dong`, 0 `khong_hoat_dong`. |
+
+- Thành viên được duyệt trong kỳ nào (`user.ky_tham_gia_id`) thì kỳ đó là `chua_xep_loai`.
+- `member_record.tinh_trang = 'paused'` hiển thị **Tạm nghỉ**, ghi đè điểm (vẫn được tính và lưu).
+- Nhãn tiếng Việt duy nhất: `Config.ACTIVITY_LABELS`.
+
+**Khi nào tính lại** (`refresh_for_event` → `refresh_period`, tính cho mọi thành viên của kỳ):
+- BĐH bấm **Kết thúc sự kiện** (`event.event_end`).
+- Sửa điểm danh của sự kiện đã kết thúc (`services.events.manual_attendance`, cả web và API).
+- `flask --app run.py recompute-activity` (cũng chạy trong `init-db`). Chạy sau khi nâng cấp lên migration 0004 hoặc sửa dữ liệu bằng tay.
+
+**Hàm chính**
+
+| Hàm | Dùng khi |
+|---|---|
+| `compute(member, period)` | Tính số liệu, không ghi database |
+| `refresh_period(period)`, `refresh_for_event(event)`, `refresh_all()` | Tính và lưu |
+| `level_of(member)`, `label_of(member)`, `summary(member)` | Đọc kết quả kỳ hiện tại của một người |
+| `levels_for(members)` | Đọc cho cả danh sách bằng 2 truy vấn (bảng thành viên, Excel, AI) |
+| `level_filter(level_or_levels)` | Điều kiện SQL lọc `User` (dùng subquery, không JOIN thêm bảng) |
+| `rules_note()` | Câu giải thích công thức, hiện ở hồ sơ và câu trả lời AI |
+
+Đổi trọng số hoặc ngưỡng: sửa `ACTIVITY_WEIGHTS` / `ACTIVITY_THRESHOLDS` trong `app/config.py`, rồi chạy `recompute-activity`.
 
 ### Ràng buộc quan trọng
 
@@ -382,8 +416,7 @@ Template dùng `can(Permission.X)` (từ context processor) để ẩn/hiện n�
 | GET | `/members/<id>` | chính mình / MANAGE_MEMBERS | Hồ sơ |
 | PATCH | `/members/<id>` | MANAGE_MEMBERS (người khác) | Sửa `name`, `phone`, `status`, `note` |
 | POST | `/members/<id>/archive` | MANAGE_MEMBERS | Lưu trữ (không cho BĐH cuối cùng) |
-| GET | `/members/<id>/activity` | chính mình / MANAGE_MEMBERS | Thống kê hoạt động |
-| POST | `/members/<id>/points` | MANAGE_MEMBERS | `{points, reason, event_id?}` |
+| GET | `/members/<id>/activity` | chính mình / MANAGE_MEMBERS | Tình trạng hoạt động kỳ hiện tại: `level`, `label`, `score`, `task_done/total`, `event_present/total` |
 | GET/POST | `/funds` | đã duyệt / MANAGE_FUNDS | Liệt kê / tạo khoản thu `{name,type,amount,start_date,due_date,applies_to_all,department_ids?,status}` |
 | GET | `/funds/<id>` | MANAGE_FUNDS hoặc thuộc đối tượng | Chi tiết + số dư của người xem |
 | PATCH | `/funds/<id>/status` | MANAGE_FUNDS | draft→open/cancelled, open→closed/cancelled |
@@ -405,7 +438,6 @@ Template dùng `can(Permission.X)` (từ context processor) để ẩn/hiện n�
 | POST | `/assistant` | đã duyệt | `{question, conversation_id?, agent?}` |
 | GET/POST/PATCH | `/assistant/conversations[...]` | chủ sở hữu | Quản lý cuộc trò chuyện |
 | GET/POST | `/assistant/proposals`, `/assistant/proposals/<id>/review` | MANAGE_EVENTS | Đề xuất AI |
-| GET/PUT | `/settings/activity` | MANAGE_MEMBERS | Bảng điểm & ngưỡng hoạt động |
 | GET | `/dashboard` | đã duyệt (theo phạm vi) | Số liệu tổng quan |
 | GET | `/reports/funds.xlsx` | MANAGE_FUNDS | Báo cáo khoản thu |
 | GET | `/reports/members.xlsx` | MANAGE_MEMBERS | Danh sách thành viên |
@@ -489,7 +521,7 @@ Model lỗi/hết quota/kế hoạch sai → `_rules_fallback`: `club_data_tools
 
 | Tool | Tham số (`args`) | Quyền |
 |---|---|---|
-| `member_stats` | `ban`, `activity` (tich_cuc · binh_thuong · it_hoat_dong · khong_hoat_dong), `state` (paused/active), `output` | Đếm/liệt kê cơ bản: mọi thành viên (danh bạ). Mức hoạt động, tạm nghỉ: MANAGE_MEMBERS (hoặc hỏi về chính mình). |
+| `member_stats` | `ban`, `activity` (tich_cuc · hoat_dong · it_hoat_dong · khong_hoat_dong · chua_xep_loai), `state` (paused/active), `output` | Đếm/liệt kê cơ bản: mọi thành viên (danh bạ). Mức hoạt động, tạm nghỉ: MANAGE_MEMBERS (hoặc hỏi về chính mình). |
 | `event_participation` | `selector` (next · latest · ongoing · named), `event`, `detail` (registered · present · absent), `ban` | MANAGE_EVENTS hoặc BĐH; thành viên thường chỉ hỏi được về chính mình. |
 | `event_list` | `window` (upcoming · ongoing · past) | Mọi thành viên. |
 
@@ -520,6 +552,7 @@ Schema do **Flask-Migrate (Alembic)** quản lý trong thư mục `migrations/`:
 | `0001` | Schema gốc (đúng như database cũ tạo bằng `db.create_all`) |
 | `0002` | Bảng `role` (+ seed quyền), cột xác thực trên `user`, email unique |
 | `0003` | Role `ADMIN`; `email_template` thêm `system_key`/`keywords`/`description`; bảng `proposal_template`; chuẩn hóa SĐT (`+84…`) và link Facebook cũ |
+| `0004` | `member_activity` tạo lại theo (thành viên, kỳ) với số task, số sự kiện có mặt, điểm; xóa `user.hoat_dong_status`, bảng `activity_point`, `club_setting` |
 
 **Quy trình thay đổi schema** (Ch5.2):
 
@@ -552,6 +585,13 @@ flask --app run.py init-db          # = db upgrade (chạy 0003) + nạp kho m�
 flask --app run.py create-admin     # nếu chưa có tài khoản Quản trị hệ thống
 ```
 
+**Nâng cấp lên 0004** (sao lưu DB trước; bảng `activity_point` và `club_setting` bị xóa, downgrade không khôi phục dữ liệu):
+
+```bash
+flask --app run.py db upgrade
+flask --app run.py recompute-activity   # tính lại tình trạng hoạt động mọi kỳ
+```
+
 MSSV cũ không đúng định dạng mới vẫn đăng nhập được (định dạng chỉ kiểm tra khi đăng ký/nhập mới).
 
 Nếu migration 0002 báo email trùng, sửa email của một trong các tài khoản trùng (SQLite: `UPDATE user SET email=... WHERE id=...`) rồi chạy lại `db upgrade`.
@@ -572,6 +612,7 @@ python scripts/gen_function_reference.py                   # cập nhật FUNCTI
 | `test_two_role_security.py` | Ma trận quyền theo chức vụ, quy tắc gán vai trò, nhường chức vụ, BĐH cuối cùng |
 | `test_account_security.py` | Mật khẩu mạnh, xác minh email, quên/đặt lại, đổi mật khẩu vô hiệu phiên cũ, fresh login, remember me, mật khẩu tạm, Flask-Limiter, ProxyFix, scheduler, migration up/down |
 | `test_core_flows.py` | Quỹ theo kỳ, sự kiện → task → tính hoạt động, trang/xuất thành viên, lệnh CLI |
+| `test_activity.py` | Công thức 50 % task + 50 % điểm danh, tạm nghỉ, chưa xếp loại, lọc SQL khớp Python, tính lại khi kết thúc sự kiện/sửa điểm danh, trang/Excel/API/AI cùng một số |
 | `test_auth_hardening.py` | CSRF mọi method, đăng nhập (khóa, xoay session, open redirect), đăng ký, avatar |
 | `test_workflows.py` | Luồng nghiệp vụ rộng: quỹ khoản thu, sự kiện, AI, email |
 | `test_agent_orchestrator.py`, `test_ai_data_tools.py`, `test_ai_reliability.py`, `test_chat_conversations.py`, `test_natural_datetime.py` | Trợ lý AI |

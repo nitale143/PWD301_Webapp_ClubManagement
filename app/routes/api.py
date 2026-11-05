@@ -24,7 +24,7 @@ from sqlalchemy import or_
 
 from app import db
 from app.models import (
-    AIProposal, Attendance, Ban, ClubSetting, Event, EventDetail, EventRegistration, EventTargetBan,
+    AIProposal, Attendance, Ban, Event, EventDetail, EventRegistration, EventTargetBan,
     FundCollection, FundPayment, MemberRecord, PaymentEvidence, Permission,
     User, UserBan,
 )
@@ -33,7 +33,7 @@ from app.services.access import (
     can_manage_events, can_manage_members, is_treasurer, scoped_members, require, visible_members, actor_scope_stamp,
     set_member_left_safely,
 )
-from app.services.activities import activity_stats, manual_point, DEFAULT_POINTS, DEFAULT_THRESHOLDS
+from app.services.activities import FOLLOW_UP_LEVELS, summary as activity_summary
 from app.services.agent import check_chat_rate, respond, respond_events
 from app.services.chat_conversations import (append_exchange, checked_title,
     conversation_json, conversation_list, create_conversation, message_page,
@@ -362,23 +362,12 @@ def member_archive(user_id):
 
 @api_bp.get("/members/<int:user_id>/activity")
 def member_activity(user_id):
-    """GET /members/<id>/activity – thống kê tham gia/điểm hoạt động."""
+    """GET /members/<id>/activity – tình trạng hoạt động kỳ hiện tại (task + điểm danh)."""
     user = db.get_or_404(User, user_id)
     require(can_view_member(current_user, user))
-    result = activity_stats(user)
-    result["latest"] = result["latest"].isoformat() if result["latest"] else None
+    result = activity_summary(user)
+    result["updated_at"] = result["updated_at"].isoformat() if result["updated_at"] else None
     return jsonify(result)
-
-
-@api_bp.post("/members/<int:user_id>/points")
-def member_points(user_id):
-    """POST /members/<id>/points – cộng/trừ điểm hoạt động thủ công, bắt buộc lý do."""
-    user = db.get_or_404(User, user_id)
-    require(can_manage_member(current_user, user))
-    data = body()
-    event = db.get_or_404(Event, data["event_id"]) if data.get("event_id") else None
-    point = manual_point(current_user, user, data.get("points"), data.get("reason"), event)
-    return jsonify(id=point.id, points=point.so_diem), 201
 
 
 @api_bp.get("/funds")
@@ -876,49 +865,14 @@ def assistant_proposal_review(proposal_id):
     return jsonify(proposal_json(proposal))
 
 
-@api_bp.get("/settings/activity")
-def activity_settings():
-    """GET /settings/activity – bảng điểm và ngưỡng xếp loại hoạt động (MANAGE_MEMBERS)."""
-    require(can_manage_members(current_user))
-    return jsonify(points=(db.session.get(ClubSetting, "activity_point_rules") or ClubSetting(value=DEFAULT_POINTS)).value,
-                   thresholds=(db.session.get(ClubSetting, "activity_thresholds") or ClubSetting(value=DEFAULT_THRESHOLDS)).value)
-
-
-@api_bp.put("/settings/activity")
-def activity_settings_update():
-    """PUT /settings/activity – cập nhật bảng điểm/ngưỡng hoạt động."""
-    require(can_manage_members(current_user))
-    data = body()
-    for field, key, defaults in (("points", "activity_point_rules", DEFAULT_POINTS),
-                                 ("thresholds", "activity_thresholds", DEFAULT_THRESHOLDS)):
-        if field not in data:
-            continue
-        values = data[field]
-        if not isinstance(values, dict) or set(values) != set(defaults):
-            raise DomainError(f"Cấu hình {field} không hợp lệ.")
-        try:
-            values = {name: int(value) for name, value in values.items()}
-        except (TypeError, ValueError):
-            raise DomainError(f"Cấu hình {field} phải là số nguyên.") from None
-        if field == "thresholds" and not (0 <= values["normal"] <= values["active"] <= 100 and values["inactive_days"] > 0):
-            raise DomainError("Ngưỡng hoạt động không hợp lệ.")
-        row = db.session.get(ClubSetting, key)
-        if row is None:
-            row = ClubSetting(key=key)
-            db.session.add(row)
-        row.value = values
-        audit(current_user, "setting_update", row, {"key": key, "values": values})
-    db.session.commit()
-    return activity_settings()
-
-
 @api_bp.get("/dashboard")
 def dashboard():
     """GET /dashboard – số liệu tổng quan: thành viên, hoạt động, tình hình quỹ, sự kiện sắp tới
     (theo phạm vi quyền).
     """
     members = visible_members(current_user).all()
-    stats = [activity_stats(member) for member in members]
+    stats = [activity_summary(member) for member in members]
+    scores = [item["score"] for item in stats if item["score"] is not None]
     open_funds = FundCollection.query.filter_by(trang_thai="open").all()
     fund_members = scoped_members(current_user, Permission.MANAGE_FUNDS).all()
     balances = []
@@ -933,10 +887,10 @@ def dashboard():
     remaining = sum((item[2]["remaining"] for item in balances), Decimal("0.00"))
     upcoming = Event.query.filter(Event.thoi_gian_bat_dau >= club_now()).order_by(Event.thoi_gian_bat_dau).limit(5).all()
     return jsonify(members=len(members), active_members=sum(member_record(m).tinh_trang == "active" for m in members),
-                   low_activity=sum(s["classification"] in {"Ít hoạt động", "Không hoạt động"} for s in stats),
+                   low_activity=sum(item["level"] in FOLLOW_UP_LEVELS for item in stats),
                    fund_required=str(required), fund_paid=str(paid), fund_remaining=str(remaining),
                    fund_completion=round(float(paid / required * 100), 1) if required else 0,
-                   average_participation=round(sum(s["rate"] for s in stats) / len(stats), 1) if stats else 0,
+                   average_activity_score=round(sum(scores) / len(scores), 1) if scores else None,
                    overdue=[{"member_id": m.id, "fund_id": f.id, "remaining": str(b["remaining"])}
                             for m, f, b in balances if b["status"] in {"unpaid", "overdue"}][:20],
                    upcoming_events=[event_json(event) for event in upcoming])

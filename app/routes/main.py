@@ -8,12 +8,13 @@ from sqlalchemy import func
 from app import db
 from app.models import (
     Attendance, Event, EventRegistration, FundPeriod, FundTransaction,
-    Notification, Task, User,
+    Notification, Task,
 )
 from app.permissions import approved_required
 from app.services.common import club_now
 from app.services.access import can_manage_events, is_board, is_treasurer, visible_members
 from app.services.briefings import daily_digest
+from app.services.activities import ACTIVE_LEVELS, level_filter
 
 main_bp = Blueprint("main", __name__)
 
@@ -108,9 +109,7 @@ def home():
         event_participants[ev.id] = list(assignees)
 
     visible_member_query = visible_members(current_user)
-    active_members = visible_member_query.filter(
-        User.hoat_dong_status.in_(["tich_cuc", "hoat_dong"])
-    ).count()
+    active_members = visible_member_query.filter(level_filter(ACTIVE_LEVELS)).count()
     year_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
     next_year = year_start.replace(year=year_start.year + 1)
     events_this_year = Event.query.filter(

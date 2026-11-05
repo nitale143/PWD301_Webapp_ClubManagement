@@ -147,9 +147,12 @@ class CoreFlowTests(unittest.TestCase):
             self.post(f"/task/{poster.id}/cap-nhat-trang-thai", {"trang_thai": "hoan_thanh"})
             self.post(f"/task/{slide.id}/cap-nhat-trang-thai", {"trang_thai": "huy"})
         self.assertEqual(self.post(f"/event/{event.id}/ket-thuc").status_code, 302)
-        activity = MemberActivity.query.filter_by(user_id=3, ban_id=1, period_id=1).one()
-        self.assertEqual((activity.tong_task, activity.task_hoan_thanh, activity.phan_tram), (1, 1, 100.0))
-        self.assertEqual(activity.trang_thai, "tich_cuc")
+        # Task: 1/1 hoàn thành (task hủy không tính) = 100%. Điểm danh: không đăng ký sự kiện → 0/1.
+        # Điểm = 50% × 100 + 50% × 0 = 50 → "Hoạt động".
+        activity = MemberActivity.query.filter_by(user_id=3, period_id=1).one()
+        self.assertEqual((activity.tong_task, activity.task_hoan_thanh, activity.tong_su_kien,
+                          activity.su_kien_co_mat, activity.diem), (1, 1, 1, 0, 50.0))
+        self.assertEqual(activity.trang_thai, "hoat_dong")
 
     # ---------------- Danh sách & xuất Excel thành viên ----------------
     def test_member_page_and_export_respect_member_management_permission(self):

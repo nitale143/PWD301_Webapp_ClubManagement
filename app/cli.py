@@ -7,6 +7,7 @@ Lệnh có sẵn:
     flask --app run.py reset-admin-password # đặt lại mật khẩu Quản trị hệ thống
     flask --app run.py seed-templates       # nạp lại các mẫu mặc định còn thiếu
     flask --app run.py sync-roles           # ghi đè quyền của các role theo DEFAULT_ROLES
+    flask --app run.py recompute-activity   # tính lại tình trạng hoạt động mọi kỳ (task + điểm danh)
     flask --app run.py run-scheduler        # chạy job định kỳ ở tiến trình riêng
     flask --app run.py migrate-chats | migrate-money | migrate-email-recipients
                                             # nâng cấp database SQLite cũ (trước khi có migrations/)
@@ -22,12 +23,13 @@ from app import db
 
 def register_cli(app):
     """Đăng ký các lệnh `flask --app run.py ...` (init-db, sync-roles, create-admin,
-    reset-admin-password, seed-templates, run-scheduler, migrate-*) vào app.
+    reset-admin-password, seed-templates, recompute-activity, run-scheduler, migrate-*) vào app.
     """
     from app.legacy_sqlite import (
         migrate_chat_conversations, migrate_email_recipients, migrate_legacy_money,
     )
     from app.models import SYSTEM_ADMIN_ROLE, Ban, Role, User
+    from app.services.activities import refresh_all
     from app.services.email_templates import seed_system_templates
     from app.services.proposal_templates import seed_proposal_templates
     from app.validators import ADMIN_USERNAME_RE, password_problems
@@ -48,7 +50,16 @@ def register_cli(app):
             click.echo("Đã tạo 3 ban hoạt động mặc định.")
         seed_system_templates()
         seed_proposal_templates()
-        click.echo("Database đã sẵn sàng (đã nạp kho mẫu mặc định).")
+        refresh_all()
+        db.session.commit()
+        click.echo("Database đã sẵn sàng (đã nạp kho mẫu mặc định, đã tính tình trạng hoạt động).")
+
+    @app.cli.command("recompute-activity")
+    def recompute_activity():
+        """Tính lại tình trạng hoạt động (50% task + 50% điểm danh) cho mọi thành viên, mọi kỳ."""
+        rows = refresh_all()
+        db.session.commit()
+        click.echo(f"Đã tính lại {rows} dòng tình trạng hoạt động.")
 
     @app.cli.command("sync-roles")
     def sync_roles():

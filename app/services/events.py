@@ -10,7 +10,7 @@ from app.models import (
     EventTargetBan, QRCheckinLog,
 )
 from .access import approved, can_manage_events, require
-from .activities import sync_attendance_point
+from .activities import refresh_for_event
 from .common import DomainError, audit, club_now
 from app.timeutil import utcnow
 
@@ -144,7 +144,6 @@ def qr_checkin(actor, token, now=None, expected_event_id=None):
     attendance.checkin_luc = utcnow()
     attendance.checkin_boi_id = actor.id
     db.session.add(QRCheckinLog(event_id=event.id, user_id=actor.id, account_id=actor.id, checkin_luc=utcnow()))
-    sync_attendance_point(attendance, actor)
     db.session.flush()
     audit(actor, "qr_checkin", attendance, {"event_id": event.id})
     db.session.commit()
@@ -152,7 +151,7 @@ def qr_checkin(actor, token, now=None, expected_event_id=None):
 
 
 def manual_attendance(actor, registration, state, note=""):
-    """Điểm danh thủ công cho lượt đăng ký chính thức và đồng bộ điểm hoạt động."""
+    """Điểm danh thủ công cho lượt đăng ký chính thức (sự kiện đã kết thúc thì tính lại hoạt động)."""
     require(can_manage_events(actor))
     if state not in ATTENDANCE_STATES:
         raise DomainError("Trạng thái điểm danh không hợp lệ.")
@@ -166,8 +165,9 @@ def manual_attendance(actor, registration, state, note=""):
     attendance.checkin_boi_id = actor.id
     attendance.checkin_luc = utcnow() if state in {"on_time", "late"} else None
     attendance.ghi_chu = str(note or "").strip()
-    sync_attendance_point(attendance, actor)
     db.session.flush()
+    # Sửa điểm danh sau khi sự kiện đã kết thúc → tính lại tình trạng hoạt động của kỳ.
+    refresh_for_event(registration.event)
     audit(actor, "attendance_manual", attendance, {"state": state})
     db.session.commit()
     return attendance

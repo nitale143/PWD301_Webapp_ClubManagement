@@ -12,7 +12,7 @@ from app.permissions import approved_required, permission_required
 from app.security import require_csrf
 from app.mail import send_email
 from app.services.email_templates import render_system_email
-from app.activity import cap_nhat_hoat_dong_khi_event_ket_thuc
+from app.services.activities import refresh_for_event
 from app.services.common import DomainError, club_now, parse_datetime
 from app.services.access import can_manage_events
 from app.services.events import (
@@ -432,15 +432,14 @@ def task_update_status(task_id):
 @login_required
 @permission_required(Permission.MANAGE_EVENTS)
 def event_end(event_id):
-    """Đánh dấu sự kiện đã kết thúc. Đây là thời điểm duy nhất tình trạng
-    hoạt động của các thành viên liên quan (theo ban) được tính lại."""
+    """Đánh dấu sự kiện đã kết thúc rồi tính lại tình trạng hoạt động (task + điểm danh) của mọi
+    thành viên trong kỳ chứa ngày kết thúc sự kiện."""
     ev = db.get_or_404(Event, event_id)
     if event_is_terminal(ev):
         abort(400)
     ev.trang_thai = "da_ket_thuc"
+    refresh_for_event(ev)
     db.session.commit()
-
-    cap_nhat_hoat_dong_khi_event_ket_thuc(ev)
 
     flash("Đã đánh dấu sự kiện kết thúc và cập nhật lại tình trạng hoạt động liên quan.", "success")
     return redirect(url_for("event.event_detail", event_id=ev.id))

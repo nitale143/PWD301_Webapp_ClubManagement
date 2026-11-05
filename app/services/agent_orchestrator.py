@@ -1067,7 +1067,7 @@ def _tool_description(name):
         "briefing": "Tóm tắt hôm nay hoặc báo cáo tuần/tháng được hỗ trợ.",
         "prepare_request": "Chạy các handler hiện có trên đúng câu gốc để tạo bản nháp/đề xuất chưa được duyệt.",
         "member_stats": ("Đếm hoặc liệt kê thành viên đang hoạt động; lọc theo ban (args.ban), mức hoạt động "
-                         "(args.activity: tich_cuc | binh_thuong | it_hoat_dong | khong_hoat_dong), trạng thái "
+                         "(args.activity: tich_cuc | hoat_dong | it_hoat_dong | khong_hoat_dong | chua_xep_loai; điểm = 50% task + 50% điểm danh trong kỳ), trạng thái "
                          "(args.state: paused = tạm nghỉ). Cũng trả mức hoạt động của MỘT thành viên khi câu "
                          "hỏi nêu MSSV/tên hoặc 'tôi'. Không dùng cho hồ sơ chi tiết hay task."),
         "event_participation": ("Số người đăng ký / có mặt / vắng của MỘT sự kiện, hoặc tình trạng của một "

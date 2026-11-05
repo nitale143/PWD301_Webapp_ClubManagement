@@ -9,6 +9,7 @@ from PIL import Image, ImageOps
 
 from app import db
 from app.models import User, MemberActivity, FundDue, MemberPlanningProfile
+from app.services.activities import LABELS as ACTIVITY_LABELS, rules_note, summary as activity_summary
 from app.forms import AvatarForm, ResendConfirmationForm
 from app.permissions import approved_required
 from app.services.access import can_issue_temp_password, can_view_member, can_view_all_members
@@ -92,6 +93,9 @@ def view_profile(user_id=None):
         is_self=is_self,
         can_see_full=can_see_full,
         activities=activities,
+        activity=activity_summary(user),
+        activity_labels=ACTIVITY_LABELS,
+        activity_rules=rules_note(),
         dues=dues,
         planning_profile=db.session.get(MemberPlanningProfile, user.id) if is_self else None,
         avatar_form=AvatarForm(),

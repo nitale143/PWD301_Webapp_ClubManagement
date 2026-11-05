@@ -160,7 +160,17 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(checkin.status_code, 200, checkin.json)
         duplicate = self.csrf_request("POST", "/api/v1/attendance/checkin", json={"token": token})
         self.assertEqual(duplicate.status_code, 400, duplicate.json)
-        self.assertEqual(self.client.get("/api/v1/members/4/activity").json["points"], 6)
+        # Chưa kết thúc sự kiện → chưa tính vào tình trạng hoạt động.
+        db.session.add(FundPeriod(ten_ky="Fall", ngay_bat_dau=date.today() - timedelta(days=30),
+                                  ngay_ket_thuc=date.today() + timedelta(days=60), is_current=True))
+        db.session.commit()
+        self.assertEqual(self.client.get("/api/v1/members/4/activity").json["level"], "chua_xep_loai")
+        self.login(1)
+        self.csrf_request("POST", f"/event/{event_id}/ket-thuc")
+        self.login(4)
+        activity = self.client.get("/api/v1/members/4/activity").json
+        self.assertEqual((activity["event_present"], activity["event_total"], activity["level"]),
+                         (1, 1, "tich_cuc"))
 
     def test_assistant_scope_and_member_archive(self):
         fund_id = self.create_fund()
@@ -180,7 +190,7 @@ class WorkflowTests(unittest.TestCase):
         self.login(4)
         self.assertEqual(self.client.get("/api/v1/dashboard").status_code, 403)
 
-    def test_event_edit_copy_cancel_and_activity_setting(self):
+    def test_event_edit_copy_cancel(self):
         event_id = self.create_event()
         updated = self.csrf_request("PATCH", f"/api/v1/events/{event_id}", json={"location": "Phong A"})
         self.assertEqual(updated.status_code, 200, updated.json)
@@ -193,9 +203,6 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(copied.json["location"], "Phong A")
         cancelled = self.csrf_request("POST", f"/api/v1/events/{event_id}/cancel")
         self.assertEqual(cancelled.json["status"], "cancelled")
-        self.login(3)
-        denied = self.csrf_request("PUT", "/api/v1/settings/activity", json={"points": {}})
-        self.assertEqual(denied.status_code, 403)
 
     def test_existing_pages_still_render(self):
         self.login(3)

@@ -2,7 +2,6 @@
 {% from "_ui.html" import icon, badge, avatar, stat %}
 {% block title %}Thành viên{% endblock %}
 {% block content %}
-{% set status_labels = {'tich_cuc': 'Tích cực', 'hoat_dong': 'Đang hoạt động', 'it_hoat_dong': 'Ít hoạt động', 'khong_hoat_dong': 'Không hoạt động', 'ngung_hoat_dong': 'Ngừng hoạt động'} %}
 <div class="page-stack ops-preview ops-members">
     <section class="card members-toolbar-card">
         <div class="card-body">
@@ -24,7 +23,7 @@
                         <span class="field-label">Tình trạng hoạt động</span>
                         <select class="select" name="status">
                             <option value="">Tất cả trạng thái</option>
-                            {% for code, label in status_labels.items() %}<option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                            {% for code, label in activity_labels.items() %}<option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
                         </select>
                     </label>
                     {% endif %}
@@ -47,8 +46,8 @@
     <div class="grid-12">
         <div class="span-4">{{ stat('Thành viên trong phạm vi xem', total_members, 'users', 'Theo quyền truy cập hiện tại', 'indigo') }}</div>
         {% if is_bdh %}
-        <div class="span-4">{{ stat('Đang hoạt động', active_members, 'check', 'Tích cực hoặc đang hoạt động', 'green') }}</div>
-        <div class="span-4">{{ stat('Cần theo dõi', follow_up_members, 'clock', 'Ít, không hoặc ngừng hoạt động', 'orange') }}</div>
+        <div class="span-4">{{ stat('Đang hoạt động', active_members, 'check', 'Tích cực hoặc hoạt động' ~ (' · ' ~ activity_period.ten_ky if activity_period else ''), 'green') }}</div>
+        <div class="span-4">{{ stat('Cần theo dõi', follow_up_members, 'clock', 'Ít hoạt động hoặc không hoạt động', 'orange') }}</div>
         {% else %}
         <div class="span-8"><article class="card member-scope-note"><div class="card-body"><span class="eyebrow">PHẠM VI TRUY CẬP</span><p class="muted small">Danh sách và thông tin hiển thị tuân theo quyền xem thành viên của bạn.</p></div></article></div>
         {% endif %}
@@ -64,14 +63,14 @@
                 <thead><tr><th>Thành viên</th><th>MSSV</th><th>Ban hoạt động</th><th>Vai trò</th>{% if is_bdh %}<th>Tình trạng</th><th>Liên hệ</th>{% endif %}</tr></thead>
                 <tbody>
                     {% for member in members %}
-                    {% set status = member.hoat_dong_status or 'hoat_dong' %}
-                    {% if status in ['tich_cuc', 'hoat_dong'] %}{% set status_tone = 'success' %}{% elif status == 'it_hoat_dong' %}{% set status_tone = 'warning' %}{% elif status in ['khong_hoat_dong', 'ngung_hoat_dong'] %}{% set status_tone = 'danger' %}{% else %}{% set status_tone = 'neutral' %}{% endif %}
+                    {% set status = activity_levels.get(member.id, 'chua_xep_loai') %}
+                    {% if status in ['tich_cuc', 'hoat_dong'] %}{% set status_tone = 'success' %}{% elif status == 'it_hoat_dong' %}{% set status_tone = 'warning' %}{% elif status == 'khong_hoat_dong' %}{% set status_tone = 'danger' %}{% else %}{% set status_tone = 'neutral' %}{% endif %}
                     <tr>
                         <td>{% if is_bdh or member.id == current_user.id %}<a class="member-cell member-profile-link" href="{{ url_for('profile.view_profile', user_id=member.id) }}">{% else %}<span class="member-cell">{% endif %}{{ avatar(member.ho_ten, ['indigo', 'blue', 'violet', 'teal', 'rose', 'amber'][member.id % 6]) }}<span><strong>{{ member.ho_ten }}</strong><span class="small muted">{{ member.email if is_bdh else ('Hồ sơ của bạn' if member.id == current_user.id else 'Thành viên FIA') }}</span></span>{% if is_bdh or member.id == current_user.id %}</a>{% else %}</span>{% endif %}</td>
                         <td><span class="member-id">{{ member.mssv }}</span></td>
                         <td>{{ member.ban_links|map(attribute='ban.ten_ban')|join(', ') or 'Chưa gắn ban' }}</td>
                         <td>{{ {'CN': 'Chủ nhiệm', 'PCN': 'Phó chủ nhiệm', 'TB': 'Trưởng ban', 'THUKY_THUQUY': 'Thư ký / Thủ quỹ', 'THANH_VIEN': 'Thành viên'}.get(member.chuc_vu, member.chuc_vu) }}</td>
-                        {% if is_bdh %}<td>{{ badge(status_labels.get(status, status), status_tone) }}</td><td><div class="member-contact"><span class="small">{{ member.sdt or '—' }}</span>{% if member.facebook_link %}<a class="small" href="{{ member.facebook_link }}" target="_blank" rel="noopener noreferrer">Facebook</a>{% endif %}</div></td>{% endif %}
+                        {% if is_bdh %}<td>{{ badge(activity_labels[status], status_tone) }}</td><td><div class="member-contact"><span class="small">{{ member.sdt or '—' }}</span>{% if member.facebook_link %}<a class="small" href="{{ member.facebook_link }}" target="_blank" rel="noopener noreferrer">Facebook</a>{% endif %}</div></td>{% endif %}
                     </tr>
                     {% else %}
                     <tr><td colspan="{{ 6 if is_bdh else 4 }}"><div class="empty-state"><span class="empty-state-icon">{{ icon('search') }}</span><strong>Chưa tìm thấy thành viên</strong><span class="small muted">Thử đổi từ khóa hoặc bộ lọc của bạn.</span></div></td></tr>

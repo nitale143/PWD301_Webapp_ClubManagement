@@ -14,7 +14,7 @@ GROUPS = [
     ("Khởi tạo & cấu hình", ["app/__init__.py", "app/config.py", "app/cli.py", "app/limiter.py", "app/timeutil.py"]),
     ("Bảo mật & xác thực", ["app/hardening.py", "app/security.py", "app/permissions.py", "app/tokens.py",
                              "app/validators.py", "app/forms.py", "app/mail.py"]),
-    ("Dữ liệu", ["app/models.py", "app/activity.py", "app/legacy_sqlite.py", "app/scheduler.py"]),
+    ("Dữ liệu", ["app/models.py", "app/legacy_sqlite.py", "app/scheduler.py"]),
     ("Routes (giao diện web & REST API)", ["app/routes/auth.py", "app/routes/admin.py", "app/routes/main.py",
                                            "app/routes/member.py", "app/routes/profile.py", "app/routes/event.py",
                                            "app/routes/funds.py", "app/routes/ai.py", "app/routes/api.py"]),

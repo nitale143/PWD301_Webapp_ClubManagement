@@ -185,11 +185,10 @@ class User(UserMixin, db.Model):
     # Người đã chỉ định chức vụ này (phục vụ cơ chế nhường quyền)
     chi_dinh_boi_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
 
-    hoat_dong_status = db.Column(db.String(20), default="hoat_dong")
     ngay_tao = db.Column(db.DateTime, default=utcnow)
 
-    # Kỳ (FundPeriod) mà thành viên được BĐH duyệt vào. Kỳ này không tính %
-    # hoạt động; từ kỳ KẾ TIẾP mới tính.
+    # Kỳ (FundPeriod) mà thành viên được BĐH duyệt vào. Kỳ này "Chưa xếp loại" hoạt động;
+    # từ kỳ KẾ TIẾP mới tính (app/services/activities.py).
     ky_tham_gia_id = db.Column(db.Integer, db.ForeignKey("fund_period.id"), nullable=True)
 
     # --- Xác thực (Ch6) ---
@@ -463,29 +462,33 @@ class FundDue(db.Model):
 
 
 # ---------------------------------------------------------------------------
-# Tình trạng hoạt động: theo (thành viên, ban, kỳ), cập nhật mỗi khi
-# một sự kiện kết thúc (xem app/activity.py).
+# Tình trạng hoạt động: theo (thành viên, kỳ), tính lại khi sự kiện kết thúc
+# (xem app/services/activities.py).
 # ---------------------------------------------------------------------------
 class MemberActivity(db.Model):
-    """Kết quả tính % hoạt động của một thành viên theo (ban, kỳ)."""
+    """Tình trạng hoạt động của một thành viên trong một kỳ (tính bởi app/services/activities.py).
+
+    Điểm = 50% tỉ lệ task hoàn thành + 50% tỉ lệ có mặt, chỉ trên sự kiện đã kết thúc trong kỳ.
+    """
     __tablename__ = "member_activity"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    ban_id = db.Column(db.Integer, db.ForeignKey("ban.id"), nullable=False)
     period_id = db.Column(db.Integer, db.ForeignKey("fund_period.id"), nullable=False)
 
-    tong_task = db.Column(db.Integer, default=0)       # không tính task 'huy'
-    task_hoan_thanh = db.Column(db.Integer, default=0)
-    phan_tram = db.Column(db.Float, default=0.0)
-    trang_thai = db.Column(db.String(20), default="khong_hoat_dong")
-    cap_nhat_luc = db.Column(db.DateTime, default=utcnow)
+    tong_task = db.Column(db.Integer, nullable=False, default=0)        # không tính task 'huy'
+    task_hoan_thanh = db.Column(db.Integer, nullable=False, default=0)
+    tong_su_kien = db.Column(db.Integer, nullable=False, default=0)     # không tính vắng có phép
+    su_kien_co_mat = db.Column(db.Integer, nullable=False, default=0)   # đúng giờ + đi muộn
+    diem = db.Column(db.Float)                                          # 0–100; NULL = chưa có dữ liệu
+    # tich_cuc | hoat_dong | it_hoat_dong | khong_hoat_dong | chua_xep_loai
+    trang_thai = db.Column(db.String(20), nullable=False, default="chua_xep_loai")
+    cap_nhat_luc = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     user = db.relationship("User")
-    ban = db.relationship("Ban")
     period = db.relationship("FundPeriod")
 
     __table_args__ = (
-        db.UniqueConstraint("user_id", "ban_id", "period_id", name="uq_activity_user_ban_period"),
+        db.UniqueConstraint("user_id", "period_id", name="uq_activity_user_period"),
     )
 
 
@@ -723,31 +726,6 @@ class EventFeedback(db.Model):
         db.UniqueConstraint("event_id", "user_id", name="uq_event_feedback_member"),
         db.CheckConstraint("danh_gia BETWEEN 1 AND 5", name="ck_event_feedback_rating"),
     )
-
-
-class ActivityPoint(db.Model):
-    """Điểm hoạt động cộng/trừ cho thành viên (điểm danh tự động hoặc BĐH điều chỉnh có lý do)."""
-    __tablename__ = "activity_point"
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    event_id = db.Column(db.Integer, db.ForeignKey("event.id"))
-    so_diem = db.Column(db.Integer, nullable=False)
-    loai = db.Column(db.String(12), nullable=False)
-    ly_do = db.Column(db.Text, nullable=False)
-    tao_boi_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    tao_luc = db.Column(db.DateTime, nullable=False, default=utcnow)
-    __table_args__ = (
-        db.CheckConstraint("length(trim(ly_do)) > 0", name="ck_activity_point_reason"),
-        db.Index("ix_activity_point_member_time", "user_id", "tao_luc"),
-    )
-
-
-class ClubSetting(db.Model):
-    """Cấu hình nghiệp vụ dạng key → JSON (vd: bảng điểm hoạt động, ngưỡng xếp loại)."""
-    __tablename__ = "club_setting"
-    key = db.Column(db.String(100), primary_key=True)
-    value = db.Column(db.JSON, nullable=False)
-    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
 
 class AuditLog(db.Model):

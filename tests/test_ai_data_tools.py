@@ -10,8 +10,9 @@ from unittest.mock import patch
 
 from app import create_app, db
 from app.models import (
-    Attendance, Ban, Event, EventRegistration, MemberRecord, User, UserBan,
+    Attendance, Ban, Event, EventRegistration, FundPeriod, MemberRecord, User, UserBan,
 )
+from app.services.activities import refresh_period
 from app.services.agent import respond_events
 from app.services.assistant import RulesProvider
 from app.services.club_data_tools import answer_by_rules, detect_tool, merge_args
@@ -88,6 +89,13 @@ class DataToolTests(unittest.TestCase):
                                       checkin_luc=utcnow() - timedelta(days=2) if state == "on_time" else None))
         for user_id, state in ((1, "registered"), (2, "cancelled"), (3, "registered"), (4, "registered")):
             db.session.add(EventRegistration(event_id=11, user_id=user_id, trang_thai=state))
+        period = FundPeriod(ten_ky="Fall 2026", ngay_bat_dau=(now - timedelta(days=30)).date(),
+                            ngay_ket_thuc=(now + timedelta(days=60)).date(), is_current=True)
+        db.session.add(period)
+        db.session.flush()
+        # Không có task: điểm = tỉ lệ có mặt. 1, 3 có mặt → Tích cực; 2 vắng → Không hoạt động;
+        # 4 vắng có phép (không tính) → Chưa xếp loại.
+        refresh_period(period)
         db.session.commit()
 
     def tearDown(self):
@@ -127,7 +135,7 @@ class DataToolTests(unittest.TestCase):
         self.assertIn("Casey Chair", result["answer"])
         self.assertIn("Morgan Own", result["answer"])
         self.assertNotIn("Riley Outside", result["answer"])
-        self.assertIn("Quy tắc xếp loại", result["answer"])
+        self.assertIn("Cách xếp loại: điểm = 50% tỉ lệ task", result["answer"])
 
     def test_ban_filter_and_absent_list_of_latest_event(self):
         ban = answer_by_rules(self.user(1), "Ban Kỹ thuật có bao nhiêu thành viên")

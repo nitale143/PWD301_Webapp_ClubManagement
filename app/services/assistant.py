@@ -18,9 +18,8 @@ from flask_login import current_user
 from app import db
 from app.models import AIUsageLog, Attendance, ChatMessage, Event, EventRegistration, FundCollection, FundDue, FundPayment, FundPeriod, Task, User
 from app.models import Permission
-from .access import (board_members, can_manage_events, can_manage_funds, can_manage_members,
-                     is_board, require, scoped_members, visible_members)
-from .activities import activity_stats
+from .access import (board_members, can_manage_events, can_manage_funds,
+                     is_board, require, scoped_members)
 from .common import DomainError, club_now
 from .funds import balance, target_members
 from app.timeutil import utcnow
@@ -299,26 +298,6 @@ class RulesProvider(AssistantProvider):
             total = sum((p.so_tien for p in query), Decimal("0.00"))
             label = "trong phạm vi bạn được xem" if not full_scope else "của câu lạc bộ"
             return {"intent": "collected_total", "answer": f"Tổng tiền đã thu và xác nhận {label}: {_money(total)}."}
-
-        if "khong tham gia" in text or "khong hoat dong" in text or "60 ngay" in text:
-            require(can_manage_members(actor))
-            day_window = re.search(r"\b(\d{1,3})\s+ngay\b", text)
-            if day_window and int(day_window.group(1)) != 60:
-                return {"intent": "unsupported_timeframe", "answer":
-                        "Khoảng thời gian này chưa được hỗ trợ cho danh sách thành viên không hoạt động. Hãy dùng 60 ngày hoặc quy tắc hiện tại của CLB."}
-            members = visible_members(actor).order_by(User.id.asc()).all()
-            if "60 ngay" in text:
-                cutoff = utcnow() - timedelta(days=60)
-                rows = [member.ho_ten for member in members
-                        if (not (stats := activity_stats(member))["latest"]
-                            or stats["latest"] < cutoff)]
-                label = "Thành viên không có hoạt động trong 60 ngày gần nhất"
-            else:
-                rows = [member.ho_ten for member in members
-                        if activity_stats(member)["classification"] == "Không hoạt động"]
-                label = "Thành viên được xếp loại không hoạt động theo quy tắc hiện tại của CLB"
-            return {"intent": "inactive_members", "answer": label + ":\n" +
-                    ("\n".join(rows[:100]) or "Không có.")}
 
         if "vang" in text and re.search(r"\b(?:cao nhat|nhieu nhat|vang nhat)\b", text):
             require(can_manage_events(actor))

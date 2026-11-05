@@ -87,20 +87,28 @@ class Config:
     ROLE_LIMITS = {"CN": 1, "PCN": 2, "TB": 3, "THUKY_THUQUY": 1}
 
     MEMBER_STATUS = ["pending", "approved", "rejected"]
-    ACTIVITY_STATUS = [
-        "tich_cuc",       # > 80%
-        "hoat_dong",      # > 50%
-        "it_hoat_dong",   # < 49%
-        "khong_hoat_dong",# 0%
-        "ngung_hoat_dong",# BDH chi dinh
-    ]
-    # Ngưỡng % để xếp loại tình trạng hoạt động (tính theo từng ban/kỳ)
+    # --- Tình trạng hoạt động (app/services/activities.py) ---
+    # Điểm hoạt động của một kỳ = TASK% × tỉ lệ task hoàn thành + ĐIỂM DANH% × tỉ lệ có mặt.
+    # Chỉ tính sự kiện ĐÃ KẾT THÚC trong kỳ. Thiếu một phần (không có task / không có sự kiện
+    # nào phải điểm danh) thì phần còn lại chiếm 100%. Thiếu cả hai → "Chưa xếp loại".
+    ACTIVITY_WEIGHTS = {"task": 50, "attendance": 50}
+    # Ngưỡng điểm (0–100), xét từ trên xuống; điểm 0 là "Không hoạt động".
     ACTIVITY_THRESHOLDS = [
         (80, "tich_cuc"),
         (50, "hoat_dong"),
         (0.01, "it_hoat_dong"),
         (0, "khong_hoat_dong"),
     ]
+    # Nhãn hiển thị duy nhất cho toàn hệ thống (trang, Excel, trợ lý AI).
+    # "tam_nghi" lấy từ hồ sơ thành viên (MemberRecord.tinh_trang = paused) và ghi đè điểm.
+    ACTIVITY_LABELS = {
+        "tich_cuc": "Tích cực",
+        "hoat_dong": "Hoạt động",
+        "it_hoat_dong": "Ít hoạt động",
+        "khong_hoat_dong": "Không hoạt động",
+        "chua_xep_loai": "Chưa xếp loại",
+        "tam_nghi": "Tạm nghỉ",
+    }
     TASK_STATUS = ["dang_lam", "cho_duyet", "lam_lai", "hoan_thanh", "huy"]
     EVENT_STATUS = ["sap_dien_ra", "dang_dien_ra", "da_ket_thuc", "cancelled"]
 
