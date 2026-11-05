@@ -741,25 +741,29 @@ class AuditLog(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
 
-class AIProposal(db.Model):
-    """An AI suggestion is inert until a board member explicitly approves it."""
+class EventDraft(db.Model):
+    """Bản nháp sự kiện do trợ lý AI lập từ mô tả (xem app/services/event_drafts.py).
 
-    __tablename__ = "ai_proposal"
+    Được lưu ngay cả khi còn thiếu thông tin; người quản lý sự kiện bổ sung qua chat hoặc form.
+    Không ghi gì vào bảng event/task cho tới khi được duyệt. `event_id` có giá trị khi bản nháp
+    chỉ thêm task cho một sự kiện đã có. `data` là JSON: thông tin sự kiện + danh sách task.
+    """
+    __tablename__ = "event_draft"
     id = db.Column(db.Integer, primary_key=True)
-    kind = db.Column(db.String(10), nullable=False)
-    request_text = db.Column(db.Text, nullable=False)
-    payload = db.Column(db.JSON, nullable=False)
-    provider = db.Column(db.String(20), nullable=False)
-    status = db.Column(db.String(12), nullable=False, default="pending", index=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    reviewed_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    conversation_id = db.Column(db.Integer, db.ForeignKey("chat_conversation.id"), index=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("event.id"))
+    status = db.Column(db.String(12), nullable=False, default="draft")   # draft | approved | discarded
+    request_text = db.Column(db.Text, nullable=False)
+    data = db.Column(db.JSON, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+    reviewed_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     reviewed_at = db.Column(db.DateTime)
-    result_ids = db.Column(db.JSON, nullable=False, default=list)
+    result_event_id = db.Column(db.Integer, db.ForeignKey("event.id"))
     __table_args__ = (
-        db.CheckConstraint("kind IN ('event','task')", name="ck_ai_proposal_kind"),
-        db.CheckConstraint("status IN ('pending','approved','rejected')", name="ck_ai_proposal_status"),
-        db.Index("ix_ai_proposal_creator_status", "created_by_id", "status"),
+        db.CheckConstraint("status IN ('draft','approved','discarded')", name="ck_event_draft_status"),
+        db.Index("ix_event_draft_status_updated", "status", "updated_at"),
     )
 
 
@@ -834,29 +838,6 @@ class ProposalTemplate(db.Model):
         db.UniqueConstraint("kind", "name_key", name="uq_proposal_template_name"),
         db.CheckConstraint("kind IN ('event','task')", name="ck_proposal_template_kind"),
     )
-
-
-class AssistantPending(db.Model):
-    """The incomplete natural-language proposal currently being clarified."""
-
-    __tablename__ = "assistant_pending"
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), primary_key=True)
-    kind = db.Column(db.String(10), nullable=False)
-    text = db.Column(db.Text, nullable=False)
-    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow,
-                           onupdate=utcnow)
-
-
-class ConversationPending(db.Model):
-    """A pending clarification scoped to one conversation tab."""
-
-    __tablename__ = "conversation_pending"
-    conversation_id = db.Column(db.Integer, db.ForeignKey("chat_conversation.id"), primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    kind = db.Column(db.String(10), nullable=False)
-    text = db.Column(db.Text, nullable=False)
-    updated_at = db.Column(db.DateTime, nullable=False, default=utcnow,
-                           onupdate=utcnow)
 
 
 class AIReportSnapshot(db.Model):

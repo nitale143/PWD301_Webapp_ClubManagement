@@ -232,15 +232,13 @@ Các model SQLAlchemy của webapp CLB (Ch5 – Database & ORM, Ch7 – RBAC).
 | class `QRCheckinLog` | 705 | Nhật ký mỗi lần quét QR điểm danh (phục vụ đối soát). |
 | class `EventFeedback` | 715 | Đánh giá 1–5 sao và bình luận của thành viên sau sự kiện. |
 | class `AuditLog` | 730 | Nhật ký thao tác: ai làm gì, trên đối tượng nào, lúc nào (không lưu mật khẩu/nội dung nhạy cảm). |
-| class `AIProposal` | 744 | An AI suggestion is inert until a board member explicitly approves it. |
-| class `EmailProposal` | 766 | Email draft: chat creation never sends; a separate BDH action does. |
-| class `EmailTemplate` | 789 | Mẫu email trong kho mẫu. - `system_key` có giá trị: mẫu của email tự động (xác minh email, giao task…) và mẫu chung `general`; chỉ sửa nội dung, không xóa/đổi tên. - `system_key` rỗng: mẫu do BĐH tạo, AI tìm theo tên/từ khóa khi soạn nháp. |
-| class `ProposalTemplate` | 812 | Mẫu sự kiện / mẫu chia task trong kho mẫu, AI dùng khi lập đề xuất. `content` (JSON): - kind="event": {"name", "content", "type", "location", "duration_hours"} - kind="task": {"tasks": [{"name", "description", "days_before"}]} `is_default=True`: mẫu chung, dùng khi không tìm thấy mẫu phù hợp hơn. |
-| class `AssistantPending` | 839 | The incomplete natural-language proposal currently being clarified. |
-| class `ConversationPending` | 850 | A pending clarification scoped to one conversation tab. |
-| class `AIReportSnapshot` | 862 | Immutable reviewed numbers and source rows for export/email. |
-| class `MemberPlanningProfile` | 873 | Member-provided task preferences; absent rows use conservative defaults. |
-| class `AIUsageLog` | 889 | Successful model calls, without prompts, replies, secrets or price guesses. |
+| class `EventDraft` | 744 | Bản nháp sự kiện do trợ lý AI lập từ mô tả (xem app/services/event_drafts.py). Được lưu ngay cả khi còn thiếu thông tin; người quản lý sự kiện bổ sung qua chat hoặc form. Không ghi gì vào bảng event/task cho tới khi được duyệt. `event_id` có giá trị khi bản nháp chỉ thêm task cho một sự kiện đã có. `data` là JSON: thông tin sự kiện + danh sách task. |
+| class `EmailProposal` | 770 | Email draft: chat creation never sends; a separate BDH action does. |
+| class `EmailTemplate` | 793 | Mẫu email trong kho mẫu. - `system_key` có giá trị: mẫu của email tự động (xác minh email, giao task…) và mẫu chung `general`; chỉ sửa nội dung, không xóa/đổi tên. - `system_key` rỗng: mẫu do BĐH tạo, AI tìm theo tên/từ khóa khi soạn nháp. |
+| class `ProposalTemplate` | 816 | Mẫu sự kiện / mẫu chia task trong kho mẫu, AI dùng khi lập đề xuất. `content` (JSON): - kind="event": {"name", "content", "type", "location", "duration_hours"} - kind="task": {"tasks": [{"name", "description", "days_before"}]} `is_default=True`: mẫu chung, dùng khi không tìm thấy mẫu phù hợp hơn. |
+| class `AIReportSnapshot` | 843 | Immutable reviewed numbers and source rows for export/email. |
+| class `MemberPlanningProfile` | 854 | Member-provided task preferences; absent rows use conservative defaults. |
+| class `AIUsageLog` | 870 | Successful model calls, without prompts, replies, secrets or price guesses. |
 
 ### `app/legacy_sqlite.py`
 
@@ -394,21 +392,23 @@ Khu vực Ban điều hành: duyệt thành viên, phân vai trò, nhường ch�
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `ai_stream()` | 37 | Actual operational progress; never a model's private reasoning trace.<br>route: `ai_bp.post('/ai/stream')` · bảo vệ: `login_required`, `approved_required` |
-| `ai_chat()` | 123 | Trang Trợ lý AI: lịch sử hội thoại, danh sách cuộc trò chuyện. BĐH (BOARD) thấy thêm tóm tắt ngày, báo cáo, nháp email chờ duyệt; người quản lý sự kiện (MANAGE_EVENTS) thấy form và danh sách đề xuất sự kiện/task.<br>route: `ai_bp.route('/ai', methods=['GET', 'POST'])` · bảo vệ: `login_required`, `approved_required` |
-| `conversation_new()` | 228 | Tạo cuộc trò chuyện AI mới cho người đang đăng nhập.<br>route: `ai_bp.post('/ai/conversations/new')` · bảo vệ: `login_required`, `approved_required` |
-| `_change_conversation(conversation_id, action)` | 241 | Đổi tên / lưu trữ / khôi phục một cuộc trò chuyện thuộc sở hữu của người dùng. |
-| `conversation_rename(conversation_id)` | 266 | Đổi tên cuộc trò chuyện.<br>route: `ai_bp.post('/ai/conversations/<int:conversation_id>/rename')` · bảo vệ: `login_required`, `approved_required` |
-| `conversation_archive(conversation_id)` | 274 | Lưu trữ (ẩn) cuộc trò chuyện.<br>route: `ai_bp.post('/ai/conversations/<int:conversation_id>/archive')` · bảo vệ: `login_required`, `approved_required` |
-| `conversation_restore(conversation_id)` | 282 | Khôi phục cuộc trò chuyện đã lưu trữ.<br>route: `ai_bp.post('/ai/conversations/<int:conversation_id>/restore')` · bảo vệ: `login_required`, `approved_required` |
-| `report_save(period)` | 290 | Lưu bản chụp báo cáo tuần/tháng (AIReportSnapshot) để tải Excel hoặc tạo nháp email.<br>route: `ai_bp.post('/ai/reports/<period>/save')` · bảo vệ: `login_required`, `bdh_required` |
-| `report_export(report_id)` | 305 | Tải file Excel của đúng bản báo cáo đã lưu.<br>route: `ai_bp.get('/ai/reports/<int:report_id>.xlsx')` · bảo vệ: `login_required`, `bdh_required` |
-| `report_draft_email(report_id)` | 319 | Tạo nháp email chứa báo cáo gửi tới email hồ sơ của chính người dùng (chưa gửi).<br>route: `ai_bp.post('/ai/reports/<int:report_id>/email-draft')` · bảo vệ: `login_required`, `bdh_required` |
-| `email_proposal_review(draft_id, decision)` | 337 | Duyệt và gửi (approved) hoặc từ chối (rejected) một nháp email do AI tạo.<br>route: `ai_bp.route('/ai/email-proposals/<int:draft_id>/<decision>', methods=['POST'])` · bảo vệ: `login_required`, `bdh_required` |
-| `email_proposal_edit(draft_id)` | 359 | Sửa tiêu đề/nội dung nháp email trước khi gửi.<br>route: `ai_bp.route('/ai/email-proposals/<int:draft_id>/edit', methods=['POST'])` · bảo vệ: `login_required`, `bdh_required` |
-| `email_proposal_reconcile(draft_id, outcome)` | 376 | Xác nhận thủ công kết quả một lần gửi email bị gián đoạn (sent/failed), không tự gửi lại.<br>route: `ai_bp.route('/ai/email-proposals/<int:draft_id>/reconcile/<outcome>', methods=['POST'])` · bảo vệ: `login_required`, `bdh_required` |
-| `proposal_new()` | 392 | Tạo đề xuất AI (sự kiện/task) từ form; chỉ là bản xem trước, chưa ghi dữ liệu thật.<br>route: `ai_bp.route('/ai/proposals/new', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
-| `proposal_review(proposal_id, decision)` | 407 | Duyệt đề xuất AI (tạo sự kiện/task thật) hoặc từ chối (quyền MANAGE_EVENTS).<br>route: `ai_bp.route('/ai/proposals/<int:proposal_id>/<decision>', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
+| `ai_stream()` | 38 | Actual operational progress; never a model's private reasoning trace.<br>route: `ai_bp.post('/ai/stream')` · bảo vệ: `login_required`, `approved_required` |
+| `ai_chat()` | 124 | Trang Trợ lý AI: lịch sử hội thoại, danh sách cuộc trò chuyện. BĐH (BOARD) thấy thêm tóm tắt ngày, báo cáo, nháp email chờ duyệt; người quản lý sự kiện (MANAGE_EVENTS) thấy form và danh sách bản nháp sự kiện đang dở.<br>route: `ai_bp.route('/ai', methods=['GET', 'POST'])` · bảo vệ: `login_required`, `approved_required` |
+| `conversation_new()` | 227 | Tạo cuộc trò chuyện AI mới cho người đang đăng nhập.<br>route: `ai_bp.post('/ai/conversations/new')` · bảo vệ: `login_required`, `approved_required` |
+| `_change_conversation(conversation_id, action)` | 240 | Đổi tên / lưu trữ / khôi phục một cuộc trò chuyện thuộc sở hữu của người dùng. |
+| `conversation_rename(conversation_id)` | 265 | Đổi tên cuộc trò chuyện.<br>route: `ai_bp.post('/ai/conversations/<int:conversation_id>/rename')` · bảo vệ: `login_required`, `approved_required` |
+| `conversation_archive(conversation_id)` | 273 | Lưu trữ (ẩn) cuộc trò chuyện.<br>route: `ai_bp.post('/ai/conversations/<int:conversation_id>/archive')` · bảo vệ: `login_required`, `approved_required` |
+| `conversation_restore(conversation_id)` | 281 | Khôi phục cuộc trò chuyện đã lưu trữ.<br>route: `ai_bp.post('/ai/conversations/<int:conversation_id>/restore')` · bảo vệ: `login_required`, `approved_required` |
+| `report_save(period)` | 289 | Lưu bản chụp báo cáo tuần/tháng (AIReportSnapshot) để tải Excel hoặc tạo nháp email.<br>route: `ai_bp.post('/ai/reports/<period>/save')` · bảo vệ: `login_required`, `bdh_required` |
+| `report_export(report_id)` | 304 | Tải file Excel của đúng bản báo cáo đã lưu.<br>route: `ai_bp.get('/ai/reports/<int:report_id>.xlsx')` · bảo vệ: `login_required`, `bdh_required` |
+| `report_draft_email(report_id)` | 318 | Tạo nháp email chứa báo cáo gửi tới email hồ sơ của chính người dùng (chưa gửi).<br>route: `ai_bp.post('/ai/reports/<int:report_id>/email-draft')` · bảo vệ: `login_required`, `bdh_required` |
+| `email_proposal_review(draft_id, decision)` | 336 | Duyệt và gửi (approved) hoặc từ chối (rejected) một nháp email do AI tạo.<br>route: `ai_bp.route('/ai/email-proposals/<int:draft_id>/<decision>', methods=['POST'])` · bảo vệ: `login_required`, `bdh_required` |
+| `email_proposal_edit(draft_id)` | 358 | Sửa tiêu đề/nội dung nháp email trước khi gửi.<br>route: `ai_bp.route('/ai/email-proposals/<int:draft_id>/edit', methods=['POST'])` · bảo vệ: `login_required`, `bdh_required` |
+| `email_proposal_reconcile(draft_id, outcome)` | 375 | Xác nhận thủ công kết quả một lần gửi email bị gián đoạn (sent/failed), không tự gửi lại.<br>route: `ai_bp.route('/ai/email-proposals/<int:draft_id>/reconcile/<outcome>', methods=['POST'])` · bảo vệ: `login_required`, `bdh_required` |
+| `draft_new()` | 391 | Lập bản nháp sự kiện (hoặc bản nháp chia task cho sự kiện đã có) từ mô tả trên form.<br>route: `ai_bp.route('/ai/drafts/new', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
+| `_draft_or_404(draft_id)` | 406 | — |
+| `draft_page(draft_id)` | 416 | Xem / sửa bản nháp: thông tin sự kiện, từng task, người phụ trách.<br>route: `ai_bp.route('/ai/drafts/<int:draft_id>', methods=['GET', 'POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
+| `draft_action(draft_id, action)` | 443 | Gợi ý người phụ trách, duyệt (tạo sự kiện + task) hoặc bỏ bản nháp.<br>route: `ai_bp.route('/ai/drafts/<int:draft_id>/<action>', methods=['POST'])` · bảo vệ: `login_required`, `permission_required(Permission.MANAGE_EVENTS)` |
 
 ### `app/routes/api.py`
 
@@ -416,63 +416,66 @@ REST API /api/v1 (Ch9): thành viên, quỹ, sự kiện, điểm danh, trợ l�
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `authenticate()` | 73 | Hook trước mọi request /api/v1: chưa đăng nhập → 401, tài khoản chưa duyệt/đã lưu trữ → 403. |
-| `domain_error(error)` | 82 | Đổi DomainError thành JSON {"error": ...} với status tương ứng và rollback giao dịch. |
-| `not_found(_error)` | 89 | Trả 404 dạng JSON cho API. |
-| `body()` | 94 | Đọc body JSON của request; không phải object JSON → DomainError 400. |
-| `paginate(query)` | 102 | Phân trang query theo ?page= và ?page_size= (1–100). |
-| `listing(page, serializer)` | 114 | Đóng gói kết quả phân trang thành JSON {items, page, page_size, total, pages}. |
-| `member_json(user)` | 120 | Chuyển User thành JSON (gồm liên hệ, ban, trạng thái thành viên) – chỉ trả cho người có quyền xem. |
-| `_create_member(data)` | 133 | Tạo thành viên đã duyệt từ dữ liệu JSON/CSV (quyền MANAGE_MEMBERS); bắt đổi mật khẩu ở lần đăng nhập đầu. |
-| `fund_json(fund, member=None)` | 183 | Chuyển khoản thu thành JSON; kèm số dư của `member` nếu có. |
-| `payment_json(payment)` | 200 | Chuyển một lần thanh toán thành JSON. |
-| `event_json(event)` | 210 | Chuyển sự kiện (và chi tiết) thành JSON. |
-| `can_manage_event(event)` | 226 | Người đang đăng nhập có quyền quản lý sự kiện (MANAGE_EVENTS). |
-| `members()` | 232 | GET /members – danh sách thành viên trong phạm vi được xem, lọc theo q, department_id, status.<br>route: `api_bp.get('/members')` |
-| `member_create()` | 252 | POST /members – tạo một thành viên (MANAGE_MEMBERS).<br>route: `api_bp.post('/members')` |
-| `members_import()` | 263 | POST /members/import – nhập tối đa 500 thành viên từ CSV/XLSX, nguyên tử (lỗi một dòng thì không tạo dòng nào).<br>route: `api_bp.post('/members/import')` |
-| `member_detail(user_id)` | 312 | GET /members/<id> – hồ sơ một thành viên (chính mình hoặc người có MANAGE_MEMBERS).<br>route: `api_bp.get('/members/<int:user_id>')` |
-| `member_update(user_id)` | 320 | PATCH /members/<id> – sửa tên, SĐT, trạng thái, ghi chú của thành viên khác.<br>route: `api_bp.patch('/members/<int:user_id>')` |
-| `member_archive(user_id)` | 352 | POST /members/<id>/archive – lưu trữ thành viên (không cho lưu trữ BĐH cuối cùng).<br>route: `api_bp.post('/members/<int:user_id>/archive')` |
-| `member_activity(user_id)` | 367 | GET /members/<id>/activity – tình trạng hoạt động kỳ hiện tại (task + điểm danh).<br>route: `api_bp.get('/members/<int:user_id>/activity')` |
-| `funds()` | 377 | GET /funds – khoản thu (người quản lý quỹ thấy tất cả, thành viên chỉ thấy khoản áp dụng cho mình).<br>route: `api_bp.get('/funds')` |
-| `fund_create()` | 389 | POST /funds – tạo khoản thu (MANAGE_FUNDS).<br>route: `api_bp.post('/funds')` |
-| `fund_detail(fund_id)` | 398 | GET /funds/<id> – chi tiết khoản thu kèm số dư của người xem.<br>route: `api_bp.get('/funds/<int:fund_id>')` |
-| `fund_status(fund_id)` | 406 | PATCH /funds/<id>/status – chuyển trạng thái khoản thu theo luồng draft→open→closed/cancelled.<br>route: `api_bp.patch('/funds/<int:fund_id>/status')` |
-| `fund_balances(fund_id)` | 424 | GET /funds/<id>/balances – số phải đóng/đã đóng/còn thiếu của từng thành viên.<br>route: `api_bp.get('/funds/<int:fund_id>/balances')` |
-| `payment_create(fund_id)` | 434 | POST /funds/<id>/payments – ghi nhận một lần đóng tiền (chờ xác nhận).<br>route: `api_bp.post('/funds/<int:fund_id>/payments')` |
-| `payments()` | 444 | GET /payments – danh sách thanh toán (thành viên chỉ thấy của mình), lọc theo trạng thái.<br>route: `api_bp.get('/payments')` |
-| `payment_review(payment_id)` | 455 | POST /payments/<id>/review – xác nhận hoặc từ chối thanh toán (MANAGE_FUNDS).<br>route: `api_bp.post('/payments/<int:payment_id>/review')` |
-| `payment_evidence_upload(payment_id)` | 464 | POST /payments/<id>/evidence – tải ảnh minh chứng (PNG/JPEG/WebP ≤ 3MB), lưu ngoài thư mục static.<br>route: `api_bp.post('/payments/<int:payment_id>/evidence')` |
-| `payment_evidence_download(evidence_id)` | 501 | GET /payments/evidence/<id> – tải ảnh minh chứng (chủ thanh toán hoặc người quản lý quỹ).<br>route: `api_bp.get('/payments/evidence/<int:evidence_id>')` |
-| `fund_adjustment(fund_id, user_id)` | 511 | PUT /funds/<id>/adjustments/<user_id> – miễn/giảm khoản thu cho một thành viên.<br>route: `api_bp.put('/funds/<int:fund_id>/adjustments/<int:user_id>')` |
-| `events()` | 520 | GET /events – danh sách sự kiện, lọc theo status.<br>route: `api_bp.get('/events')` |
-| `event_create()` | 529 | POST /events – tạo sự kiện kèm chi tiết, ban áp dụng, người phụ trách (MANAGE_EVENTS).<br>route: `api_bp.post('/events')` |
-| `event_detail(event_id)` | 573 | GET /events/<id> – chi tiết sự kiện.<br>route: `api_bp.get('/events/<int:event_id>')` |
-| `event_update(event_id)` | 579 | PATCH /events/<id> – sửa sự kiện (hạn đăng ký phải nằm trong khoảng bắt đầu – kết thúc).<br>route: `api_bp.patch('/events/<int:event_id>')` |
-| `event_copy(event_id)` | 616 | POST /events/<id>/copy – nhân bản sự kiện sang thời gian mới.<br>route: `api_bp.post('/events/<int:event_id>/copy')` |
-| `event_cancel(event_id)` | 647 | POST /events/<id>/cancel – hủy sự kiện (không hủy được sự kiện đã điểm danh).<br>route: `api_bp.post('/events/<int:event_id>/cancel')` |
-| `event_status_change(event_id)` | 656 | POST /events/<id>/status – chuyển trạng thái bằng tay {status}: dang_dien_ra (bắt đầu sớm / mở lại), da_ket_thuc (kết thúc), cancelled (hủy).<br>route: `api_bp.post('/events/<int:event_id>/status')` |
-| `event_register(event_id)` | 666 | POST /events/<id>/registrations – đăng ký tham gia (không giới hạn số người).<br>route: `api_bp.post('/events/<int:event_id>/registrations')` |
-| `registration_cancel(registration_id)` | 676 | POST /registrations/<id>/cancel – hủy đăng ký; người đầu danh sách chờ được đôn lên.<br>route: `api_bp.post('/registrations/<int:registration_id>/cancel')` |
-| `event_registrations(event_id)` | 684 | GET /events/<id>/registrations – danh sách đăng ký và điểm danh (MANAGE_EVENTS hoặc người phụ trách).<br>route: `api_bp.get('/events/<int:event_id>/registrations')` |
-| `event_qr(event_id)` | 696 | GET /events/<id>/qr – token QR điểm danh (hiệu lực 15 phút).<br>route: `api_bp.get('/events/<int:event_id>/qr')` |
-| `event_qr_png(event_id)` | 703 | GET /events/<id>/qr.png – ảnh QR chứa link điểm danh.<br>route: `api_bp.get('/events/<int:event_id>/qr.png')` |
-| `event_checkin()` | 714 | POST /attendance/checkin – điểm danh bằng token QR.<br>route: `api_bp.post('/attendance/checkin')` |
-| `attendance_manual(registration_id)` | 722 | PUT /registrations/<id>/attendance – điểm danh thủ công (có mặt/muộn/có phép/vắng).<br>route: `api_bp.put('/registrations/<int:registration_id>/attendance')` |
-| `event_feedback(event_id)` | 731 | POST /events/<id>/feedback – đánh giá sự kiện sau khi kết thúc.<br>route: `api_bp.post('/events/<int:event_id>/feedback')` |
-| `assistant()` | 740 | POST /assistant – hỏi trợ lý AI (chế độ thường hoặc Agent); lưu câu hỏi/trả lời vào cuộc trò chuyện.<br>route: `api_bp.post('/assistant')` |
-| `assistant_conversations()` | 791 | GET/POST /assistant/conversations – liệt kê hoặc tạo cuộc trò chuyện.<br>route: `api_bp.route('/assistant/conversations', methods=['GET', 'POST'])` |
-| `assistant_conversation_messages(conversation_id)` | 805 | GET /assistant/conversations/<id>/messages – tin nhắn theo trang (before/after).<br>route: `api_bp.get('/assistant/conversations/<int:conversation_id>/messages')` |
-| `assistant_conversation_rename(conversation_id)` | 817 | PATCH /assistant/conversations/<id> – đổi tên cuộc trò chuyện.<br>route: `api_bp.patch('/assistant/conversations/<int:conversation_id>')` |
-| `assistant_conversation_archive(conversation_id)` | 828 | POST /assistant/conversations/<id>/archive – lưu trữ/khôi phục cuộc trò chuyện.<br>route: `api_bp.post('/assistant/conversations/<int:conversation_id>/archive')` |
-| `proposal_json(proposal)` | 841 | Chuyển đề xuất AI thành JSON (kèm bản xem trước). |
-| `assistant_proposals()` | 851 | GET /assistant/proposals – danh sách đề xuất AI (MANAGE_EVENTS).<br>route: `api_bp.get('/assistant/proposals')` |
-| `assistant_proposal_create()` | 861 | POST /assistant/proposals – tạo đề xuất AI.<br>route: `api_bp.post('/assistant/proposals')` |
-| `assistant_proposal_review(proposal_id)` | 869 | POST /assistant/proposals/<id>/review – duyệt/từ chối đề xuất AI.<br>route: `api_bp.post('/assistant/proposals/<int:proposal_id>/review')` |
-| `dashboard()` | 879 | GET /dashboard – số liệu tổng quan: thành viên, hoạt động, tình hình quỹ, sự kiện sắp tới (theo phạm vi quyền).<br>route: `api_bp.get('/dashboard')` |
-| `fund_report()` | 910 | GET /reports/funds.xlsx – báo cáo tình trạng đóng quỹ (MANAGE_FUNDS).<br>route: `api_bp.get('/reports/funds.xlsx')` |
-| `member_report()` | 930 | GET /reports/members.xlsx – danh sách thành viên (MANAGE_MEMBERS).<br>route: `api_bp.get('/reports/members.xlsx')` |
+| `authenticate()` | 69 | Hook trước mọi request /api/v1: chưa đăng nhập → 401, tài khoản chưa duyệt/đã lưu trữ → 403. |
+| `domain_error(error)` | 78 | Đổi DomainError thành JSON {"error": ...} với status tương ứng và rollback giao dịch. |
+| `not_found(_error)` | 85 | Trả 404 dạng JSON cho API. |
+| `body()` | 90 | Đọc body JSON của request; không phải object JSON → DomainError 400. |
+| `paginate(query)` | 98 | Phân trang query theo ?page= và ?page_size= (1–100). |
+| `listing(page, serializer)` | 110 | Đóng gói kết quả phân trang thành JSON {items, page, page_size, total, pages}. |
+| `member_json(user)` | 116 | Chuyển User thành JSON (gồm liên hệ, ban, trạng thái thành viên) – chỉ trả cho người có quyền xem. |
+| `_create_member(data)` | 129 | Tạo thành viên đã duyệt từ dữ liệu JSON/CSV (quyền MANAGE_MEMBERS); bắt đổi mật khẩu ở lần đăng nhập đầu. |
+| `fund_json(fund, member=None)` | 179 | Chuyển khoản thu thành JSON; kèm số dư của `member` nếu có. |
+| `payment_json(payment)` | 196 | Chuyển một lần thanh toán thành JSON. |
+| `event_json(event)` | 206 | Chuyển sự kiện (và chi tiết) thành JSON. |
+| `can_manage_event(event)` | 222 | Người đang đăng nhập có quyền quản lý sự kiện (MANAGE_EVENTS). |
+| `members()` | 228 | GET /members – danh sách thành viên trong phạm vi được xem, lọc theo q, department_id, status.<br>route: `api_bp.get('/members')` |
+| `member_create()` | 248 | POST /members – tạo một thành viên (MANAGE_MEMBERS).<br>route: `api_bp.post('/members')` |
+| `members_import()` | 259 | POST /members/import – nhập tối đa 500 thành viên từ CSV/XLSX, nguyên tử (lỗi một dòng thì không tạo dòng nào).<br>route: `api_bp.post('/members/import')` |
+| `member_detail(user_id)` | 308 | GET /members/<id> – hồ sơ một thành viên (chính mình hoặc người có MANAGE_MEMBERS).<br>route: `api_bp.get('/members/<int:user_id>')` |
+| `member_update(user_id)` | 316 | PATCH /members/<id> – sửa tên, SĐT, trạng thái, ghi chú của thành viên khác.<br>route: `api_bp.patch('/members/<int:user_id>')` |
+| `member_archive(user_id)` | 348 | POST /members/<id>/archive – lưu trữ thành viên (không cho lưu trữ BĐH cuối cùng).<br>route: `api_bp.post('/members/<int:user_id>/archive')` |
+| `member_activity(user_id)` | 363 | GET /members/<id>/activity – tình trạng hoạt động kỳ hiện tại (task + điểm danh).<br>route: `api_bp.get('/members/<int:user_id>/activity')` |
+| `funds()` | 373 | GET /funds – khoản thu (người quản lý quỹ thấy tất cả, thành viên chỉ thấy khoản áp dụng cho mình).<br>route: `api_bp.get('/funds')` |
+| `fund_create()` | 385 | POST /funds – tạo khoản thu (MANAGE_FUNDS).<br>route: `api_bp.post('/funds')` |
+| `fund_detail(fund_id)` | 394 | GET /funds/<id> – chi tiết khoản thu kèm số dư của người xem.<br>route: `api_bp.get('/funds/<int:fund_id>')` |
+| `fund_status(fund_id)` | 402 | PATCH /funds/<id>/status – chuyển trạng thái khoản thu theo luồng draft→open→closed/cancelled.<br>route: `api_bp.patch('/funds/<int:fund_id>/status')` |
+| `fund_balances(fund_id)` | 420 | GET /funds/<id>/balances – số phải đóng/đã đóng/còn thiếu của từng thành viên.<br>route: `api_bp.get('/funds/<int:fund_id>/balances')` |
+| `payment_create(fund_id)` | 430 | POST /funds/<id>/payments – ghi nhận một lần đóng tiền (chờ xác nhận).<br>route: `api_bp.post('/funds/<int:fund_id>/payments')` |
+| `payments()` | 440 | GET /payments – danh sách thanh toán (thành viên chỉ thấy của mình), lọc theo trạng thái.<br>route: `api_bp.get('/payments')` |
+| `payment_review(payment_id)` | 451 | POST /payments/<id>/review – xác nhận hoặc từ chối thanh toán (MANAGE_FUNDS).<br>route: `api_bp.post('/payments/<int:payment_id>/review')` |
+| `payment_evidence_upload(payment_id)` | 460 | POST /payments/<id>/evidence – tải ảnh minh chứng (PNG/JPEG/WebP ≤ 3MB), lưu ngoài thư mục static.<br>route: `api_bp.post('/payments/<int:payment_id>/evidence')` |
+| `payment_evidence_download(evidence_id)` | 497 | GET /payments/evidence/<id> – tải ảnh minh chứng (chủ thanh toán hoặc người quản lý quỹ).<br>route: `api_bp.get('/payments/evidence/<int:evidence_id>')` |
+| `fund_adjustment(fund_id, user_id)` | 507 | PUT /funds/<id>/adjustments/<user_id> – miễn/giảm khoản thu cho một thành viên.<br>route: `api_bp.put('/funds/<int:fund_id>/adjustments/<int:user_id>')` |
+| `events()` | 516 | GET /events – danh sách sự kiện, lọc theo status.<br>route: `api_bp.get('/events')` |
+| `event_create()` | 525 | POST /events – tạo sự kiện kèm chi tiết, ban áp dụng, người phụ trách (MANAGE_EVENTS).<br>route: `api_bp.post('/events')` |
+| `event_detail(event_id)` | 569 | GET /events/<id> – chi tiết sự kiện.<br>route: `api_bp.get('/events/<int:event_id>')` |
+| `event_update(event_id)` | 575 | PATCH /events/<id> – sửa sự kiện (hạn đăng ký phải nằm trong khoảng bắt đầu – kết thúc).<br>route: `api_bp.patch('/events/<int:event_id>')` |
+| `event_copy(event_id)` | 612 | POST /events/<id>/copy – nhân bản sự kiện sang thời gian mới.<br>route: `api_bp.post('/events/<int:event_id>/copy')` |
+| `event_cancel(event_id)` | 643 | POST /events/<id>/cancel – hủy sự kiện (không hủy được sự kiện đã điểm danh).<br>route: `api_bp.post('/events/<int:event_id>/cancel')` |
+| `event_status_change(event_id)` | 652 | POST /events/<id>/status – chuyển trạng thái bằng tay {status}: dang_dien_ra (bắt đầu sớm / mở lại), da_ket_thuc (kết thúc), cancelled (hủy).<br>route: `api_bp.post('/events/<int:event_id>/status')` |
+| `event_register(event_id)` | 662 | POST /events/<id>/registrations – đăng ký tham gia (không giới hạn số người).<br>route: `api_bp.post('/events/<int:event_id>/registrations')` |
+| `registration_cancel(registration_id)` | 672 | POST /registrations/<id>/cancel – hủy đăng ký; người đầu danh sách chờ được đôn lên.<br>route: `api_bp.post('/registrations/<int:registration_id>/cancel')` |
+| `event_registrations(event_id)` | 680 | GET /events/<id>/registrations – danh sách đăng ký và điểm danh (MANAGE_EVENTS hoặc người phụ trách).<br>route: `api_bp.get('/events/<int:event_id>/registrations')` |
+| `event_qr(event_id)` | 692 | GET /events/<id>/qr – token QR điểm danh (hiệu lực 15 phút).<br>route: `api_bp.get('/events/<int:event_id>/qr')` |
+| `event_qr_png(event_id)` | 699 | GET /events/<id>/qr.png – ảnh QR chứa link điểm danh.<br>route: `api_bp.get('/events/<int:event_id>/qr.png')` |
+| `event_checkin()` | 710 | POST /attendance/checkin – điểm danh bằng token QR.<br>route: `api_bp.post('/attendance/checkin')` |
+| `attendance_manual(registration_id)` | 718 | PUT /registrations/<id>/attendance – điểm danh thủ công (có mặt/muộn/có phép/vắng).<br>route: `api_bp.put('/registrations/<int:registration_id>/attendance')` |
+| `event_feedback(event_id)` | 727 | POST /events/<id>/feedback – đánh giá sự kiện sau khi kết thúc.<br>route: `api_bp.post('/events/<int:event_id>/feedback')` |
+| `assistant()` | 736 | POST /assistant – hỏi trợ lý AI (chế độ thường hoặc Agent); lưu câu hỏi/trả lời vào cuộc trò chuyện.<br>route: `api_bp.post('/assistant')` |
+| `assistant_conversations()` | 787 | GET/POST /assistant/conversations – liệt kê hoặc tạo cuộc trò chuyện.<br>route: `api_bp.route('/assistant/conversations', methods=['GET', 'POST'])` |
+| `assistant_conversation_messages(conversation_id)` | 801 | GET /assistant/conversations/<id>/messages – tin nhắn theo trang (before/after).<br>route: `api_bp.get('/assistant/conversations/<int:conversation_id>/messages')` |
+| `assistant_conversation_rename(conversation_id)` | 813 | PATCH /assistant/conversations/<id> – đổi tên cuộc trò chuyện.<br>route: `api_bp.patch('/assistant/conversations/<int:conversation_id>')` |
+| `assistant_conversation_archive(conversation_id)` | 824 | POST /assistant/conversations/<id>/archive – lưu trữ/khôi phục cuộc trò chuyện.<br>route: `api_bp.post('/assistant/conversations/<int:conversation_id>/archive')` |
+| `_iso(value)` | 837 | — |
+| `draft_json(draft)` | 841 | Bản nháp sự kiện dạng JSON: dữ liệu, phần còn thiếu, lỗi chặn duyệt và hạn từng task. |
+| `assistant_drafts()` | 853 | GET /assistant/drafts – bản nháp sự kiện đang dở (MANAGE_EVENTS).<br>route: `api_bp.get('/assistant/drafts')` |
+| `assistant_draft_create()` | 859 | POST /assistant/drafts – lập bản nháp từ mô tả {"description", "event_id"?, "template_id"?}.<br>route: `api_bp.post('/assistant/drafts')` |
+| `assistant_draft(draft_id)` | 870 | GET /assistant/drafts/<id> – một bản nháp đang dở.<br>route: `api_bp.get('/assistant/drafts/<int:draft_id>')` |
+| `assistant_draft_approve(draft_id)` | 876 | POST /assistant/drafts/<id>/approve – duyệt: tạo sự kiện + task trong một giao dịch.<br>route: `api_bp.post('/assistant/drafts/<int:draft_id>/approve')` |
+| `assistant_draft_discard(draft_id)` | 884 | POST /assistant/drafts/<id>/discard – bỏ bản nháp.<br>route: `api_bp.post('/assistant/drafts/<int:draft_id>/discard')` |
+| `dashboard()` | 892 | GET /dashboard – số liệu tổng quan: thành viên, hoạt động, tình hình quỹ, sự kiện sắp tới (theo phạm vi quyền).<br>route: `api_bp.get('/dashboard')` |
+| `fund_report()` | 923 | GET /reports/funds.xlsx – báo cáo tình trạng đóng quỹ (MANAGE_FUNDS).<br>route: `api_bp.get('/reports/funds.xlsx')` |
+| `member_report()` | 943 | GET /reports/members.xlsx – danh sách thành viên (MANAGE_MEMBERS).<br>route: `api_bp.get('/reports/members.xlsx')` |
 
 ## Services (nghiệp vụ & trợ lý AI)
 
@@ -546,9 +549,9 @@ One policy path for the browser chat and JSON assistant API.
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `check_chat_rate(actor)` | 18 | Giới hạn số câu hỏi AI mỗi phút cho một người (AI_CHAT_MESSAGES_PER_MINUTE). |
-| `respond(actor, message, conversation=None)` | 28 | Trả lời một câu hỏi chat: thử lần lượt nháp email → đề xuất → đọc dữ liệu đã kiểm chứng → nhà cung cấp AI. |
-| `respond_events(actor, message, conversation=None, message_id=None)` | 47 | Stream safe status and terminal result events for the browser/API agent. |
+| `check_chat_rate(actor)` | 17 | Giới hạn số câu hỏi AI mỗi phút cho một người (AI_CHAT_MESSAGES_PER_MINUTE). |
+| `respond(actor, message, conversation=None)` | 27 | Trả lời một câu hỏi chat: thử lần lượt nháp email → báo cáo → bản nháp sự kiện → đọc dữ liệu đã kiểm chứng → nhà cung cấp AI. |
+| `respond_events(actor, message, conversation=None, message_id=None)` | 45 | Stream safe status and terminal result events for the browser/API agent. |
 
 ### `app/services/agent_orchestrator.py`
 
@@ -556,50 +559,49 @@ Bounded, model-selected loop over deterministic club data tools.
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| class `_PlanError` | 142 | Lỗi nội bộ khi kế hoạch do model trả về không hợp lệ (sẽ chuyển sang phương án rules). |
-| `_PlanError.__init__(self, reason)` | 144 | Lưu lý do lỗi kế hoạch. |
-| `_bounded_setting(name, default, lower, upper)` | 150 | Đọc một cấu hình số nguyên và kẹp trong khoảng [lower, upper]. |
-| `_conversation_history(actor, message, conversation, message_id)` | 159 | Lấy lịch sử gần nhất của cuộc trò chuyện (trước tin nhắn hiện tại) để làm ngữ cảnh. |
-| `_user_history(history)` | 184 | Chỉ giữ tối đa 6 câu hỏi gần nhất của người dùng (không đưa câu trả lời AI vào ngữ cảnh). |
-| `_scope_markers(actor, text, members, bans, periods)` | 190 | Trích các "dấu phạm vi" (thành viên, ban, kỳ, thời gian, trạng thái) xuất hiện trong câu hỏi. |
-| `_tool_request(question, tool)` | 226 | Separate explicit business clauses, not conjunctions inside one operation. |
-| `_query_preserves_scope(actor, question, query)` | 252 | Kiểm tra truy vấn model viết lại vẫn giữ đúng phạm vi của câu hỏi gốc. |
-| `_parse_plan(raw, actor, question)` | 264 | Đọc và kiểm tra JSON kế hoạch của model (công cụ hợp lệ, số bước giới hạn, giữ phạm vi). |
-| `_valid_args(args)` | 296 | args của model chỉ được là object gồm các khóa đã khai báo, giá trị chuỗi ngắn. |
-| `_unsupported_scope(message)` | 310 | Câu trả lời chuẩn khi câu hỏi lọc theo ban/thành viên mà công cụ chưa hỗ trợ. |
-| `_unsupported_event_scope()` | 321 | Câu trả lời chuẩn khi câu hỏi sự kiện có bộ lọc chưa hỗ trợ. |
-| `_unsupported_member_info_scope()` | 331 | Câu trả lời chuẩn khi hỏi hồ sơ theo ngày/trạng thái chưa hỗ trợ. |
-| `_unsupported_member_task_scope()` | 340 | Câu trả lời chuẩn khi hỏi task theo thời gian chưa hỗ trợ. |
-| `_clarify_member_target()` | 350 | Yêu cầu người dùng nêu rõ MSSV/họ tên khi không xác định được thành viên. |
-| `_task_query_for_original(actor, original)` | 360 | Resolve the human's target first, then copy only supported task filters. |
-| `_member_for_original(actor, original)` | 376 | Tìm thành viên được nhắc trong câu hỏi gốc (trong phạm vi được xem). |
-| `_visible_member_scope(actor)` | 381 | Ánh xạ id → {MSSV, họ tên chuẩn hóa} của thành viên trong phạm vi tra cứu. |
-| `_target_scope_was_revoked(original, prior_scope, current_members)` | 391 | True nếu thành viên được hỏi đã ra khỏi phạm vi quyền trong lúc xử lý. |
-| `_explicit_member_code(text)` | 406 | True nếu câu hỏi có ghi rõ một MSSV. |
-| `_unsupported_task_status(markers)` | 412 | True nếu câu hỏi chứa trạng thái task mà bộ đọc chưa hỗ trợ. |
-| `_wants_member_tasks(original)` | 423 | Nhận diện câu hỏi muốn xem task của một thành viên. |
-| `_safe_member_read(actor, message, conversation=None)` | 432 | Đọc hồ sơ/task thành viên bằng truy vấn đã kiểm chứng (không qua model). |
-| `_safe_briefing_read(actor, message)` | 442 | Trả lời tóm tắt ngày/báo cáo bằng dữ liệu kiểm chứng nếu câu hỏi phù hợp. |
-| `_safe_rules_answer(actor, message, history)` | 452 | Trả lời bằng RulesProvider (truy vấn cố định) khi không cần model. |
-| `_mentions_funds(text)` | 484 | Nhận diện câu hỏi liên quan quỹ. |
-| `_fund_result(result, markers)` | 490 | Chỉ chấp nhận kết quả tra cứu quỹ thuộc các intent quỹ đã hỗ trợ. |
-| `_read_filter_guard(message, tool, markers)` | 505 | Do not silently discard explicit filters the deterministic readers lack. |
-| `_read_before_pending(actor, message, conversation)` | 561 | Ưu tiên trả lời câu hỏi đọc dữ liệu trước khi xử lý đề xuất đang chờ bổ sung. |
-| `_scope_markers_for_actor(actor, text)` | 579 | Trích dấu phạm vi của câu hỏi dựa trên dữ liệu người dùng được xem. |
-| `_execute_tool(actor, tool, query, original, conversation, prior_scope=None, args=None)` | 589 | Chạy đúng một công cụ đọc dữ liệu đã kiểm chứng theo tên tool; text của model chỉ dùng làm truy vấn đã validate, không bao giờ làm SQL hay dữ liệu ghi. |
-| `_result_verification(result)` | 688 | Xác định mức kiểm chứng của kết quả: database &#124; clarification &#124; unsupported &#124; draft. |
-| `_combine_results(results, progress, mode, step_count, fallback_reason=None)` | 701 | Gộp kết quả nhiều bước thành một câu trả lời, bỏ trùng lặp, kèm tiến trình. |
-| `_error_result(exc)` | 762 | Chuyển DomainError thành kết quả trả lời an toàn. |
-| `_rules_fallback(actor, message, history, conversation, allow_prepare)` | 771 | Phương án dự phòng khi model lỗi: trả lời bằng rules/dữ liệu kiểm chứng, không gọi model. |
-| `_status(stage, label, tool=None)` | 798 | Tạo sự kiện tiến trình (status) gửi về trình duyệt qua SSE. |
-| `respond_events(actor, message, conversation=None, message_id=None)` | 806 | Yield fixed-label progress events and one server-composed result event. |
-| `_is_compound(question)` | 986 | Câu hỏi có nhiều ý (vd. "... và tổng đã thu") thì cần thêm lượt lập kế hoạch. |
-| `_numbers(text)` | 996 | Tập các con số trong chuỗi, bỏ dấu phân cách (1,234 ≡ 1.234 ≡ 1234). |
-| `_codes(text)` | 1001 | Các mã dạng MSSV/mã sự kiện (chữ + số) trong chuỗi, viết hoa. |
-| `compose_answer(complete, question, facts)` | 1006 | Nhờ model viết lại câu trả lời đúng trọng tâm từ dữ kiện đã kiểm chứng. Chốt chặn: mọi con số và mã (MSSV, mã sự kiện) trong câu trả lời phải xuất hiện nguyên văn trong dữ kiện hoặc câu hỏi; sai → ném _PlanError để dùng bản của server. |
-| `_finish(actor, conversation, permission_stamp, complete, message, completed, progress, deadline, fallback_reason=None)` | 1031 | Gộp kết quả tool; nếu được bật, nhờ model viết câu trả lời đúng trọng tâm (có đối chiếu số). |
-| `_tool_description(name)` | 1060 | Mô tả ngắn từng công cụ để đưa vào prompt lập kế hoạch. |
-| `_reauthorize(actor, conversation, permission_stamp=None)` | 1082 | Kiểm tra lại tài khoản còn được duyệt và quyền không đổi trước khi trả kết quả. |
+| class `_PlanError` | 146 | Lỗi nội bộ khi kế hoạch do model trả về không hợp lệ (sẽ chuyển sang phương án rules). |
+| `_PlanError.__init__(self, reason)` | 148 | Lưu lý do lỗi kế hoạch. |
+| `_bounded_setting(name, default, lower, upper)` | 154 | Đọc một cấu hình số nguyên và kẹp trong khoảng [lower, upper]. |
+| `_conversation_history(actor, message, conversation, message_id)` | 163 | Lấy lịch sử gần nhất của cuộc trò chuyện (trước tin nhắn hiện tại) để làm ngữ cảnh. |
+| `_user_history(history)` | 188 | Chỉ giữ tối đa 6 câu hỏi gần nhất của người dùng (không đưa câu trả lời AI vào ngữ cảnh). |
+| `_scope_markers(actor, text, members, bans, periods)` | 194 | Trích các "dấu phạm vi" (thành viên, ban, kỳ, thời gian, trạng thái) xuất hiện trong câu hỏi. |
+| `_tool_request(question, tool)` | 230 | Separate explicit business clauses, not conjunctions inside one operation. |
+| `_query_preserves_scope(actor, question, query)` | 256 | Kiểm tra truy vấn model viết lại vẫn giữ đúng phạm vi của câu hỏi gốc. |
+| `_parse_plan(raw, actor, question)` | 268 | Đọc và kiểm tra JSON kế hoạch của model (công cụ hợp lệ, số bước giới hạn, giữ phạm vi). |
+| `_valid_args(args)` | 300 | args của model chỉ được là object gồm các khóa đã khai báo, giá trị chuỗi ngắn. |
+| `_unsupported_scope(message)` | 314 | Câu trả lời chuẩn khi câu hỏi lọc theo ban/thành viên mà công cụ chưa hỗ trợ. |
+| `_unsupported_event_scope()` | 325 | Câu trả lời chuẩn khi câu hỏi sự kiện có bộ lọc chưa hỗ trợ. |
+| `_unsupported_member_info_scope()` | 335 | Câu trả lời chuẩn khi hỏi hồ sơ theo ngày/trạng thái chưa hỗ trợ. |
+| `_unsupported_member_task_scope()` | 344 | Câu trả lời chuẩn khi hỏi task theo thời gian chưa hỗ trợ. |
+| `_clarify_member_target()` | 354 | Yêu cầu người dùng nêu rõ MSSV/họ tên khi không xác định được thành viên. |
+| `_task_query_for_original(actor, original)` | 364 | Resolve the human's target first, then copy only supported task filters. |
+| `_member_for_original(actor, original)` | 380 | Tìm thành viên được nhắc trong câu hỏi gốc (trong phạm vi được xem). |
+| `_visible_member_scope(actor)` | 385 | Ánh xạ id → {MSSV, họ tên chuẩn hóa} của thành viên trong phạm vi tra cứu. |
+| `_target_scope_was_revoked(original, prior_scope, current_members)` | 395 | True nếu thành viên được hỏi đã ra khỏi phạm vi quyền trong lúc xử lý. |
+| `_explicit_member_code(text)` | 410 | True nếu câu hỏi có ghi rõ một MSSV. |
+| `_unsupported_task_status(markers)` | 416 | True nếu câu hỏi chứa trạng thái task mà bộ đọc chưa hỗ trợ. |
+| `_wants_member_tasks(original)` | 427 | Nhận diện câu hỏi muốn xem task của một thành viên. |
+| `_safe_member_read(actor, message, conversation=None)` | 436 | Đọc hồ sơ/task thành viên bằng truy vấn đã kiểm chứng (không qua model). |
+| `_safe_briefing_read(actor, message)` | 446 | Trả lời tóm tắt ngày/báo cáo bằng dữ liệu kiểm chứng nếu câu hỏi phù hợp. |
+| `_safe_rules_answer(actor, message, history)` | 456 | Trả lời bằng RulesProvider (truy vấn cố định) khi không cần model. |
+| `_mentions_funds(text)` | 488 | Nhận diện câu hỏi liên quan quỹ. |
+| `_fund_result(result, markers)` | 494 | Chỉ chấp nhận kết quả tra cứu quỹ thuộc các intent quỹ đã hỗ trợ. |
+| `_read_filter_guard(message, tool, markers)` | 509 | Do not silently discard explicit filters the deterministic readers lack. |
+| `_scope_markers_for_actor(actor, text)` | 565 | Trích dấu phạm vi của câu hỏi dựa trên dữ liệu người dùng được xem. |
+| `_execute_tool(actor, tool, query, original, conversation, prior_scope=None, args=None)` | 575 | Chạy đúng một công cụ đọc dữ liệu đã kiểm chứng theo tên tool; text của model chỉ dùng làm truy vấn đã validate, không bao giờ làm SQL hay dữ liệu ghi. |
+| `_result_verification(result)` | 669 | Xác định mức kiểm chứng của kết quả: database &#124; clarification &#124; unsupported &#124; draft. |
+| `_combine_results(results, progress, mode, step_count, fallback_reason=None)` | 682 | Gộp kết quả nhiều bước thành một câu trả lời, bỏ trùng lặp, kèm tiến trình. |
+| `_error_result(exc)` | 743 | Chuyển DomainError thành kết quả trả lời an toàn. |
+| `_rules_fallback(actor, message, history, conversation, allow_prepare)` | 752 | Phương án dự phòng khi model lỗi: trả lời bằng rules/dữ liệu kiểm chứng, không gọi model. |
+| `_status(stage, label, tool=None)` | 776 | Tạo sự kiện tiến trình (status) gửi về trình duyệt qua SSE. |
+| `respond_events(actor, message, conversation=None, message_id=None)` | 784 | Yield fixed-label progress events and one server-composed result event. |
+| `_is_compound(question)` | 964 | Câu hỏi có nhiều ý (vd. "... và tổng đã thu") thì cần thêm lượt lập kế hoạch. |
+| `_numbers(text)` | 974 | Tập các con số trong chuỗi, bỏ dấu phân cách (1,234 ≡ 1.234 ≡ 1234). |
+| `_codes(text)` | 979 | Các mã dạng MSSV/mã sự kiện (chữ + số) trong chuỗi, viết hoa. |
+| `compose_answer(complete, question, facts, draft=None)` | 984 | Nhờ model viết lại câu trả lời đúng trọng tâm từ dữ kiện đã kiểm chứng. Với bản nháp sự kiện (`draft` = tóm tắt bản nháp), `facts` là câu trả lời của server và model chỉ viết lại cho tự nhiên. Chốt chặn: mọi con số và mã (MSSV, mã sự kiện) trong câu trả lời phải xuất hiện nguyên văn trong dữ kiện hoặc câu hỏi; sai → ném _PlanError để dùng bản của server. |
+| `_finish(actor, conversation, permission_stamp, complete, message, completed, progress, deadline, fallback_reason=None)` | 1014 | Gộp kết quả tool; nếu được bật, nhờ model viết câu trả lời đúng trọng tâm (có đối chiếu số). |
+| `_tool_description(name)` | 1048 | Mô tả ngắn từng công cụ để đưa vào prompt lập kế hoạch. |
+| `_reauthorize(actor, conversation, permission_stamp=None)` | 1071 | Kiểm tra lại tài khoản còn được duyệt và quyền không đổi trước khi trả kết quả. |
 
 ### `app/services/assistant.py`
 
@@ -634,15 +636,15 @@ Deterministic, permission-scoped club briefings and report snapshots.
 | `_event_scope(actor, query)` | 24 | Phạm vi sự kiện cho báo cáo (hiện là toàn CLB). |
 | `_task_scope(actor, query)` | 29 | Phạm vi task cho báo cáo (hiện là toàn CLB). |
 | `daily_digest(actor, today=None)` | 34 | Same date + same database state yields the same text; no LLM involved. |
-| `_window(period, today)` | 71 | Khoảng ngày của báo cáo tuần (từ thứ Hai) hoặc tháng (từ ngày 1) đến hết hôm nay. |
-| `report_data(actor, period, today=None)` | 82 | Số liệu báo cáo tuần/tháng (sự kiện, task, điểm danh, thanh toán) kèm nguồn – chỉ BĐH. |
-| `report_text(payload)` | 126 | Diễn giải payload báo cáo thành văn bản tiếng Việt. |
-| `save_report(actor, period)` | 147 | Lưu bản chụp báo cáo (bỏ qua nếu giống hệt một bản gần đây). |
-| `can_access_report(actor, snapshot)` | 163 | Recheck current permissions; an old snapshot must not outlive its scope. |
-| `report_workbook(snapshot)` | 171 | Tạo file Excel từ bản chụp báo cáo (đã chống chèn công thức). |
-| `report_email_draft(actor, snapshot)` | 196 | Tạo nháp email báo cáo gửi về email hồ sơ của chính người dùng. |
-| `briefing_kind(message)` | 214 | Nhận diện câu hỏi tóm tắt hôm nay (daily), báo cáo tuần/tháng, hoặc mốc chưa hỗ trợ. |
-| `maybe_answer_briefing(actor, message)` | 233 | Trả lời câu hỏi tóm tắt/báo cáo nếu nhận diện được; ngược lại trả None. |
+| `_window(period, today)` | 70 | Khoảng ngày của báo cáo tuần (từ thứ Hai) hoặc tháng (từ ngày 1) đến hết hôm nay. |
+| `report_data(actor, period, today=None)` | 81 | Số liệu báo cáo tuần/tháng (sự kiện, task, điểm danh, thanh toán) kèm nguồn – chỉ BĐH. |
+| `report_text(payload)` | 125 | Diễn giải payload báo cáo thành văn bản tiếng Việt. |
+| `save_report(actor, period)` | 146 | Lưu bản chụp báo cáo (bỏ qua nếu giống hệt một bản gần đây). |
+| `can_access_report(actor, snapshot)` | 162 | Recheck current permissions; an old snapshot must not outlive its scope. |
+| `report_workbook(snapshot)` | 170 | Tạo file Excel từ bản chụp báo cáo (đã chống chèn công thức). |
+| `report_email_draft(actor, snapshot)` | 195 | Tạo nháp email báo cáo gửi về email hồ sơ của chính người dùng. |
+| `briefing_kind(message)` | 213 | Nhận diện câu hỏi tóm tắt hôm nay (daily), báo cáo tuần/tháng, hoặc mốc chưa hỗ trợ. |
+| `maybe_answer_briefing(actor, message)` | 232 | Trả lời câu hỏi tóm tắt/báo cáo nếu nhận diện được; ngược lại trả None. |
 
 ### `app/services/chat_conversations.py`
 
@@ -655,13 +657,13 @@ Owned, persistent conversations with bounded keyset message pages.
 | `checked_title(title)` | 40 | Kiểm tra tên cuộc trò chuyện 1–100 ký tự. |
 | `create_conversation(actor, title=None)` | 47 | Tạo cuộc trò chuyện mới và ghi nhớ là cuộc đang chọn trong session. |
 | `_import_unscoped_history(actor)` | 57 | Compatibility for legacy callers inserting messages after startup migration. |
-| `select_conversation(actor, requested_id=None, create=False, active=False)` | 82 | Chọn cuộc trò chuyện theo id yêu cầu hoặc cuộc đang mở trong session (tạo mới nếu `create`). |
-| `append_exchange(actor, conversation, question, reply)` | 104 | Lưu cặp câu hỏi – trả lời vào cuộc trò chuyện (đặt tiêu đề từ câu hỏi đầu tiên). |
-| `begin_turn(actor, conversation, question)` | 116 | Persist the human question before a potentially slow model call. |
-| `finish_turn(actor, conversation, reply, user_message_id, run_id, permission_stamp=None)` | 131 | Save a grounded reply and safe operational audit before streaming it. |
-| `conversation_list(actor, page=1, archived=False)` | 156 | Danh sách cuộc trò chuyện theo trang (20 mục/trang), mới cập nhật trước. |
-| `message_page(actor, conversation, before=None, after=None)` | 165 | Tin nhắn của cuộc trò chuyện theo trang dạng keyset (before/after theo id). |
-| `conversation_json(conversation)` | 191 | Chuyển cuộc trò chuyện thành JSON. |
+| `select_conversation(actor, requested_id=None, create=False, active=False)` | 77 | Chọn cuộc trò chuyện theo id yêu cầu hoặc cuộc đang mở trong session (tạo mới nếu `create`). |
+| `append_exchange(actor, conversation, question, reply)` | 99 | Lưu cặp câu hỏi – trả lời vào cuộc trò chuyện (đặt tiêu đề từ câu hỏi đầu tiên). |
+| `begin_turn(actor, conversation, question)` | 111 | Persist the human question before a potentially slow model call. |
+| `finish_turn(actor, conversation, reply, user_message_id, run_id, permission_stamp=None)` | 126 | Save a grounded reply and safe operational audit before streaming it. |
+| `conversation_list(actor, page=1, archived=False)` | 151 | Danh sách cuộc trò chuyện theo trang (20 mục/trang), mới cập nhật trước. |
+| `message_page(actor, conversation, before=None, after=None)` | 160 | Tin nhắn của cuộc trò chuyện theo trang dạng keyset (before/after theo id). |
+| `conversation_json(conversation)` | 186 | Chuyển cuộc trò chuyện thành JSON. |
 
 ### `app/services/club_data_tools.py`
 
@@ -762,6 +764,58 @@ Kho mẫu email (plain text). Thay biến bằng str.replace, không bao giờ c
 | `find_email_template(text)` | 245 | Tìm mẫu email của CLB phù hợp nhất với câu yêu cầu: tên mẫu hoặc từ khóa xuất hiện trong câu. Trả về EmailTemplate hoặc None (khi đó AI dùng mẫu chung `general`). |
 | `seed_system_templates()` | 261 | Nạp các mẫu email hệ thống còn thiếu vào kho (không ghi đè mẫu đã sửa). |
 
+### `app/services/event_drafts.py`
+
+Bản nháp sự kiện: trợ lý AI lập sự kiện + danh sách task từ một câu mô tả.
+
+| Hàm / class | Dòng | Mô tả |
+|---|---|---|
+| `visible_drafts(actor)` | 42 | Bản nháp đang dở mà người quản lý sự kiện được xem (mọi người quản lý sự kiện cùng làm). |
+| `get_draft(actor, draft_id)` | 50 | Bản nháp đang dở theo id (404 nếu không có / đã xử lý). |
+| `active_draft(actor, conversation=None)` | 58 | Bản nháp đang được bàn trong cuộc trò chuyện hiện tại (mới sửa gần nhất). |
+| `_event_of(draft)` | 69 | — |
+| `_clock(value, fallback)` | 74 | — |
+| `event_window(draft)` | 79 | (bắt đầu, kết thúc) của sự kiện, hoặc None khi chưa có ngày. |
+| `task_deadline(draft, task)` | 97 | Hạn của một task: ngày sự kiện − N ngày, lúc `due`; không sau giờ kết thúc sự kiện. |
+| `missing(draft)` | 110 | [(mã, mô tả)] thông tin bắt buộc còn thiếu, theo thứ tự nên hỏi. |
+| `problems(draft, now=None)` | 130 | Lỗi làm bản nháp không duyệt được dù đã đủ thông tin (giờ sai, hạn đã qua…). |
+| `_capacity(profile)` | 152 | — |
+| `_ban_members(ban_id)` | 156 | — |
+| `_workload(member_ids)` | 162 | {user_id: số task đang làm} và {user_id: hồ sơ nhận task}. |
+| `_free(member, deadline, load, profiles)` | 172 | — |
+| `suggest_assignees(draft)` | 179 | Gợi ý người cho các task chưa có ai: đúng ban, còn sức nhận việc, ưu tiên kỹ năng khớp tên task, rồi ít việc nhất. Trả về số task đã gợi ý (chưa commit). |
+| `_bans_in(text)` | 215 | — |
+| `_member_in(message)` | 221 | Đúng một thành viên được nhắc (MSSV hoặc họ tên đầy đủ); nhiều người → hỏi lại. |
+| `_task_in(draft, text)` | 238 | Đúng một task được nhắc: "task 2" / "việc 2" hoặc một phần tên task. |
+| `_strip(message, spans)` | 258 | — |
+| `_clauses(message)` | 271 | — |
+| `parse_edits(draft, message)` | 275 | Các thay đổi mà câu chat yêu cầu trên bản nháp (chưa áp dụng). [] nếu câu không phải chỉnh sửa (vd. một câu hỏi tra cứu) – khi đó trợ lý trả lời như bình thường. |
+| `_parse_clause(draft, clause)` | 292 | — |
+| `_store(draft, data)` | 355 | Ghi lại JSON của bản nháp (cột JSON không tự nhận thay đổi bên trong dict). |
+| `_task_by_key(data, key)` | 362 | — |
+| `apply_ops(actor, draft, ops)` | 366 | Áp các thay đổi lên bản nháp (chưa commit). Trả về câu mô tả ngắn từng thay đổi. |
+| `_confirm(data, field)` | 454 | — |
+| `_new_task(key, name, description, ban_id)` | 458 | — |
+| `draft_intent(message)` | 478 | "event" nếu câu yêu cầu lập sự kiện mới, "tasks" nếu yêu cầu chia task cho sự kiện có sẵn. |
+| `_guess_name(message, spans)` | 490 | — |
+| `_open_event_in(message)` | 501 | — |
+| `create_draft(actor, message, conversation=None, template_id=None, event=None)` | 511 | Lập bản nháp từ câu mô tả (chưa đủ thông tin vẫn lập). Commit; trả về bản nháp. |
+| `update_from_form(actor, draft, form)` | 545 | Lưu form ở trang bản nháp (thông tin sự kiện + từng task). Commit. |
+| `_form_date(value)` | 589 | — |
+| `_form_clock(value, label)` | 599 | — |
+| `_form_ban(value)` | 608 | — |
+| `_form_int(value, label, low, high)` | 616 | — |
+| `_claim(draft, status)` | 627 | Chuyển trạng thái bằng UPDATE có điều kiện (hai người bấm cùng lúc chỉ một lượt thành công). |
+| `approve(actor, draft)` | 636 | Duyệt: tạo sự kiện (nếu là bản nháp sự kiện mới) và toàn bộ task trong một giao dịch. |
+| `discard(actor, draft)` | 679 | Bỏ bản nháp (không ảnh hưởng dữ liệu thật). Commit. |
+| `_event_code(name, start)` | 688 | — |
+| `_member_name(member_id)` | 698 | — |
+| `summary(draft)` | 703 | Tóm tắt bản nháp dạng văn bản (cho trang AI, API và làm dữ kiện khi model viết câu trả lời). |
+| `_ask(draft)` | 726 | Một câu hỏi tiếp theo (tối đa 2 ý quan trọng nhất), hoặc lời nhắc duyệt khi đã đủ. |
+| `reply(draft, changes=None, created=False)` | 748 | Kết quả trả về cho chat: câu trả lời tự nhiên + dữ kiện để kiểm chứng. |
+| `is_draft_message(actor, message, conversation=None)` | 766 | True nếu câu chat là yêu cầu lập bản nháp hoặc chỉnh bản nháp đang bàn (không ghi gì). |
+| `maybe_handle_draft(actor, message, conversation=None)` | 782 | Điểm vào từ chat: lập bản nháp mới, hoặc chỉnh bản nháp đang bàn. None nếu câu không liên quan. |
+
 ### `app/services/event_status.py`
 
 Trạng thái sự kiện – nơi DUY NHẤT được đổi `Event.trang_thai`.
@@ -830,41 +884,20 @@ Quỹ CLB – khoản thu là nguồn DUY NHẤT cho "phải đóng / đã đón
 
 ### `app/services/natural_datetime.py`
 
-Conservative date/time extraction for natural proposal requests.
+Đọc ngày và giờ trong câu tiếng Việt cho bản nháp sự kiện (`extract_schedule`).
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
-| `_date_value(year, month, day, now)` | 63 | Tạo ngày từ (năm, tháng, ngày); thiếu năm thì dùng năm hiện tại; ngày không tồn tại → lỗi. |
-| `_extract_dates(message, now)` | 73 | Tìm các ngày trong câu (ISO, dd/mm[/yyyy], hôm nay, ngày mai…) kèm vị trí. |
-| `_period_key(value)` | 113 | Đổi buổi trong ngày (sáng/trưa/chiều/tối/đêm) thành khóa chuẩn. |
-| `_resolve_hour(hour, minute, period)` | 125 | Đổi giờ theo buổi (vd: 7 giờ tối → 19:00), kiểm tra giờ hợp lệ. |
-| `_extract_times(message, dates)` | 162 | Tìm các mốc giờ trong câu kèm vị trí và buổi. |
-| `_connected(message, first, second)` | 223 | True nếu ngày và giờ nằm liền nhau trong câu (thuộc cùng một mốc). |
-| `_explicit_range(message, first, second)` | 236 | True nếu hai mốc được nối bằng từ chỉ khoảng (đến, -, tới…). |
-| `parse_natural_datetimes(message)` | 244 | Return complete, safely paired datetimes and their removable phrases. Supported forms include ISO datetimes, Vietnamese day/month dates with an optional four-digit year, today/tomorrow, and explicit clock times in either date-first or time-first order. A second time shares a date only in a clear ``from ... to ...`` schedule. |
-
-### `app/services/natural_proposals.py`
-
-Conservative natural-language intake for reviewable event/task proposals.
-
-| Hàm / class | Dòng | Mô tả |
-|---|---|---|
-| `_kind(message)` | 21 | Nhận diện câu chat là yêu cầu tạo sự kiện (event) hay giao task (task). |
-| `_pending(actor, conversation=None)` | 34 | Đề xuất đang chờ bổ sung thông tin của người dùng (theo cuộc trò chuyện). |
-| `_new_pending(actor, kind, text, conversation=None)` | 43 | Tạo bản ghi đề xuất đang chờ bổ sung. |
-| `is_natural_proposal_command(message, actor=None, conversation=None)` | 51 | True nếu câu chat là yêu cầu tạo đề xuất hoặc đang có đề xuất chờ bổ sung. |
-| `is_pending_deadline_reply(actor, message, conversation=None)` | 58 | Recognize an explicit deadline continuation, not a task lookup. |
-| `_entity(rows, name_attr, message, label)` | 71 | Tìm đúng một bản ghi có tên xuất hiện trong câu (ưu tiên tên dài nhất). |
-| `_event(message)` | 88 | Sự kiện đang mở được nhắc trong câu (theo mã hoặc tên). |
-| `_ban(message)` | 98 | Ban được nhắc trong câu (theo số hoặc tên); nhiều ban thì yêu cầu chọn. |
-| `_assignee(actor, message)` | 114 | Người phụ trách được nhắc trong câu (MSSV hoặc họ tên), trong phạm vi quản lý sự kiện. |
-| `_dates(message)` | 142 | Các mốc thời gian đầy đủ trong câu (dùng natural_datetime). |
-| `_brief(message, kind, event=None, ban=None, member=None, date_parts=())` | 147 | Phần mô tả còn lại của câu sau khi bỏ các cụm đã nhận diện (sự kiện, ban, người, thời gian). |
-| `maybe_create_natural_proposal(actor, message, conversation=None)` | 168 | Xử lý yêu cầu tạo sự kiện/task bằng ngôn ngữ tự nhiên: hỏi lại thông tin thiếu, đủ thì tạo AIProposal chờ duyệt. |
+| `_date_value(year, month, day, now)` | 58 | Tạo ngày từ (năm, tháng, ngày); thiếu năm thì dùng năm hiện tại; ngày không tồn tại → lỗi. |
+| `_extract_dates(message, now)` | 68 | Tìm các ngày trong câu (ISO, dd/mm[/yyyy], hôm nay, ngày mai…) kèm vị trí. |
+| `_period_key(value)` | 108 | Đổi buổi trong ngày (sáng/trưa/chiều/tối/đêm) thành khóa chuẩn. |
+| `_resolve_hour(hour, minute, period)` | 120 | Đổi giờ theo buổi (vd: 7 giờ tối → 19:00), kiểm tra giờ hợp lệ. |
+| `_extract_times(message, dates)` | 157 | Tìm các mốc giờ trong câu kèm vị trí và buổi. |
+| `extract_schedule(message)` | 218 | Ngày và giờ xuất hiện trong câu, theo thứ tự. Trả về {"dates": [date…], "times": [time…], "spans": [(start, end)…]}; `spans` là vị trí các cụm ngày/giờ để phần còn lại của câu (tên, địa điểm…) không lẫn ngày giờ. |
 
 ### `app/services/proposal_templates.py`
 
-Kho mẫu sự kiện / mẫu chia task cho AI đề xuất.
+Kho mẫu sự kiện / mẫu chia task cho bản nháp sự kiện của AI.
 
 | Hàm / class | Dòng | Mô tả |
 |---|---|---|
@@ -877,26 +910,8 @@ Kho mẫu sự kiện / mẫu chia task cho AI đề xuất.
 | `set_proposal_template_active(actor, template, active)` | 169 | Bật/tắt mẫu sự kiện/task. |
 | `_from_row(row, source, text_match=False)` | 178 | Kết quả chọn mẫu. `text_match`: mẫu được chọn tay hoặc khớp tên/từ khóa trong mô tả (không chỉ khớp loại sự kiện) – chế độ không có model AI chỉ áp mẫu khi True. |
 | `_similar_event(kind, brief, event=None)` | 186 | Sự kiện cũ tương tự (cùng loại, hoặc có từ ≥4 ký tự trùng tên với mô tả). |
-| `find_proposal_template(kind, brief, event=None, template_id=None)` | 231 | Chọn khung cho đề xuất theo thứ tự: mẫu được chọn → mẫu trong kho → sự kiện tương tự → mẫu chung trong kho → mẫu chung viết sẵn. |
+| `find_proposal_template(kind, brief, event=None, template_id=None)` | 231 | Chọn khung cho bản nháp theo thứ tự: mẫu được chọn → mẫu trong kho → sự kiện tương tự → mẫu chung trong kho → mẫu chung viết sẵn. |
 | `seed_proposal_templates()` | 262 | Nạp các mẫu sự kiện/task mặc định nếu kho chưa có mẫu nào của loại đó. |
-
-### `app/services/proposals.py`
-
-Reviewable AI suggestions. No model output is executed directly.
-
-| Hàm / class | Dòng | Mô tả |
-|---|---|---|
-| `_integer(value, label)` | 22 | Ép kiểu số nguyên, sai → DomainError có nhãn trường. |
-| `_json_object(text)` | 30 | Đọc JSON object từ text model trả về (bỏ ```json nếu có). |
-| `_model_suggestion(provider, kind, brief, context)` | 44 | Nhờ model gợi ý tên/mô tả/địa điểm cho đề xuất; lỗi thì trả gợi ý rỗng. |
-| `_event_payload(actor, data, brief, provider)` | 74 | Dựng payload đề xuất sự kiện đã kiểm tra thời gian và ban (sự kiện không giới hạn số người). |
-| `_task_payload(actor, data, brief, provider)` | 108 | Dựng payload đề xuất task: kiểm tra sự kiện, ban, hạn, chọn người phụ trách phù hợp (kỹ năng, số task đang làm, lịch bận). |
-| `create_proposal(actor, data, provider=None)` | 212 | Tạo AIProposal (event/task) trạng thái pending – chưa ghi dữ liệu thật (MANAGE_EVENTS). |
-| `proposal_preview(proposal)` | 232 | Văn bản xem trước của đề xuất để người duyệt đọc. |
-| `can_review(actor, proposal)` | 250 | Duyệt đề xuất AI theo quyền tương ứng: sự kiện/task cần MANAGE_EVENTS. |
-| `review_proposal(actor, proposal, decision)` | 255 | Duyệt (tạo sự kiện/task thật, kiểm tra lại sức chứa người phụ trách) hoặc từ chối đề xuất. |
-| `is_chat_proposal_command(message)` | 328 | True nếu câu chat là lệnh cú pháp cố định 'đề xuất sự kiện: ...' hoặc 'chia task: ...'. |
-| `maybe_create_chat_proposal(actor, message, provider=None)` | 333 | Tạo đề xuất từ lệnh chat cú pháp cố định. |
 
 ### `app/services/ui_context.py`
 

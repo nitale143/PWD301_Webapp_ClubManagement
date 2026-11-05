@@ -16,7 +16,6 @@ from app.models import (
     Ban,
     ChatConversation,
     ChatMessage,
-    ConversationPending,
     MemberRecord,
     User,
     UserBan,
@@ -325,33 +324,6 @@ class ChatConversationTests(unittest.TestCase):
         self.assertEqual([row.content for row in provider.history],
                          [f"first {index}" for index in range(2, 8)])
         self.assertNotIn("private to another chat", [row.content for row in provider.history])
-
-    def test_pending_clarification_from_one_chat_is_not_used_in_another(self):
-        self.login(1)
-        db.session.get(User, 1).chuc_vu = "CN"
-        db.session.commit()
-        first_id = self.create_conversation("Proposal clarification")
-        second_id = self.create_conversation("Separate question")
-
-        first = self.send("Tạo sự kiện", first_id)
-        self.assertEqual(first.status_code, 200, first.json)
-        pending = ConversationPending.query.filter_by(conversation_id=first_id).one()
-        original_text = pending.text
-
-        unrelated = self.send("14:00", second_id)
-        self.assertEqual(unrelated.status_code, 200, unrelated.json)
-        self.assertNotIn("Chưa tạo đề xuất", unrelated.json["answer"])
-        self.assertIsNone(ConversationPending.query.filter_by(conversation_id=second_id).first())
-        cancel_other = self.send("hủy", second_id)
-        self.assertEqual(cancel_other.status_code, 200, cancel_other.json)
-        self.assertNotIn("Đã hủy yêu cầu", cancel_other.json["answer"])
-        db.session.refresh(pending)
-        self.assertEqual(pending.text, original_text)
-
-        follow_up = self.send("ngày mai lúc 14:00", first_id)
-        self.assertEqual(follow_up.status_code, 200, follow_up.json)
-        db.session.refresh(pending)
-        self.assertIn("ngày mai", pending.text)
 
     def test_rate_limit_still_counts_messages_across_conversations(self):
         self.login(1)

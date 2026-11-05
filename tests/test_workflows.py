@@ -12,7 +12,7 @@ from PIL import Image
 
 from tests.support import csrf_for
 from app import create_app, db
-from app.models import AIProposal, AIReportSnapshot, AIUsageLog, ConversationPending, Attendance, Ban, ChatMessage, EmailProposal, EmailTemplate, Event, EventRegistration, EventTargetBan, FundCollection, FundPayment, FundPeriod, MemberPlanningProfile, MemberRecord, Task, User, UserBan
+from app.models import AIReportSnapshot, Attendance, Ban, ChatMessage, EmailProposal, EmailTemplate, Event, EventRegistration, EventTargetBan, FundCollection, FundPayment, FundPeriod, MemberRecord, Task, User, UserBan
 from app.legacy_sqlite import migrate_email_recipients, migrate_legacy_money
 from app.services.common import DomainError, club_now, parse_datetime
 from app.services.briefings import daily_digest, report_data, report_text
@@ -242,52 +242,6 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("Member 3", sent["messages"][0]["content"])
         self.assertNotIn("Member 4", sent["messages"][0]["content"])
 
-    def test_gemini_chat_and_proposal_keep_scoped_context_and_review_gate(self):
-        self.app.config.update(AI_PROVIDER="gemini", GEMINI_API_KEY="test-gemini-key",
-                               GEMINI_MODEL="gemini-3.8-flash", AI_STRICT_FACTS=False)
-        self.login(3)
-        fake = BytesIO(json.dumps({"candidates": [{"content": {"parts": [
-            {"text": "Thông tin đã được kiểm chứng."}]}}]}).encode())
-        with patch("app.services.assistant.urlopen", return_value=fake) as mocked:
-            response = self.csrf_request("POST", "/api/v1/assistant", json={"question": "Hướng dẫn sử dụng CLB"})
-        self.assertEqual(response.status_code, 200, response.json)
-        self.assertEqual(response.json["provider"], "gemini")
-        req = mocked.call_args.args[0]
-        self.assertEqual(req.get_header("X-goog-api-key"), "test-gemini-key")
-        self.assertIn("gemini-3.8-flash:generateContent", req.full_url)
-        sent = json.loads(req.data)
-        self.assertIn("Member 3", sent["contents"][0]["parts"][0]["text"])
-        self.assertNotIn("Member 4", sent["contents"][0]["parts"][0]["text"])
-        fake_web = BytesIO(json.dumps({"candidates": [{"content": {"parts": [
-            {"text": "Trả lời trên trang AI."}]}}]}).encode())
-        with patch("app.services.assistant.urlopen", return_value=fake_web):
-            web = self.csrf_request("POST", "/ai", data={"message": "Hướng dẫn sử dụng CLB",
-                                                "csrf_token": self.csrf()},
-                                   follow_redirects=True)
-        self.assertEqual(web.status_code, 200)
-        self.assertIn("Trả lời trên trang AI.".encode(), web.data)
-
-        self.login(1)
-        token = self.csrf()
-        start = datetime.utcnow() + timedelta(days=4)
-        model_json = json.dumps({"name": "Workshop Gemini", "content": "Học cùng nhau",
-                                 "type": "workshop", "location": "Phòng A", "capacity": 25})
-        fake = BytesIO(json.dumps({"candidates": [{"content": {"parts": [
-            {"text": model_json}]}}]}).encode())
-        with patch("app.services.assistant.urlopen", return_value=fake):
-            created = self.csrf_request("POST", "/api/v1/assistant/proposals", json={
-                "kind": "event", "brief": "Tổ chức workshop",
-                "start_at": start.isoformat(),
-                "end_at": (start + timedelta(hours=2)).isoformat(),
-            }, headers={"X-CSRF-Token": token})
-        self.assertEqual(created.status_code, 201, created.json)
-        self.assertEqual(created.json["provider"], "gemini")
-        self.assertEqual(Event.query.count(), 0)
-        reviewed = self.csrf_request("POST", f"/api/v1/assistant/proposals/{created.json['id']}/review",
-                                    json={"decision": "approved"}, headers={"X-CSRF-Token": token})
-        self.assertEqual(reviewed.status_code, 200, reviewed.json)
-        self.assertEqual(Event.query.one().ten_su_kien, "Workshop Gemini")
-
     def test_gemini_retries_transient_failure_then_uses_verified_fallback(self):
         self.app.config.update(AI_PROVIDER="gemini", GEMINI_API_KEY="test-gemini-key",
                                GEMINI_MODEL="gemini-3.5-flash-lite", AI_STRICT_FACTS=False)
@@ -321,54 +275,6 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(invalid.status_code, 503, invalid.json)
         self.assertIn("Kiểm tra tên model", invalid.json["error"])
         self.assertEqual(call.call_count, 1)
-
-    def test_gemini_structured_proposal_records_tokens_and_limits_calls(self):
-        self.app.config.update(AI_PROVIDER="gemini", GEMINI_API_KEY="test-key",
-                               GEMINI_MODEL="gemini-3.5-flash-lite",
-                               AI_MAX_CALLS_PER_MINUTE=1, AI_STRICT_FACTS=False)
-        self.login(1)
-        token = self.csrf()
-        start = club_now() + timedelta(days=3)
-        reply = BytesIO(json.dumps({"candidates": [{"content": {"parts": [{"text":
-            json.dumps({"name": "Workshop", "content": "Học tập", "type": "training",
-                        "location": "A101", "capacity": 30})}]}}],
-            "usageMetadata": {"promptTokenCount": 37, "candidatesTokenCount": 18,
-                              "totalTokenCount": 60}}).encode())
-        with patch("app.services.assistant.urlopen", return_value=reply) as model:
-            created = self.csrf_request("POST", "/api/v1/assistant/proposals", json={
-                "kind": "event", "brief": "Workshop học tập",
-                "start_at": start.isoformat(),
-                "end_at": (start + timedelta(hours=2)).isoformat()},
-                headers={"X-CSRF-Token": token})
-        self.assertEqual(created.status_code, 201, created.json)
-        request_body = json.loads(model.call_args.args[0].data)
-        self.assertEqual(request_body["generationConfig"]["responseFormat"]["text"]["mimeType"],
-                         "APPLICATION_JSON")
-        usage = AIUsageLog.query.one()
-        self.assertEqual((usage.purpose, usage.input_tokens, usage.output_tokens),
-                         ("proposal", 37, 18))
-        self.assertEqual(usage.total_tokens, 60)
-        with patch("app.services.assistant.urlopen") as model:
-            limited = self.csrf_request("POST", "/api/v1/assistant", json={"question": "Tóm tắt hoạt động"})
-        self.assertEqual(limited.status_code, 429, limited.json)
-        model.assert_not_called()
-
-    def test_model_usage_is_kept_when_ai_payload_is_invalid(self):
-        self.app.config.update(AI_PROVIDER="gemini", GEMINI_API_KEY="test-key")
-        self.login(1)
-        token = self.csrf()
-        start = club_now() + timedelta(days=3)
-        bad = BytesIO(json.dumps({"candidates": [{"content": {"parts": [
-            {"text": "not-json"}]}}], "usageMetadata": {"totalTokenCount": 42}}).encode())
-        with patch("app.services.assistant.urlopen", return_value=bad):
-            response = self.csrf_request("POST", "/api/v1/assistant/proposals", json={
-                "kind": "event", "brief": "Workshop",
-                "start_at": start.isoformat(),
-                "end_at": (start + timedelta(hours=2)).isoformat()},
-                headers={"X-CSRF-Token": token})
-        self.assertEqual(response.status_code, 503, response.json)
-        self.assertEqual(AIProposal.query.count(), 0)
-        self.assertEqual(AIUsageLog.query.one().total_tokens, 42)
 
     def test_chat_history_context_and_financial_answers_are_deterministic(self):
         self.app.config.update(AI_PROVIDER="gemini", GEMINI_API_KEY="test-key", AI_STRICT_FACTS=False)
@@ -728,103 +634,6 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(ChatMessage.query.filter_by(user_id=1).count(), 2)
         self.assertIn(b"contact@partner.org", self.client.get("/ai").data)
 
-    def test_chat_event_proposal_requires_csrf_and_review(self):
-        self.app.config.update(AI_PROVIDER="rules")
-        self.login(1)
-        token = self.csrf()
-        start = club_now() + timedelta(days=4)
-        command = (f"Đề xuất sự kiện: Workshop an toàn | {start:%Y-%m-%d %H:%M} | "
-                   f"{start + timedelta(hours=2):%Y-%m-%d %H:%M}")
-        denied = self.client.post("/api/v1/assistant", json={"question": command})
-        self.assertEqual(denied.status_code, 400)
-        created = self.csrf_request("POST", "/api/v1/assistant", json={"question": command},
-                                   headers={"X-CSRF-Token": token})
-        self.assertEqual(created.status_code, 200, created.json)
-        self.assertEqual(created.json["intent"], "ai_proposal")
-        self.assertEqual(Event.query.count(), 0)
-        proposal = AIProposal.query.one()
-        self.assertIn("Loại: other", self.client.get("/ai").get_data(as_text=True))
-        self.csrf_request("POST", f"/ai/proposals/{proposal.id}/approved", data={"csrf_token": token})
-        self.assertEqual(Event.query.count(), 1)
-        event = Event.query.one()
-        task_command = (f"Chia task: {event.id} | 1 | "
-                        f"{start + timedelta(hours=1):%Y-%m-%d %H:%M} | "
-                        "Chuẩn bị tài liệu; Kiểm tra thiết bị | python")
-        task_draft = self.csrf_request("POST", "/api/v1/assistant", json={"question": task_command},
-                                      headers={"X-CSRF-Token": token})
-        self.assertEqual(task_draft.status_code, 200, task_draft.json)
-        self.assertEqual(Task.query.count(), 0)
-        task_proposal = AIProposal.query.filter_by(kind="task").one()
-        self.csrf_request("POST", f"/ai/proposals/{task_proposal.id}/approved",
-                         data={"csrf_token": token})
-        self.assertEqual(Task.query.count(), 2)
-
-    def test_member_task_preferences_and_balanced_assignment(self):
-        self.app.config.update(AI_PROVIDER="rules")
-        self.login(3)
-        token = self.csrf()
-        saved = self.csrf_request("POST", "/profile/task-preferences", data={
-            "skills": "python, bảo mật", "max_active_tasks": "1", "csrf_token": token})
-        self.assertEqual(saved.status_code, 302)
-        self.assertEqual(db.session.get(MemberPlanningProfile, 3).skills,
-                         ["python", "bảo mật"])
-        start = club_now() + timedelta(days=3)
-        db.session.add(Event(ten_su_kien="Workshop", ma_su_kien="WK001",
-                             thoi_gian_bat_dau=start,
-                             thoi_gian_ket_thuc=start + timedelta(hours=3),
-                             trang_thai="sap_dien_ra", tao_boi_id=1))
-        db.session.commit()
-        self.login(1)
-        event = Event.query.one()
-        proposed = self.csrf_request("POST", "/api/v1/assistant/proposals", json={
-            "kind": "task", "event_id": event.id, "ban_id": 1,
-            "deadline": (start + timedelta(hours=1)).isoformat(),
-            "brief": "Viết script Python; Chuẩn bị poster", "required_skills": "python"},
-            headers={"X-CSRF-Token": token})
-        self.assertEqual(proposed.status_code, 201, proposed.json)
-        proposal = AIProposal.query.one()
-        assignees = [row["assignee_id"] for row in proposal.payload["tasks"]]
-        self.assertEqual(assignees[0], 3)
-        self.assertNotEqual(assignees[1], 3)
-        self.csrf_request("POST", f"/ai/proposals/{proposal.id}/approved", data={"csrf_token": token})
-        self.assertEqual(Task.query.count(), 2)
-
-    def test_task_review_rechecks_member_capacity_and_unavailability(self):
-        self.app.config.update(AI_PROVIDER="rules")
-        self.login(1)
-        token = self.csrf()
-        start = club_now() + timedelta(days=3)
-        event = Event(ten_su_kien="Workshop", ma_su_kien="WK002",
-                      thoi_gian_bat_dau=start,
-                      thoi_gian_ket_thuc=start + timedelta(hours=3),
-                      trang_thai="sap_dien_ra", tao_boi_id=1)
-        db.session.add(event)
-        db.session.commit()
-        # Others are unavailable, so the first proposal selects member 3.
-        db.session.add(MemberPlanningProfile(user_id=1,
-                                             unavailable_until=start.date()))
-        db.session.add(MemberPlanningProfile(user_id=2,
-                                             unavailable_until=start.date()))
-        db.session.add(MemberPlanningProfile(user_id=4,
-                                             unavailable_until=start.date()))
-        db.session.add(MemberPlanningProfile(user_id=3, max_active_tasks=1,
-                                             skills=["python"]))
-        db.session.commit()
-        proposed = self.csrf_request("POST", "/api/v1/assistant/proposals", json={
-            "kind": "task", "event_id": event.id, "ban_id": 1,
-            "deadline": (start + timedelta(hours=1)).isoformat(),
-            "brief": "Viết script Python", "required_skills": "python"},
-            headers={"X-CSRF-Token": token})
-        self.assertEqual(proposed.status_code, 201, proposed.json)
-        self.assertEqual(AIProposal.query.one().payload["tasks"][0]["assignee_id"], 3)
-        db.session.get(MemberPlanningProfile, 3).unavailable_until = start.date()
-        db.session.commit()
-        rejected = self.csrf_request("POST", f"/api/v1/assistant/proposals/{AIProposal.query.one().id}/review",
-                                    json={"decision": "approved"},
-                                    headers={"X-CSRF-Token": token})
-        self.assertEqual(rejected.status_code, 400, rejected.json)
-        self.assertEqual(Task.query.count(), 0)
-
     def test_monthly_report_is_global_for_truong_ban(self):
         self.app.config.update(AI_PROVIDER="rules")
         db.session.add(Ban(id=2, ten_ban="Nhân sự"))
@@ -977,68 +786,6 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(db.session.get(User, outsider.id).status, "approved")
         mail.assert_called_once()
 
-    def test_ai_proposal_requires_approval_then_creates_event_and_tasks(self):
-        self.login(1)
-        token = self.csrf()
-        start = datetime.utcnow() + timedelta(days=3)
-        created = self.csrf_request("POST", "/api/v1/assistant/proposals", json={
-            "kind": "event", "brief": "Workshop an toàn thông tin",
-            "start_at": start.isoformat(),
-            "end_at": (start + timedelta(hours=2)).isoformat(), "ban_id": 1},
-            headers={"X-CSRF-Token": token})
-        self.assertEqual(created.status_code, 201, created.json)
-        proposal_id = created.json["id"]
-        self.assertEqual(created.json["status"], "pending")
-        self.assertEqual(Event.query.count(), 0)
-        self.login(3)
-        self.assertEqual(self.csrf_request("POST", f"/api/v1/assistant/proposals/{proposal_id}/review",
-                                          json={"decision": "approved"}, headers={"X-CSRF-Token": token}).status_code, 403)
-        self.login(1)
-        approved = self.csrf_request("POST", f"/api/v1/assistant/proposals/{proposal_id}/review",
-                                    json={"decision": "approved"}, headers={"X-CSRF-Token": token})
-        self.assertEqual(approved.status_code, 200, approved.json)
-        event_id = approved.json["result_ids"][0]
-        self.assertEqual(Event.query.count(), 1)
-        self.assertEqual(self.csrf_request("POST", f"/api/v1/assistant/proposals/{proposal_id}/review",
-                                          json={"decision": "approved"}, headers={"X-CSRF-Token": token}).status_code, 400)
-        task_proposal = self.csrf_request("POST", "/api/v1/assistant/proposals", json={
-            "kind": "task", "brief": "Chuẩn bị tài liệu; Kiểm tra thiết bị",
-            "event_id": event_id, "ban_id": 1,
-            "deadline": (start + timedelta(hours=1)).isoformat()}, headers={"X-CSRF-Token": token})
-        self.assertEqual(task_proposal.status_code, 201, task_proposal.json)
-        self.assertEqual(Task.query.count(), 0)
-        task_approved = self.csrf_request("POST",
-            f"/api/v1/assistant/proposals/{task_proposal.json['id']}/review",
-            json={"decision": "approved"}, headers={"X-CSRF-Token": token})
-        self.assertEqual(task_approved.status_code, 200, task_approved.json)
-        self.assertEqual(Task.query.count(), 2)
-
-    def test_ai_proposal_web_preview_reject_and_model_output(self):
-        self.app.config.update(AI_PROVIDER="anthropic", AI_API_KEY="test-shared-key")
-        self.login(1)
-        token = self.csrf()
-        start = datetime.utcnow() + timedelta(days=4)
-        model_json = json.dumps({"name": "Workshop Claude", "content": "Nội dung học tập",
-                                 "type": "workshop", "location": "Phòng A", "capacity": 25})
-        fake = BytesIO(json.dumps({"content": [{"type": "text", "text": model_json}]}).encode())
-        with patch("app.services.assistant.urlopen", return_value=fake):
-            created = self.csrf_request("POST", "/ai/proposals/new", data={
-                "kind": "event", "brief": "Tổ chức workshop cho CLB",
-                "start_at": start.strftime("%Y-%m-%dT%H:%M"),
-                "end_at": (start + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M"),
-                "csrf_token": token})
-        self.assertEqual(created.status_code, 302)
-        self.assertEqual(Event.query.count(), 0)
-        proposal = AIProposal.query.one()
-        self.assertEqual(proposal.payload["name"], "Workshop Claude")
-        page = self.client.get("/ai")
-        self.assertEqual(page.status_code, 200)
-        self.assertIn(b"Workshop Claude", page.data)
-        rejected = self.csrf_request("POST", f"/ai/proposals/{proposal.id}/rejected", data={"csrf_token": token})
-        self.assertEqual(rejected.status_code, 302)
-        self.assertEqual(Event.query.count(), 0)
-        self.assertEqual(db.session.get(AIProposal, proposal.id).status, "rejected")
-
     def test_role_transfer_uses_form_target(self):
         self.login(1)
         role_page = self.client.get("/admin/roles")
@@ -1066,7 +813,7 @@ class WorkflowTests(unittest.TestCase):
                          datetime(2026, 9, 28, 23, 0))
         self.login(1)
         self.assertEqual(self.client.post("/admin/roles/nhuong-quyen", data={"target_id": "3"}).status_code, 400)
-        self.assertEqual(self.client.post("/api/v1/assistant/proposals", json={}).status_code, 400)
+        self.assertEqual(self.client.post("/api/v1/assistant/drafts", json={}).status_code, 400)
         self.assertEqual(db.session.get(User, 1).chuc_vu, "CN")
 
     def test_fund_page_uses_collection_payment_flow(self):
@@ -1228,140 +975,6 @@ class WorkflowTests(unittest.TestCase):
                         'pending', 1, '2026-09-29')
             """)
         self.assertIsNone(migrate_email_recipients(path))
-
-    def test_natural_event_request_asks_for_missing_times_then_needs_approval(self):
-        self.app.config.update(AI_PROVIDER="rules")
-        self.login(1)
-        token = self.csrf()
-        question = "Tạo sự kiện Workshop bảo mật"
-        self.assertEqual(self.client.post("/api/v1/assistant", json={
-            "question": question}).status_code, 400)
-        incomplete = self.csrf_request("POST", "/api/v1/assistant", json={"question": question},
-                                      headers={"X-CSRF-Token": token})
-        self.assertEqual(incomplete.status_code, 200, incomplete.json)
-        self.assertEqual(incomplete.json["intent"], "proposal_needs_details")
-        self.assertEqual(Event.query.count(), 0)
-        self.assertIsNotNone(db.session.get(ConversationPending, incomplete.json["conversation_id"]))
-        start = (club_now() + timedelta(days=3)).replace(second=0, microsecond=0)
-        answer = f"Bắt đầu {start:%d/%m/%Y %H:%M} và kết thúc {start + timedelta(hours=2):%d/%m/%Y %H:%M}"
-        created = self.csrf_request("POST", "/api/v1/assistant", json={"question": answer},
-                                   headers={"X-CSRF-Token": token})
-        self.assertEqual(created.status_code, 200, created.json)
-        self.assertEqual(created.json["intent"], "ai_proposal")
-        self.assertEqual(Event.query.count(), 0)
-        self.assertIsNone(db.session.get(ConversationPending, created.json["conversation_id"]))
-        proposal = AIProposal.query.one()
-        self.assertEqual(proposal.kind, "event")
-        self.assertIn("Workshop bảo mật", proposal.payload["name"])
-        self.csrf_request("POST", f"/ai/proposals/{proposal.id}/approved", data={"csrf_token": token})
-        self.assertEqual(Event.query.count(), 1)
-
-    def test_natural_event_does_not_broaden_unknown_ban_and_reuses_pending_proposal(self):
-        self.app.config.update(AI_PROVIDER="rules")
-        self.login(1)
-        token = self.csrf()
-        start = (club_now() + timedelta(days=3)).replace(second=0, microsecond=0)
-        question = (f"Tạo sự kiện Demo ban #999 từ {start:%d/%m/%Y %H:%M} "
-                    f"đến {start + timedelta(hours=2):%d/%m/%Y %H:%M}")
-        unknown = self.csrf_request("POST", "/api/v1/assistant", json={"question": question},
-                                   headers={"X-CSRF-Token": token})
-        self.assertEqual(unknown.json["intent"], "proposal_needs_details")
-        self.assertIn("Không có ban #999", unknown.json["answer"])
-        self.assertEqual(AIProposal.query.count(), 0)
-        valid = question.replace("#999", "#1")
-        first = self.csrf_request("POST", "/api/v1/assistant", json={"question": valid},
-                                 headers={"X-CSRF-Token": token})
-        again = self.csrf_request("POST", "/api/v1/assistant", json={"question": valid},
-                                 headers={"X-CSRF-Token": token})
-        self.assertEqual(first.json["intent"], "ai_proposal")
-        self.assertIsNone(db.session.get(ConversationPending, first.json["conversation_id"]))
-        self.assertEqual(again.json["proposal_id"], first.json["proposal_id"])
-        self.assertEqual(AIProposal.query.count(), 1)
-
-    def test_natural_task_request_names_assignee_and_refuses_three_bans_guess(self):
-        self.app.config.update(AI_PROVIDER="rules")
-        event_id = self.create_event()
-        event = db.session.get(Event, event_id)
-        self.login(1)
-        token = self.csrf()
-        deadline = event.thoi_gian_bat_dau + timedelta(hours=1)
-        question = ("Giao task thiết kế poster cho Member 3 trong sự kiện "
-                    f"Workshop ban Ky thuat hạn {deadline:%d/%m/%Y %H:%M}")
-        created = self.csrf_request("POST", "/api/v1/assistant", json={"question": question},
-                                   headers={"X-CSRF-Token": token})
-        self.assertEqual(created.status_code, 200, created.json)
-        self.assertEqual(created.json["intent"], "ai_proposal")
-        proposal = AIProposal.query.filter_by(kind="task").one()
-        self.assertEqual(proposal.payload["tasks"][0]["assignee_id"], 3)
-        self.assertEqual(Task.query.count(), 0)
-        self.csrf_request("POST", f"/ai/proposals/{proposal.id}/approved", data={"csrf_token": token})
-        self.assertEqual(Task.query.one().assignee_id, 3)
-
-        ambiguous = self.csrf_request("POST", "/api/v1/assistant", json={
-            "question": "Chia task Tuyển NY cho Member 3 cho 3 ban"},
-            headers={"X-CSRF-Token": token})
-        self.assertEqual(ambiguous.status_code, 200, ambiguous.json)
-        self.assertEqual(ambiguous.json["intent"], "proposal_needs_details")
-        self.assertIn("Một task chỉ thuộc một ban", ambiguous.json["answer"])
-        self.assertEqual(AIProposal.query.count(), 1)
-        cancelled = self.csrf_request("POST", "/api/v1/assistant", json={"question": "hủy"},
-                                     headers={"X-CSRF-Token": token})
-        self.assertEqual(cancelled.json["intent"], "proposal_cancelled")
-        self.assertIsNone(db.session.get(ConversationPending, cancelled.json["conversation_id"]))
-
-    def test_natural_task_does_not_substitute_unknown_named_assignee(self):
-        self.app.config.update(AI_PROVIDER="rules")
-        event_id = self.create_event()
-        event = db.session.get(Event, event_id)
-        self.login(1)
-        token = self.csrf()
-        deadline = event.thoi_gian_bat_dau + timedelta(hours=1)
-        question = ("Giao task thiết kế poster cho Người Không Tồn Tại trong sự kiện "
-                    f"Workshop ban Ky thuat hạn {deadline:%d/%m/%Y %H:%M}")
-        response = self.csrf_request("POST", "/api/v1/assistant", json={"question": question},
-                                    headers={"X-CSRF-Token": token})
-        self.assertEqual(response.json["intent"], "proposal_needs_details")
-        self.assertIn("Không tìm thấy người", response.json["answer"])
-        self.assertEqual(AIProposal.query.count(), 0)
-
-    def test_approval_accepts_three_tasks_within_same_member_capacity(self):
-        event_id = self.create_event()
-        event = db.session.get(Event, event_id)
-        self.login(1)
-        token = self.csrf()
-        proposal = self.csrf_request("POST", "/api/v1/assistant/proposals", json={
-            "kind": "task", "brief": "Việc A; Việc B; Việc C",
-            "event_id": event_id, "ban_id": 1, "assignee_id": 3,
-            "deadline": (event.thoi_gian_bat_dau + timedelta(hours=1)).isoformat(),
-        }, headers={"X-CSRF-Token": token})
-        self.assertEqual(proposal.status_code, 201, proposal.json)
-        reviewed = self.csrf_request("POST", f"/api/v1/assistant/proposals/{proposal.json['id']}/review",
-                                    json={"decision": "approved"},
-                                    headers={"X-CSRF-Token": token})
-        self.assertEqual(reviewed.status_code, 200, reviewed.json)
-        self.assertEqual(Task.query.filter_by(assignee_id=3).count(), 3)
-
-    def test_explicit_assignee_is_not_lost_after_first_thirty_candidates(self):
-        event_id = self.create_event()
-        event = db.session.get(Event, event_id)
-        for user_id in range(5, 35):
-            member = User(id=user_id, mssv=f"SV{user_id}", ho_ten=f"Member {user_id}",
-                          ngay_sinh=date(2003, 1, 1), sdt="0123456789",
-                          email=f"member{user_id}@example.test", status="approved",
-                          chuc_vu="THANH_VIEN")
-            member.set_password("test-password")
-            db.session.add(member)
-            db.session.add(UserBan(user_id=user_id, ban_id=1))
-        db.session.commit()
-        self.login(1)
-        token = self.csrf()
-        proposal = self.csrf_request("POST", "/api/v1/assistant/proposals", json={
-            "kind": "task", "brief": "Giao cho thành viên cuối", "event_id": event_id,
-            "ban_id": 1, "assignee_id": 34,
-            "deadline": (event.thoi_gian_bat_dau + timedelta(hours=1)).isoformat(),
-        }, headers={"X-CSRF-Token": token})
-        self.assertEqual(proposal.status_code, 201, proposal.json)
-        self.assertEqual(AIProposal.query.one().payload["tasks"][0]["assignee_id"], 34)
 
     def test_digest_and_report_are_scoped_deterministic_and_source_backed(self):
         self.app.config.update(AI_PROVIDER="rules")

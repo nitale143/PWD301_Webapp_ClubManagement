@@ -42,7 +42,7 @@
 
         {% if is_self %}
         <section class="{% if can_see_full %}span-5{% else %}span-12{% endif %} card">
-            <div class="card-header"><div><h2>Khả năng nhận task</h2><p class="small muted">Tùy chọn này hỗ trợ đề xuất phân công từ AI.</p></div>{{ icon('sparkles') }}</div>
+            <div class="card-header"><div><h2>Khả năng nhận task</h2><p class="small muted">AI dùng thông tin này khi gợi ý người phụ trách task.</p></div>{{ icon('sparkles') }}</div>
             <div class="card-body">
                 <form method="post" action="{{ url_for('profile.task_preferences') }}" class="page-stack profile-form">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

@@ -9,8 +9,7 @@ from .assistant import get_provider
 from .briefings import maybe_answer_briefing
 from .common import DomainError
 from .email_proposals import maybe_create_email_draft
-from .natural_proposals import maybe_create_natural_proposal
-from .proposals import maybe_create_chat_proposal
+from .event_drafts import maybe_handle_draft
 from .verified_queries import maybe_answer_member_query
 from app.timeutil import utcnow
 
@@ -26,8 +25,8 @@ def check_chat_rate(actor):
 
 
 def respond(actor, message, conversation=None):
-    """Trả lời một câu hỏi chat: thử lần lượt nháp email → đề xuất → đọc dữ liệu đã kiểm chứng →
-    nhà cung cấp AI.
+    """Trả lời một câu hỏi chat: thử lần lượt nháp email → báo cáo → bản nháp sự kiện → đọc dữ liệu
+    đã kiểm chứng → nhà cung cấp AI.
     """
     history = None
     if conversation is not None:
@@ -38,9 +37,8 @@ def respond(actor, message, conversation=None):
             .order_by(ChatMessage.id.desc()).limit(6).all()))
     return (maybe_create_email_draft(actor, message)
             or maybe_answer_briefing(actor, message)
-            or maybe_create_chat_proposal(actor, message)
+            or maybe_handle_draft(actor, message, conversation)
             or maybe_answer_member_query(actor, message)
-            or maybe_create_natural_proposal(actor, message, conversation=conversation)
             or get_provider().answer(actor, message, history=history))
 
 

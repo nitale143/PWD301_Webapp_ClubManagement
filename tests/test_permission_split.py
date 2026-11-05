@@ -94,12 +94,12 @@ class PermissionSplitTests(unittest.TestCase):
             self.assertIn(text, detail)
         self.assertIn("Mở sự kiện để giao việc", self.page("/tasks"))
         ai = self.page("/ai")
-        self.assertIn("Đề xuất sự kiện hoặc chia task", ai)
-        self.assertIn("Đề xuất đang chờ duyệt", ai)
+        self.assertIn("Nhờ AI lập bản nháp sự kiện", ai)
+        self.assertIn("Bản nháp sự kiện đang dở", ai)
         self.assertNotIn("Tóm tắt hôm nay và báo cáo", ai)
         self.assertNotIn("Nháp email chờ BĐH duyệt", ai)
         self.assertEqual(self.post("/ai/reports/week/save").status_code, 403)
-        self.assertNotEqual(self.post("/ai/proposals/new", {"kind": "event", "brief": "Workshop"}).status_code, 403)
+        self.assertEqual(self.post("/ai/drafts/new", {"description": "Workshop"}).status_code, 302)
         self.assertEqual(self.client.get("/kho-mau").status_code, 200)
         answer = answer_by_rules(self.user(EVENT_MANAGER), "bao nhiêu người đăng ký WSAT")["answer"]
         self.assertIn("Member 4", answer)
@@ -113,8 +113,8 @@ class PermissionSplitTests(unittest.TestCase):
         ai = self.page("/ai")
         self.assertIn("Tóm tắt hôm nay và báo cáo", ai)
         self.assertIn("Nháp email chờ BĐH duyệt", ai)
-        self.assertNotIn("Đề xuất sự kiện hoặc chia task", ai)   # form không hiện khi gửi sẽ bị chặn
-        self.assertEqual(self.post("/ai/proposals/new", {"kind": "event", "brief": "Workshop"}).status_code, 403)
+        self.assertNotIn("Nhờ AI lập bản nháp sự kiện", ai)   # form không hiện khi gửi sẽ bị chặn
+        self.assertEqual(self.post("/ai/drafts/new", {"description": "Workshop"}).status_code, 403)
         self.assertEqual(self.post("/event/1/trang-thai", {"trang_thai": "dang_dien_ra"}).status_code, 403)
         self.assertEqual(self.post("/ai/reports/week/save").status_code, 302)
         with self.assertRaises(DomainError):     # AI không rộng tay hơn trang sự kiện
@@ -123,7 +123,7 @@ class PermissionSplitTests(unittest.TestCase):
     def test_ordinary_member_sees_neither(self):
         self.login(4)
         ai = self.page("/ai")
-        self.assertNotIn("Đề xuất sự kiện hoặc chia task", ai)
+        self.assertNotIn("Nhờ AI lập bản nháp sự kiện", ai)
         self.assertNotIn("Tóm tắt hôm nay và báo cáo", ai)
         self.assertNotIn("Giao nhiệm vụ mới", self.page("/event/1"))
 

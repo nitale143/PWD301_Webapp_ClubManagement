@@ -5,7 +5,7 @@ from flask import session
 from sqlalchemy.exc import IntegrityError
 
 from app import db
-from app.models import AssistantPending, ChatConversation, ChatMessage, ConversationPending
+from app.models import ChatConversation, ChatMessage
 from .common import DomainError
 from app.timeutil import utcnow
 
@@ -57,10 +57,9 @@ def create_conversation(actor, title=None):
 def _import_unscoped_history(actor):
     """Compatibility for legacy callers inserting messages after startup migration."""
     query = ChatMessage.query.filter_by(user_id=actor.id, conversation_id=None)
-    pending = db.session.get(AssistantPending, actor.id)
-    legacy = ChatConversation.query.filter_by(user_id=actor.id, legacy_marker="legacy").first()
-    if not query.first() and (not pending or legacy):
+    if not query.first():
         return
+    legacy = ChatConversation.query.filter_by(user_id=actor.id, legacy_marker="legacy").first()
     if legacy is None:
         try:
             with db.session.begin_nested():
@@ -68,10 +67,6 @@ def _import_unscoped_history(actor):
                                           title="Lịch sử trước nâng cấp")
                 db.session.add(legacy)
                 db.session.flush()
-                if pending:
-                    db.session.add(ConversationPending(conversation_id=legacy.id,
-                        user_id=actor.id, kind=pending.kind, text=pending.text,
-                        updated_at=pending.updated_at))
         except IntegrityError:
             legacy = ChatConversation.query.filter_by(
                 user_id=actor.id, legacy_marker="legacy").one()

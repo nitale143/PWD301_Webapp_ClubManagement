@@ -24,7 +24,7 @@ from sqlalchemy import or_
 
 from app import db
 from app.models import (
-    AIProposal, Ban, Event, EventDetail, EventRegistration, EventTargetBan,
+    Ban, Event, EventDetail, EventRegistration, EventTargetBan,
     FundCollection, FundPayment, MemberRecord, PaymentEvidence, Permission,
     User, UserBan,
 )
@@ -40,11 +40,7 @@ from app.services.chat_conversations import (append_exchange, checked_title,
     conversation_json, conversation_list, create_conversation, message_page,
     owned_conversation, select_conversation, begin_turn, finish_turn)
 from app.services.email_proposals import is_email_write_command
-from app.services.proposals import (create_proposal, is_chat_proposal_command,
-                                    proposal_preview, review_proposal)
-from app.services.natural_proposals import is_natural_proposal_command
-from app.services.briefings import briefing_kind
-from app.services.verified_queries import member_query_kind
+from app.services import event_drafts
 from app.services.common import DomainError, audit, club_now, member_record, parse_datetime
 from app.services.common import parse_date
 from app.services.export_security import safe_excel_row
@@ -755,9 +751,9 @@ def assistant():
     if "conversation_id" in data and data["conversation_id"] is None:
         raise DomainError("Mã cuộc trò chuyện không hợp lệ.")
     conversation = select_conversation(current_user, data.get("conversation_id"), active=True)
-    if (is_email_write_command(question) or is_chat_proposal_command(question)
-            or (not briefing_kind(question) and not member_query_kind(question)
-                and is_natural_proposal_command(question, current_user, conversation))):
+    # Câu có thể ghi (nháp email, lập/chỉnh bản nháp sự kiện) luôn cần CSRF.
+    if (is_email_write_command(question)
+            or event_drafts.is_draft_message(current_user, question, conversation)):
         require_csrf()
     if conversation is None:
         conversation = create_conversation(current_user)
@@ -838,41 +834,58 @@ def assistant_conversation_archive(conversation_id):
     return jsonify(conversation_json(conversation))
 
 
-def proposal_json(proposal):
-    """Chuyển đề xuất AI thành JSON (kèm bản xem trước)."""
-    return {"id": proposal.id, "kind": proposal.kind, "status": proposal.status,
-            "provider": proposal.provider, "preview": proposal_preview(proposal),
-            "payload": proposal.payload, "result_ids": proposal.result_ids,
-            "created_by_id": proposal.created_by_id,
-            "reviewed_by_id": proposal.reviewed_by_id}
+def _iso(value):
+    return value.isoformat() if value else None
 
 
-@api_bp.get("/assistant/proposals")
-def assistant_proposals():
-    """GET /assistant/proposals – danh sách đề xuất AI (MANAGE_EVENTS)."""
-    require(can_manage_events(current_user))
-    query = AIProposal.query.order_by(AIProposal.id.desc())
-    if request.args.get("status"):
-        query = query.filter_by(status=request.args["status"])
-    return listing(paginate(query), proposal_json)
+def draft_json(draft):
+    """Bản nháp sự kiện dạng JSON: dữ liệu, phần còn thiếu, lỗi chặn duyệt và hạn từng task."""
+    return {"id": draft.id, "status": draft.status, "event_id": draft.event_id,
+            "result_event_id": draft.result_event_id, "request": draft.request_text,
+            "data": draft.data, "summary": event_drafts.summary(draft),
+            "missing": [code for code, _label in event_drafts.missing(draft)],
+            "problems": event_drafts.problems(draft),
+            "deadlines": [_iso(event_drafts.task_deadline(draft, task)) for task in draft.data.get("tasks", [])],
+            "created_by_id": draft.created_by_id, "updated_at": draft.updated_at.isoformat()}
 
 
-@api_bp.post("/assistant/proposals")
-def assistant_proposal_create():
-    """POST /assistant/proposals – tạo đề xuất AI."""
+@api_bp.get("/assistant/drafts")
+def assistant_drafts():
+    """GET /assistant/drafts – bản nháp sự kiện đang dở (MANAGE_EVENTS)."""
+    return listing(paginate(event_drafts.visible_drafts(current_user)), draft_json)
+
+
+@api_bp.post("/assistant/drafts")
+def assistant_draft_create():
+    """POST /assistant/drafts – lập bản nháp từ mô tả {"description", "event_id"?, "template_id"?}."""
     require_csrf()
-    proposal = create_proposal(current_user, body())
-    return jsonify(proposal_json(proposal)), 201
-
-
-@api_bp.post("/assistant/proposals/<int:proposal_id>/review")
-def assistant_proposal_review(proposal_id):
-    """POST /assistant/proposals/<id>/review – duyệt/từ chối đề xuất AI."""
-    require_csrf()
-    proposal = db.get_or_404(AIProposal, proposal_id)
     data = body()
-    review_proposal(current_user, proposal, data.get("decision"))
-    return jsonify(proposal_json(proposal))
+    event = db.get_or_404(Event, int(data["event_id"])) if str(data.get("event_id") or "").isdigit() else None
+    draft = event_drafts.create_draft(current_user, data.get("description"), event=event,
+                                      template_id=data.get("template_id") or None)
+    return jsonify(draft_json(draft)), 201
+
+
+@api_bp.get("/assistant/drafts/<int:draft_id>")
+def assistant_draft(draft_id):
+    """GET /assistant/drafts/<id> – một bản nháp đang dở."""
+    return jsonify(draft_json(event_drafts.get_draft(current_user, draft_id)))
+
+
+@api_bp.post("/assistant/drafts/<int:draft_id>/approve")
+def assistant_draft_approve(draft_id):
+    """POST /assistant/drafts/<id>/approve – duyệt: tạo sự kiện + task trong một giao dịch."""
+    require_csrf()
+    event = event_drafts.approve(current_user, event_drafts.get_draft(current_user, draft_id))
+    return jsonify({"event_id": event.id, "ma_su_kien": event.ma_su_kien})
+
+
+@api_bp.post("/assistant/drafts/<int:draft_id>/discard")
+def assistant_draft_discard(draft_id):
+    """POST /assistant/drafts/<id>/discard – bỏ bản nháp."""
+    require_csrf()
+    event_drafts.discard(current_user, event_drafts.get_draft(current_user, draft_id))
+    return jsonify({"discarded": True})
 
 
 @api_bp.get("/dashboard")

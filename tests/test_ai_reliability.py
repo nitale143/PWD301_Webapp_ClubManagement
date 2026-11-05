@@ -12,7 +12,6 @@ from tests.support import csrf_for
 from app import create_app, db
 from app.models import (
     Attendance,
-    AssistantPending,
     Ban,
     ChatMessage,
     Event,
@@ -369,23 +368,6 @@ class AIAssistantReliabilityTests(unittest.TestCase):
         self.assertEqual(managed.json["sources"]["task"], [target_in_scope.id, target_outside.id])
         self.assertIn("Lead self task", own.json["answer"])
         self.assertEqual(own.json["sources"]["task"], [own_outside.id])
-
-    def test_read_query_requires_csrf_and_does_not_consume_pending_clarification(self):
-        self._login(1)
-        pending = AssistantPending(user_id=1, kind="task", text="incomplete task proposal")
-        db.session.add(pending)
-        db.session.commit()
-
-        no_token = self.client.post("/api/v1/assistant", json={"question": "Cho tôi hồ sơ của tôi"})
-        self.assertEqual(no_token.status_code, 400)
-
-        response = self._ask("Cho tôi hồ sơ của tôi")
-
-        self.assertEqual(response.status_code, 200, response.json)
-        current_pending = db.session.get(AssistantPending, 1)
-        self.assertIsNotNone(current_pending)
-        self.assertEqual(current_pending.kind, "task")
-        self.assertEqual(current_pending.text, "incomplete task proposal")
 
     def test_member_task_date_filter_is_explicitly_unsupported(self):
         self._login(1)

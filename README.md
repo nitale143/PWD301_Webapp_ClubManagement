@@ -1,6 +1,6 @@
 # FIA Workspace – Webapp quản lý câu lạc bộ
 
-Ứng dụng web nội bộ quản lý **thành viên, sự kiện, công việc, quỹ** của câu lạc bộ, có **trợ lý AI** hỗ trợ tra cứu và lập đề xuất. Dự án viết bằng **Python/Flask** theo nội dung môn Python Web Development: Blueprint, Jinja2, Flask-WTF, SQLAlchemy + Flask-Migrate, Flask-Login, RBAC, REST API, middleware và deploy bằng Docker/Gunicorn/Nginx.
+Ứng dụng web nội bộ quản lý **thành viên, sự kiện, công việc, quỹ** của câu lạc bộ, có **trợ lý AI** hỗ trợ tra cứu và lập bản nháp (sự kiện + task, email). Dự án viết bằng **Python/Flask** theo nội dung môn Python Web Development: Blueprint, Jinja2, Flask-WTF, SQLAlchemy + Flask-Migrate, Flask-Login, RBAC, REST API, middleware và deploy bằng Docker/Gunicorn/Nginx.
 
 | Tài liệu | Dành cho |
 |---|---|
@@ -56,7 +56,7 @@ Muốn thử luồng email (xác minh, quên mật khẩu) mà không cần SMTP
 | Nhường chức vụ của bản thân | – | ✔ | ✔ | ✔ | ✔ | – |
 | Mẫu email trong Kho mẫu | ✔ | ✔ | ✔ | – | – | – |
 
-\* Phó chủ nhiệm không gán được Phó chủ nhiệm hay Chủ nhiệm. \*\* Chỉ Quản trị hệ thống gán được Chủ nhiệm. AI duyệt đề xuất theo quyền tương ứng. Muốn đổi chính sách: sửa `DEFAULT_ROLES` trong `app/models.py` rồi chạy `flask --app run.py sync-roles`.
+\* Phó chủ nhiệm không gán được Phó chủ nhiệm hay Chủ nhiệm. \*\* Chỉ Quản trị hệ thống gán được Chủ nhiệm. Bản nháp AI được duyệt theo quyền tương ứng. Muốn đổi chính sách: sửa `DEFAULT_ROLES` trong `app/models.py` rồi chạy `flask --app run.py sync-roles`.
 
 ## Trợ lý AI
 

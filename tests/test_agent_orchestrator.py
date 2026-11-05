@@ -11,14 +11,12 @@ from unittest.mock import patch
 from tests.support import csrf_for
 from app import create_app, db
 from app.models import (
-    AIProposal,
-    AssistantPending,
     AuditLog,
     Ban,
     ChatConversation,
     ChatMessage,
-    ConversationPending,
     EmailProposal,
+    EventDraft,
     Event,
     FundCollection,
     FundPayment,
@@ -322,7 +320,7 @@ class AgentOrchestratorTests(unittest.TestCase):
                 self.assertEqual(len(planner.prompts), 1)
                 self.assertEqual(User.query.count(), 4)
                 self.assertEqual(Task.query.count(), 0)
-                self.assertEqual(AIProposal.query.count(), 0)
+                self.assertEqual(EventDraft.query.count(), 0)
                 self.assertEqual(EmailProposal.query.count(), 0)
 
     def test_board_tool_scope_is_global_and_original_timeframe_cannot_be_broadened(self):
@@ -454,114 +452,6 @@ class AgentOrchestratorTests(unittest.TestCase):
                 self.assertNotIn("Gala -", model_result["answer"])
                 self.assertNotIn("Task nhạy cảm", model_result["answer"])
 
-    def test_explicit_ban_task_request_creates_only_a_pending_original_draft(self):
-        question = "Tạo task hỗ trợ workshop cho Ban Engineering"
-        planner = FakePlanner([
-            tool_action("prepare_request", question),
-            finish_action(),
-        ])
-
-        result, _events = self._run(question, planner)
-
-        self.assertEqual(result["verification"], "draft")
-        pending = AssistantPending.query.one()
-        self.assertEqual(pending.text, question)
-        self.assertEqual(Task.query.count(), 0)
-        self.assertEqual(AIProposal.query.count(), 0)
-        self.assertEqual(EmailProposal.query.count(), 0)
-
-    def test_valid_natural_task_uses_original_request_and_creates_pending_proposal_only(self):
-        event = self._add_event()
-        deadline = self._future_deadline()
-        deadline_text = deadline.strftime("%d/%m/%Y")
-        question = (
-            "Tạo task Gọi nhà cung cấp cho sự kiện Workshop AI thuộc ban Engineering "
-            f"hạn 23:00 ngày {deadline_text}"
-        )
-        planner = FakePlanner([
-            tool_action(
-                "prepare_request",
-                "Tạo task DELETE ALL cho sự kiện Workshop AI thuộc ban Engineering "
-                f"hạn 23:00 ngày {deadline_text}",
-            ),
-            finish_action(),
-        ])
-
-        result, _events = self._run(question, planner)
-
-        proposal = AIProposal.query.one()
-        self.assertEqual(result["verification"], "draft")
-        self.assertEqual(proposal.kind, "task")
-        self.assertEqual(proposal.status, "pending")
-        self.assertEqual(proposal.payload["event_id"], event.id)
-        self.assertEqual(proposal.payload["ban_id"], 1)
-        self.assertEqual(proposal.request_text, "Gọi nhà cung cấp")
-        self.assertNotIn("DELETE ALL", proposal.request_text)
-        self.assertEqual(Event.query.count(), 1)
-        self.assertEqual(Task.query.count(), 0)
-        self.assertEqual(AssistantPending.query.count(), 0)
-        self.assertEqual(EmailProposal.query.count(), 0)
-
-    def test_provider_failure_uses_rules_to_create_valid_draft_without_nested_model_call(self):
-        event = self._add_event()
-        deadline_text = self._future_deadline().strftime("%d/%m/%Y")
-        question = (
-            "Tạo task Gọi nhà cung cấp cho sự kiện Workshop AI thuộc ban Engineering "
-            f"hạn 23:00 ngày {deadline_text}"
-        )
-        planner = FakePlanner([])
-        with patch("app.services.agent_orchestrator.get_provider", return_value=planner), \
-                patch("app.services.agent.get_provider",
-                      side_effect=AssertionError("fallback must not call a model")):
-            emitted = list(respond_events(self._user(), question))
-
-        result = next(event["result"] for event in emitted if event.get("type") == "result")
-        proposal = AIProposal.query.one()
-        self.assertEqual(len(planner.prompts), 1)
-        self.assertEqual(result["agent_mode"], "rules_fallback")
-        self.assertEqual(result["agent_fallback_reason"], "provider_failure")
-        self.assertEqual(result["verification"], "draft")
-        self.assertEqual(proposal.status, "pending")
-        self.assertEqual(proposal.payload["event_id"], event.id)
-        self.assertEqual(proposal.payload["ban_id"], 1)
-        self.assertEqual(Event.query.count(), 1)
-        self.assertEqual(Task.query.count(), 0)
-
-    def test_prepare_request_or_rules_fallback_cannot_extend_pending_from_simple_reads(self):
-        questions = (
-            "Tổng tiền đã thu và xác nhận của câu lạc bộ",
-            "Hello",
-        )
-        for question in questions:
-            with self.subTest(question=question):
-                pending = db.session.get(AssistantPending, 1)
-                if pending is None:
-                    pending = AssistantPending(user_id=1, kind="task", text="")
-                    db.session.add(pending)
-                pending.kind = "task"
-                pending.text = "Tạo task chuẩn bị cho sự kiện Workshop AI thuộc ban Engineering"
-                db.session.commit()
-                original_text = pending.text
-
-                planner = FakePlanner([
-                    tool_action("prepare_request", question), finish_action(),
-                ])
-                result, _events = self._run(question, planner)
-                self.assertEqual(AssistantPending.query.filter_by(user_id=1).one().text,
-                                 original_text)
-                self.assertIn("answer", result)
-                self.assertEqual(AIProposal.query.count(), 0)
-                self.assertEqual(Task.query.count(), 0)
-                self.assertEqual(EmailProposal.query.count(), 0)
-
-                fallback = next(event["result"] for event in respond_events(
-                    self._user(), question) if event.get("type") == "result")
-                self.assertEqual(AssistantPending.query.filter_by(user_id=1).one().text,
-                                 original_text)
-                self.assertEqual(AIProposal.query.count(), 0)
-                self.assertEqual(Task.query.count(), 0)
-                self.assertEqual(EmailProposal.query.count(), 0)
-
     def test_disabled_agent_and_provider_failure_keep_verified_rules_fallback(self):
         self.app.config["AI_AGENT_ENABLED"] = False
         disabled = FakePlanner([tool_action("member_info", "MSSV SV003")])
@@ -600,124 +490,8 @@ class AgentOrchestratorTests(unittest.TestCase):
         self.assertEqual(result["agent_mode"], "rules_fallback")
         self.assertEqual(result["agent_fallback_reason"], "provider_unavailable")
         self.assertIn("Morgan Own", result["answer"])
-        self.assertEqual(AIProposal.query.count(), 0)
+        self.assertEqual(EventDraft.query.count(), 0)
         self.assertEqual(EmailProposal.query.count(), 0)
-
-    def test_pure_date_continuation_still_completes_a_pending_task(self):
-        event = self._add_event()
-        question = self._future_deadline().strftime("%d/%m/%Y lúc %H:%M")
-        pending_text = (
-            "Tạo task Gọi nhà cung cấp cho sự kiện Workshop AI thuộc ban Engineering"
-        )
-
-        for mode in ("model", "rules"):
-            with self.subTest(mode=mode):
-                db.session.add(AssistantPending(user_id=1, kind="task", text=pending_text))
-                db.session.commit()
-                if mode == "model":
-                    planner = FakePlanner([
-                        tool_action("prepare_request", question), finish_action(),
-                    ])
-                    result, _events = self._run(question, planner)
-                else:
-                    emitted = list(respond_events(self._user(), question))
-                    result = next(item["result"] for item in emitted
-                                  if item.get("type") == "result")
-
-                proposal = AIProposal.query.one()
-                self.assertEqual(result["verification"], "draft")
-                self.assertEqual(proposal.kind, "task")
-                self.assertEqual(proposal.status, "pending")
-                self.assertEqual(proposal.payload["event_id"], event.id)
-                self.assertEqual(proposal.payload["ban_id"], 1)
-                self.assertEqual(Task.query.count(), 0)
-                self.assertEqual(AssistantPending.query.count(), 0)
-
-                db.session.delete(proposal)
-                db.session.commit()
-
-    def test_natural_deadline_phrases_continue_pending_task_without_applying_it(self):
-        event = self._add_event()
-        pending_text = (
-            "Tạo task Gọi nhà cung cấp cho sự kiện Workshop AI thuộc ban Engineering"
-        )
-        deadline = self._future_deadline()
-        deadline_text = deadline.strftime("%d/%m/%Y")
-        deadline_replies = (
-            f"hạn task là tối 23:00 {deadline_text}",
-            f"hạn công việc là tối 23:00 {deadline_text}",
-        )
-        expected_deadline = deadline.isoformat()
-
-        for reply in deadline_replies:
-            for mode in ("model", "rules"):
-                with self.subTest(reply=reply, mode=mode):
-                    db.session.add(AssistantPending(
-                        user_id=1, kind="task", text=pending_text,
-                    ))
-                    db.session.commit()
-                    if mode == "model":
-                        planner = FakePlanner([
-                            tool_action("prepare_request", reply), finish_action(),
-                        ])
-                        result, _events = self._run(reply, planner)
-                    else:
-                        emitted = list(respond_events(self._user(), reply))
-                        result = next(item["result"] for item in emitted
-                                      if item.get("type") == "result")
-
-                    proposal = AIProposal.query.one()
-                    self.assertEqual(result["intent"], "ai_proposal")
-                    self.assertEqual(result["verification"], "draft")
-                    self.assertEqual(proposal.kind, "task")
-                    self.assertEqual(proposal.status, "pending")
-                    self.assertEqual(proposal.request_text, "Gọi nhà cung cấp")
-                    self.assertEqual(proposal.payload["event_id"], event.id)
-                    self.assertEqual(proposal.payload["ban_id"], 1)
-                    self.assertEqual(proposal.payload["deadline"], expected_deadline)
-                    self.assertEqual(Task.query.count(), 0)
-                    self.assertEqual(Event.query.count(), 1)
-                    self.assertEqual(AssistantPending.query.count(), 0)
-
-                    db.session.delete(proposal)
-                    db.session.commit()
-
-    def test_genuine_task_read_preserves_pending_task_in_model_and_rules_modes(self):
-        event = self._add_event()
-        task = Task(
-            event_id=event.id, ten_task="Prepare recruitment room",
-            deadline=self._future_deadline(),
-            trang_thai="dang_lam", ban_id=1, assignee_id=3,
-        )
-        db.session.add(task)
-        db.session.add(AssistantPending(
-            user_id=1, kind="task",
-            text="Tạo task Gọi nhà cung cấp cho sự kiện Workshop AI thuộc ban Engineering",
-        ))
-        db.session.commit()
-        original_pending = db.session.get(AssistantPending, 1).text
-        question = "Task của SV003 đang làm là gì?"
-
-        planner = FakePlanner([
-            tool_action("prepare_request", question), finish_action(),
-        ])
-        model_result, _events = self._run(question, planner)
-        self.assertEqual(model_result["intent"], "member_tasks")
-        self.assertIn("Prepare recruitment room", model_result["answer"])
-        self.assertEqual(db.session.get(AssistantPending, 1).text, original_pending)
-        self.assertEqual(AIProposal.query.count(), 0)
-        self.assertEqual(Task.query.count(), 1)
-        self.assertEqual(Event.query.count(), 1)
-
-        rules_events = list(respond_events(self._user(), question))
-        rules_result = next(item["result"] for item in rules_events
-                            if item.get("type") == "result")
-        self.assertEqual(rules_result["intent"], "member_tasks")
-        self.assertIn("Prepare recruitment room", rules_result["answer"])
-        self.assertEqual(db.session.get(AssistantPending, 1).text, original_pending)
-        self.assertEqual(AIProposal.query.count(), 0)
-        self.assertEqual(Task.query.count(), 1)
-        self.assertEqual(Event.query.count(), 1)
 
     def test_task_overdue_fallback_does_not_broaden_to_current_tasks(self):
         event = Event(
@@ -839,10 +613,8 @@ class AgentOrchestratorTests(unittest.TestCase):
         self.assertEqual(result["agent_mode"], "rules_fallback")
         self.assertIsNotNone(User.query.filter_by(mssv="SV003").one_or_none())
         self.assertEqual(Task.query.count(), 0)
-        self.assertEqual(AIProposal.query.count(), 0)
+        self.assertEqual(EventDraft.query.count(), 0)
         self.assertEqual(EmailProposal.query.count(), 0)
-        self.assertEqual(AssistantPending.query.count(), 0)
-        self.assertEqual(ConversationPending.query.count(), 0)
 
     @staticmethod
     def _decode_sse(frame):
@@ -960,7 +732,7 @@ class AgentOrchestratorTests(unittest.TestCase):
         self.assertNotIn("DELETE ALL MEMBER DATA", draft.body)
         self.assertIsNone(draft.sent_at)
         self.assertIn("Chưa gửi", response.json["answer"])
-        self.assertEqual(AIProposal.query.count(), 0)
+        self.assertEqual(EventDraft.query.count(), 0)
         self.assertEqual(Task.query.count(), 0)
 
 

@@ -236,7 +236,7 @@ Mọi nơi hiển thị hoặc lọc tình trạng hoạt động (trang Thành 
 
 | Cách đổi | Hàm | Quy tắc |
 |---|---|---|
-| Lúc tạo | `initial_status(start)` | Chưa tới giờ bắt đầu → `sap_dien_ra`, ngược lại `dang_dien_ra`. Dùng cho form, CTFtime, đề xuất AI, API tạo/nhân bản. |
+| Lúc tạo | `initial_status(start)` | Chưa tới giờ bắt đầu → `sap_dien_ra`, ngược lại `dang_dien_ra`. Dùng cho form, CTFtime, duyệt bản nháp AI, API tạo/nhân bản. |
 | Tự động | `sync_statuses()`, `refresh(event)` | Chỉ đi tới: tới giờ bắt đầu → `dang_dien_ra`; tới `auto_close_at(event)` → `da_ket_thuc`. Không bao giờ tự hủy hay tự lùi. |
 | Bằng tay (MANAGE_EVENTS) | `change_status(actor, event, new)` | Bảng `MANUAL`: sắp → đang/kết thúc/hủy; đang → kết thúc/hủy; đã kết thúc → đang (mở lại). Không hủy khi đã có điểm danh. |
 | Đổi giờ (API PATCH) | `reschedule(event)` | Sự kiện đang mở được đặt lại trạng thái theo giờ mới. |
@@ -292,7 +292,7 @@ Nơi đọc: trang Quỹ (tab Khoản thu, Đóng quỹ kỳ, Thu/chi), hồ sơ
 class Permission:                # app/models.py – bit flag
     APPROVE_MEMBERS = 1          # xem danh sách chờ & duyệt đăng ký
     MANAGE_MEMBERS  = 2          # xem đầy đủ / sửa / lưu trữ / import / điểm / mật khẩu tạm
-    MANAGE_EVENTS   = 4          # sự kiện, task, điểm danh, đề xuất AI sự kiện/task
+    MANAGE_EVENTS   = 4          # sự kiện, task, điểm danh, bản nháp sự kiện AI
     MANAGE_FUNDS    = 8          # quỹ: kỳ, thu chi, khoản thu, xác nhận thanh toán
     ASSIGN_ROLES    = 16         # phân vai trò (theo cấp bậc)
     HANDOFF_ROLE    = 32         # nhường chức vụ của chính mình
@@ -341,7 +341,7 @@ Bảng `role` trong DB là nguồn sự thật. `Role.insert_roles()` seed bản
 |---|---|---|
 | Tạo, sửa, chuyển trạng thái sự kiện; nhập CTFtime | MANAGE_EVENTS | `can_manage_events`, `permission_required(Permission.MANAGE_EVENTS)` |
 | Giao, chỉ định lại, duyệt task; điểm danh, mã QR | MANAGE_EVENTS | như trên |
-| Đề xuất sự kiện/task bằng AI (form, chat, duyệt), mẫu sự kiện/mẫu chia task | MANAGE_EVENTS | `proposals.create_proposal`, `can_review` |
+| Bản nháp sự kiện + task bằng AI (chat, form, duyệt), mẫu sự kiện/mẫu chia task | MANAGE_EVENTS | `event_drafts.create_draft`, `visible_drafts`, `approve` |
 | AI tra cứu đăng ký/điểm danh của người khác | MANAGE_EVENTS | `club_data_tools.event_participation` |
 | Tóm tắt ngày, báo cáo tuần/tháng, thống kê lượt dùng AI | BOARD | `is_board`, `bdh_required` |
 | Soạn, duyệt, gửi nháp email AI | BOARD | `email_proposals.can_review_email` |
@@ -487,7 +487,7 @@ Template dùng `can(Permission.X)` (từ context processor) để ẩn/hiện n�
 | POST | `/events/<id>/feedback` | người đã tham gia | `{rating 1–5, comment}` |
 | POST | `/assistant` | đã duyệt | `{question, conversation_id?, agent?}` |
 | GET/POST/PATCH | `/assistant/conversations[...]` | chủ sở hữu | Quản lý cuộc trò chuyện |
-| GET/POST | `/assistant/proposals`, `/assistant/proposals/<id>/review` | MANAGE_EVENTS | Đề xuất AI |
+| GET/POST | `/assistant/drafts`, `/assistant/drafts/<id>`, `/assistant/drafts/<id>/approve`, `/assistant/drafts/<id>/discard` | MANAGE_EVENTS | Bản nháp sự kiện AI |
 | GET | `/dashboard` | đã duyệt (theo phạm vi) | Số liệu tổng quan |
 | GET | `/reports/funds.xlsx` | MANAGE_FUNDS | Báo cáo khoản thu |
 | GET | `/reports/members.xlsx` | MANAGE_MEMBERS | Danh sách thành viên |
@@ -514,14 +514,14 @@ await fetch('/api/v1/funds', {
 | Agent | `services/agent_orchestrator.py` | Vòng lặp: model lập kế hoạch JSON → backend kiểm tra tên tool và phạm vi → chạy **reader đã kiểm chứng** → tối đa `AI_AGENT_MAX_STEPS` bước. Tiến trình stream qua SSE `/ai/stream`. |
 | Truy vấn kiểm chứng | `verified_queries.py`, `briefings.py` | Hồ sơ/task thành viên, digest ngày, báo cáo tuần/tháng. |
 | Công cụ có tham số | `club_data_tools.py` | `member_stats`, `event_participation`, `event_list` (xem 12.2). |
-| Đề xuất | `proposals.py`, `natural_proposals.py`, `natural_datetime.py` | Tạo `AIProposal` (event/task). Duyệt mới ghi dữ liệu thật (MANAGE_EVENTS). |
+| Bản nháp sự kiện | `event_drafts.py`, `natural_datetime.py` | `EventDraft`: sự kiện + task lập từ câu mô tả, bổ sung dần qua chat/form. Duyệt mới ghi dữ liệu thật (MANAGE_EVENTS). Xem 12.3. |
 | Email | `email_proposals.py`, `email_templates.py` | Tạo `EmailProposal` nháp. BĐH duyệt mới gửi. Nội dung: mẫu trong kho → mẫu chung (xem 12.1). |
 | Kho mẫu | `email_templates.py`, `proposal_templates.py`, `routes/kho_mau.py` | Lưu/sửa mẫu, chọn mẫu cho AI. |
 | Hội thoại | `chat_conversations.py` | Sở hữu theo user, phân trang keyset. |
 
 **Các bất biến an toàn (không được phá khi sửa code):**
 
-1. Model **không bao giờ** ghi DB hay gửi mail trực tiếp. Mọi thao tác ghi đi qua bản nháp hoặc đề xuất, cần người có quyền duyệt.
+1. Model **không bao giờ** ghi DB hay gửi mail trực tiếp. Mọi thao tác ghi đi qua bản nháp (email, sự kiện), cần người có quyền duyệt.
 2. Số liệu trong câu trả lời lấy từ truy vấn DB theo phạm vi quyền, không lấy từ text model sinh ra.
 3. Ngữ cảnh gửi model chỉ gồm câu hỏi của người dùng (tối đa 6 câu), không gồm câu trả lời AI cũ.
 4. Trước khi trả kết quả, gọi lại `_reauthorize`. Quyền đổi giữa chừng thì hủy lượt đó.
@@ -542,9 +542,7 @@ Trang `/kho-mau` (blueprint `kho_mau`), 3 tab: Mẫu email (MANAGE_TEMPLATES), M
 
 **Mẫu sự kiện / chia task** (`services/proposal_templates.py`, bảng `proposal_template`):
 - `find_proposal_template(kind, brief, event=None, template_id=None)` trả `{source, label, content, text_match}` theo thứ tự: mẫu chọn tay → mẫu trong kho (tên 3 điểm, từ khóa 1, cùng loại sự kiện 2) → sự kiện tương tự (`_similar_event`: cùng loại hoặc từ ≥4 ký tự trùng tên; task lấy từ các task cũ không bị hủy) → mẫu `is_default` → `BUILTIN`.
-- `proposals._event_payload`: model nhận `template` trong context; không có model thì nội dung = mô tả + nội dung mẫu, loại/địa điểm lấy từ mẫu. Không nhập `end_at` thì `end = start + duration_hours`.
-- `proposals._task_payload` khi không có model: mô tả ≥2 dòng/`;` → dùng đúng danh sách; 1 dòng → dùng task của mẫu chỉ khi `source == "store"` và `text_match` (chọn tay hoặc khớp tên/từ khóa), ngược lại 1 task theo mô tả.
-- Payload lưu `template` và `template_source`; `proposal_preview` in dòng "Khung: …".
+- Bản nháp sự kiện lấy danh sách task từ khung task, loại/nội dung/địa điểm/thời lượng từ khung sự kiện (địa điểm lấy từ mẫu được đánh dấu "kiểm tra lại"). Tên khung lưu ở `data["template"]`.
 
 ---
 
@@ -579,6 +577,26 @@ Bộ lọc chưa hỗ trợ (ngày/tháng, nhiều ban, nhiều sự kiện) →
 
 **Đo độ đúng:** `python scripts/ai_eval.py` (30 câu mẫu, chế độ luật) hoặc `--provider env` (dùng AI trong `.env`), `--as <MSSV>` để thử theo vai trò. Câu hỏi được điền tên ban/sự kiện/MSSV lấy từ database đang dùng; con số đúng được tính bằng truy vấn độc lập trong script. Thêm câu mới vào `build_cases()` mỗi khi gặp câu trả lời sai.
 
+### 12.3. Bản nháp sự kiện (`services/event_drafts.py`)
+
+Người có MANAGE_EVENTS mô tả sự kiện bằng lời thường (chat hoặc form "Nhờ AI lập bản nháp sự kiện"). AI lập **ngay** một `EventDraft`, kể cả khi còn thiếu, rồi hỏi tiếp phần thiếu (tối đa 2 ý một lần). Không ghi bảng `event`/`task` cho tới khi duyệt.
+
+```
+"Tháng sau tổ chức workshop ATTT cho ban Kỹ thuật, khoảng 50 người"
+   └─ draft_intent = "event" → create_draft: khung task (find_proposal_template) + những gì có trong câu
+"ngày 12/12 ở Lab 304"          └─ parse_edits → [("date", …), ("location", …)] → apply_ops
+"gợi ý người giúp mình"         └─ suggest_assignees: đúng ban, còn sức nhận việc, khớp kỹ năng, ít việc nhất (đánh dấu "AI gợi ý")
+"task 2 giao cho SE180012"      └─ assign: người phải thuộc ban của task
+Duyệt (/ai/drafts/<id>/approve) └─ approve: UPDATE có điều kiện draft→approved, tạo Event + EventDetail (+ EventTargetBan) + Task trong một giao dịch
+```
+
+- `data` (JSON): `name, type, content, location, ban_id (None = tất cả), date "YYYY-MM-DD", start/end "HH:MM", size, duration_hours, template, guessed[]` và `tasks[]` gồm `key, name, description, ban_id, days_before, due, assignee_id, assignee_by ("user"|"ai")`. `event_id` có giá trị khi bản nháp chỉ chia task cho sự kiện đã có ("chia task cho sự kiện CTF26").
+- **Sự kiện theo ngày:** chưa nêu giờ → 00:00–23:59; chỉ nêu giờ bắt đầu → cộng `duration_hours` của mẫu. **Hạn task** = ngày sự kiện − `days_before` lúc `due` (mặc định 23:59), không sau giờ kết thúc; `days_before = 0` (task tại sự kiện, tổng kết, báo cáo, hỗ trợ…) → hạn là giờ kết thúc.
+- `missing(draft)`: bắt buộc có ngày (sự kiện mới), tên, ≥1 task, mỗi task có ban và người phụ trách. `problems(draft)`: giờ kết thúc ≤ bắt đầu, ngày đã qua, hạn task đã qua. Duyệt kiểm lại cả hai, rồi kiểm lại từng người (còn trong ban, chưa kín việc, không báo bận tới hạn); lỗi → rollback, bản nháp giữ nguyên.
+- Mọi người quản lý sự kiện cùng xem/sửa/duyệt bản nháp đang dở (`visible_drafts`, hết hạn sau 14 ngày không sửa). Chat chỉ chỉnh bản nháp **của chính cuộc trò chuyện đó** (`active_draft`).
+- Câu hỏi tra cứu (có "?", "ai", "bao nhiêu", "xem"…) không bị coi là chỉnh sửa. Câu mơ hồ (hai ngày khác nhau, nhiều người/nhiều task khớp, người ngoài ban) → trả `clarification`, không đoán.
+- **Giọng trả lời:** server dựng câu trả lời (xưng mình/bạn, nói đã ghi nhận gì và hỏi phần thiếu). Khi có model, `compose_answer(…, draft=summary)` viết lại cho tự nhiên với `_DRAFT_PROMPT`; vẫn qua chốt đối chiếu số + mã, sai thì giữ bản server. Model không bao giờ trích dữ liệu cho bản nháp: ngày giờ, ban, MSSV đều do `parse_edits` đọc từ câu gốc.
+
 ## 13. Email, scheduler, file upload
 
 - **`mail.send_email(to, subject, body) -> bool`**: không ném lỗi. Bắt buộc TLS/SSL, chặn header injection. `MAIL_ENABLED=false` thì không gửi (trả False), trừ chế độ outbox khi dev. Địa chỉ `*.invalid` (tài khoản Quản trị hệ thống) luôn bị bỏ qua.
@@ -603,8 +621,9 @@ Schema do **Flask-Migrate (Alembic)** quản lý trong thư mục `migrations/`:
 | `0002` | Bảng `role` (+ seed quyền), cột xác thực trên `user`, email unique |
 | `0003` | Role `ADMIN`; `email_template` thêm `system_key`/`keywords`/`description`; bảng `proposal_template`; chuẩn hóa SĐT (`+84…`) và link Facebook cũ |
 | `0004` | `member_activity` tạo lại theo (thành viên, kỳ) với số task, số sự kiện có mặt, điểm; xóa `user.hoat_dong_status`, bảng `activity_point`, `club_setting` |
-| `0006` | `fund_collection.period_id`, `fund_transaction.payment_id`; chuyển `fund_due` sang quỹ kỳ (khoản thu) + thanh toán đã xác nhận rồi xóa bảng |
 | `0005` | `event.trang_thai` NOT NULL + CheckConstraint; thêm `event.trang_thai_doi_tay_luc`; đổi giá trị cũ `completed` → `da_ket_thuc`, `open`/`draft`/lạ → `sap_dien_ra` |
+| `0006` | `fund_collection.period_id`, `fund_transaction.payment_id`; chuyển `fund_due` sang quỹ kỳ (khoản thu) + thanh toán đã xác nhận rồi xóa bảng |
+| `0007` | Tạo `event_draft`; xóa `ai_proposal`, `assistant_pending`, `conversation_pending` (đề xuất chưa duyệt không chuyển sang) |
 
 **Quy trình thay đổi schema** (Ch5.2):
 

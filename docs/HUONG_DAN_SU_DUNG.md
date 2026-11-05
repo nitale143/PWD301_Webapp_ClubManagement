@@ -226,7 +226,7 @@ Khi câu hỏi nằm ngoài phạm vi hỗ trợ, trợ lý nói rõ là chưa h
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
 | Xem danh sách chờ và duyệt đăng ký | ✔ | ✔ | ✔ | – | – | – |
 | Quản lý thành viên (xem hồ sơ đầy đủ, sửa, lưu trữ, nhập file, cộng/trừ điểm, cấp mật khẩu tạm) | ✔ | ✔ | ✔ | ✔ | – | – |
-| Sự kiện và task (tạo, chuyển trạng thái, giao, duyệt, điểm danh, đề xuất sự kiện/task bằng AI, mẫu sự kiện/task trong Kho mẫu) | ✔ | ✔ | ✔ | ✔ | ✔ | – |
+| Sự kiện và task (tạo, chuyển trạng thái, giao, duyệt, điểm danh, bản nháp sự kiện/task bằng AI, mẫu sự kiện/task trong Kho mẫu) | ✔ | ✔ | ✔ | ✔ | ✔ | – |
 | Quỹ (mở kỳ, ghi thu chi, khoản thu, xác nhận thanh toán) | ✔ | ✔ | ✔ | – | ✔ | – |
 | Phân vai trò cho người khác | ✔** | ✔ | ✔* | – | – | – |
 | Nhường chức vụ của bản thân | – | ✔ | ✔ | ✔ | ✔ | – |
@@ -402,27 +402,35 @@ Các thao tác nằm trong nút **Thao tác** ở góc phải trang Quỹ: Mở 
 
   "Sự kiện gần nhất/vừa rồi" khi hỏi vắng/có mặt là sự kiện gần nhất **đã điểm danh**; câu trả lời luôn ghi tên sự kiện được chọn. Câu hỏi kèm mốc ngày/tháng hoặc nhiều ban/sự kiện cùng lúc sẽ được yêu cầu hỏi lại cho rõ.
 
-### 12.2. Đề xuất sự kiện và task *(người có quyền Sự kiện & task)*
+### 12.2. Nhờ AI lập bản nháp sự kiện *(người có quyền Sự kiện & task)*
 
-AI chỉ tạo **đề xuất (bản xem trước)**. Không có gì được ghi vào dữ liệu thật cho tới khi bạn bấm **Duyệt và áp dụng**.
+Cứ mô tả như nói với một người trong ban, **thiếu thông tin cũng được**. AI nháp sẵn sự kiện và danh sách task, rồi hỏi bạn phần còn thiếu. Không có gì được ghi vào lịch CLB cho tới khi bạn bấm **Duyệt và tạo**.
 
-- Nói tự nhiên, ví dụ:
-  - `Tạo sự kiện Workshop bảo mật ngày 15/11/2026 09:00 đến 15/11/2026 11:00`
-  - `Giao task thiết kế poster cho SV123 trong sự kiện Workshop bảo mật ban Truyền thông hạn 14/11/2026 18:00`
+Ví dụ một cuộc trò chuyện:
 
-  Nếu thiếu thông tin, AI hỏi lại (giữ tối đa 30 phút, gõ `hủy` để bỏ).
-- Hoặc dùng cú pháp cố định:
-  - `Đề xuất sự kiện: Workshop bảo mật | 2026-11-01 09:00 | 2026-11-01 11:00 | 1`
-  - `Chia task: 12 | 1 | 2026-11-01 08:00 | Chuẩn bị tài liệu; Kiểm tra thiết bị | python, mạng`
-- Chỉ ghi ngày/tháng thì hệ thống hiểu là **năm hiện tại**. Luôn đọc lại bản xem trước trước khi duyệt.
-- Ở form **Đề xuất sự kiện hoặc chia task** có ô **Mẫu áp dụng**: để *Tự động* hoặc chọn một mẫu trong Kho mẫu. Đề xuất sự kiện mới mà bỏ trống giờ kết thúc thì hệ thống lấy **thời lượng của mẫu**.
-- AI chọn khung cho đề xuất theo thứ tự (xem thêm [mục 12.4](#124-kho-mẫu)):
-  1. Mẫu bạn chọn.
-  2. Mẫu trong kho có **tên hoặc từ khóa** xuất hiện trong mô tả, hoặc cùng **loại sự kiện**.
-  3. **Sự kiện tương tự** đã có (cùng loại hoặc tên gần giống): lấy nội dung / danh sách task của sự kiện đó làm khung.
-  4. **Mẫu chung**.
+> **Bạn:** Tháng sau tổ chức workshop An toàn thông tin cho ban Kỹ thuật, khoảng 50 người
+> **AI:** Mình nháp sẵn sự kiện "Workshop An toàn thông tin" theo khung "Task cho workshop": Chuẩn bị nội dung và slide, Liên hệ diễn giả, Truyền thông workshop, Chuẩn bị phòng và thiết bị. Còn một chút nữa: bạn định tổ chức ngày nào? …
+> **Bạn:** ngày 12/12 từ 18:00 đến 21:00 ở Lab 304
+> **Bạn:** gợi ý người giúp mình
+> **Bạn:** task 2 giao cho SE180014
 
-  Có model AI thì AI điều chỉnh khung theo mô tả của bạn. Không có model thì: mô tả liệt kê nhiều task (ngăn bằng `;` hoặc xuống dòng) → dùng đúng danh sách đó; mô tả một dòng → dùng mẫu nếu bạn chọn mẫu hoặc mô tả chứa tên/từ khóa mẫu, ngược lại tạo đúng 1 task theo mô tả. Bản xem trước luôn ghi rõ **Khung** đã dùng.
+Những câu bạn có thể nói để sửa bản nháp:
+
+| Muốn | Nói |
+|---|---|
+| Đặt ngày, giờ, địa điểm | `ngày 12/12 từ 18h đến 21h ở Lab 304` (không nêu giờ: sự kiện tính cả ngày) |
+| Đổi tên | `đổi tên thành Workshop ATTT 2026` |
+| Giao người | `task 2 giao cho SE180014` hoặc ghi họ tên đầy đủ |
+| Để AI chọn người | `gợi ý người giúp mình` (AI chọn người đúng ban, còn nhận được việc, hợp kỹ năng; đánh dấu "AI gợi ý") |
+| Thêm / bỏ task | `thêm task mượn máy chiếu`, `bỏ task 3` |
+| Đổi hạn task | `task 1 trước 5 ngày` hoặc `task 1 hạn 05/12` |
+| Bỏ bản nháp | `hủy bản nháp` |
+
+- Chia task cho sự kiện đã có: `chia task cho sự kiện CTF26` (ghi tên hoặc mã sự kiện).
+- Hạn task tính theo ngày sự kiện: mặc định **trước 2 ngày, lúc 23:59**; việc làm tại sự kiện (hỗ trợ, tổng kết, báo cáo…) có hạn là giờ kết thúc.
+- Muốn sửa nhiều thứ một lúc, bấm **Mở bản nháp** (trong chat hoặc ở mục **Bản nháp sự kiện đang dở**) để sửa trên form. Mọi người quản lý sự kiện đều thấy và duyệt được bản nháp này.
+- Chỉ duyệt được khi đã có ngày, tên, và mỗi task có ban + người phụ trách. Lúc duyệt, hệ thống kiểm lại người phụ trách còn nhận được việc; nếu ai đó vừa kín việc hoặc báo bận, bạn đổi người rồi duyệt lại.
+- AI chọn danh sách task theo thứ tự (xem thêm [mục 12.4](#124-kho-mẫu)): mẫu bạn chọn → mẫu trong kho có tên/từ khóa trong mô tả → sự kiện tương tự đã có → mẫu chung. Bản nháp ghi rõ khung đã dùng.
 
 ### 12.3. Nháp email
 

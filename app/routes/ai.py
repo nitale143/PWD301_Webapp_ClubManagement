@@ -8,7 +8,7 @@ from flask_login import login_required, current_user
 
 from app import db
 from app.models import (
-    AIProposal, AIReportSnapshot, AIUsageLog, Ban, EmailProposal, EmailTemplate, Event, ProposalTemplate,
+    AIReportSnapshot, AIUsageLog, Ban, EmailProposal, EmailTemplate, Event, ProposalTemplate,
 )
 from app.models import ChatConversation, User
 from app.models import Permission
@@ -20,7 +20,8 @@ from app.services.common import audit, DomainError
 from app.services.chat_conversations import (append_exchange, checked_title,
     conversation_list, create_conversation, message_page, owned_conversation,
     select_conversation, begin_turn, finish_turn)
-from app.services.proposals import can_review, create_proposal, proposal_preview, review_proposal
+from app.services import event_drafts
+from app.services.event_status import OPEN
 from app.services.email_proposals import (can_review_email, edit_email_draft,
                                           reconcile_email_draft, review_email_draft)
 from app.services.briefings import (can_access_report, daily_digest, report_data,
@@ -123,7 +124,7 @@ def ai_stream():
 def ai_chat():
     """Trang Trợ lý AI: lịch sử hội thoại, danh sách cuộc trò chuyện. BĐH (BOARD) thấy thêm tóm tắt
     ngày, báo cáo, nháp email chờ duyệt; người quản lý sự kiện (MANAGE_EVENTS) thấy form và danh
-    sách đề xuất sự kiện/task.
+    sách bản nháp sự kiện đang dở.
     """
     if request.method == "POST":
         require_csrf()
@@ -168,7 +169,7 @@ def ai_chat():
             current_user, request.args.get("chats_page", 1), archived=show_archived)
     except DomainError as exc:
         abort(exc.status)
-    proposals = []
+    drafts = []
     email_proposals = []
     usage_summary = None
     digest = None
@@ -177,8 +178,7 @@ def ai_chat():
     board = is_board(current_user)
     event_manager = can_manage_events(current_user)
     if event_manager:
-        query = AIProposal.query.filter_by(status="pending").order_by(AIProposal.created_at.desc())
-        proposals = [proposal for proposal in query.limit(30) if can_review(current_user, proposal)]
+        drafts = event_drafts.visible_drafts(current_user).limit(30).all()
     if board:
         digest = daily_digest(current_user)
         reports = [row for row in (AIReportSnapshot.query.filter_by(user_id=current_user.id)
@@ -197,7 +197,7 @@ def ai_chat():
                          "tokens": sum(row.total_tokens for row in usage),
                          "average_ms": round(sum(row.elapsed_ms for row in usage) / len(usage))
                          if usage else 0}
-    return render_template("ai.html", history=history, proposals=proposals,
+    return render_template("ai.html", history=history, drafts=drafts,
                            current_conversation=conversation, conversations=conversations,
                            conversations_has_next=conversations_has_next,
                            conversation_page=conversation_page, show_archived=show_archived,
@@ -215,9 +215,8 @@ def ai_chat():
                                                if event_manager else []),
                            digest=digest, reports=reports, report_previews=report_previews,
                            report_text=report_text,
-                           proposal_preview=proposal_preview,
-                           bans=Ban.query.all() if event_manager else [],
-                           events=Event.query.filter(Event.trang_thai.notin_(["da_ket_thuc", "cancelled"])).all()
+                           draft_summary=event_drafts.summary, draft_missing=event_drafts.missing,
+                           events=Event.query.filter(Event.trang_thai.in_(OPEN)).order_by(Event.thoi_gian_bat_dau).all()
                            if event_manager else [],
                            is_board=board, can_manage_events=event_manager)
 
@@ -386,32 +385,84 @@ def email_proposal_reconcile(draft_id, outcome):
     return redirect(url_for("ai.ai_chat"))
 
 
-@ai_bp.route("/ai/proposals/new", methods=["POST"])
+@ai_bp.route("/ai/drafts/new", methods=["POST"])
 @login_required
 @permission_required(Permission.MANAGE_EVENTS)
-def proposal_new():
-    """Tạo đề xuất AI (sự kiện/task) từ form; chỉ là bản xem trước, chưa ghi dữ liệu thật."""
+def draft_new():
+    """Lập bản nháp sự kiện (hoặc bản nháp chia task cho sự kiện đã có) từ mô tả trên form."""
     require_csrf()
+    event_id = request.form.get("event_id", "")
     try:
-        create_proposal(current_user, request.form)
-        flash("Đã tạo bản xem trước. Cần người quản lý sự kiện duyệt trước khi áp dụng.", "success")
+        event = db.get_or_404(Event, int(event_id)) if event_id.isdigit() else None
+        draft = event_drafts.create_draft(current_user, request.form.get("description"), event=event,
+                                          template_id=request.form.get("template_id") or None)
     except DomainError as exc:
         db.session.rollback()
         flash(str(exc), "error")
-    return redirect(url_for("ai.ai_chat"))
+        return redirect(url_for("ai.ai_chat"))
+    return redirect(url_for("ai.draft_page", draft_id=draft.id))
 
 
-@ai_bp.route("/ai/proposals/<int:proposal_id>/<decision>", methods=["POST"])
+def _draft_or_404(draft_id):
+    try:
+        return event_drafts.get_draft(current_user, draft_id)
+    except DomainError as exc:
+        abort(exc.status)
+
+
+@ai_bp.route("/ai/drafts/<int:draft_id>", methods=["GET", "POST"])
 @login_required
 @permission_required(Permission.MANAGE_EVENTS)
-def proposal_review(proposal_id, decision):
-    """Duyệt đề xuất AI (tạo sự kiện/task thật) hoặc từ chối (quyền MANAGE_EVENTS)."""
+def draft_page(draft_id):
+    """Xem / sửa bản nháp: thông tin sự kiện, từng task, người phụ trách."""
+    draft = _draft_or_404(draft_id)
+    if request.method == "POST":
+        require_csrf()
+        try:
+            event_drafts.update_from_form(current_user, draft, request.form)
+            flash("Đã lưu bản nháp.", "success")
+        except DomainError as exc:
+            db.session.rollback()
+            flash(str(exc), "error")
+        return redirect(url_for("ai.draft_page", draft_id=draft.id))
+    bans = Ban.query.order_by(Ban.ten_ban).all()
+    members = {ban.id: [link.user for link in ban.user_links if link.user.status == "approved"]
+               for ban in bans}
+    return render_template("draft.html", draft=draft, data=draft.data, bans=bans, members=members,
+                           event=db.session.get(Event, draft.event_id) if draft.event_id else None,
+                           missing=event_drafts.missing(draft), problems=event_drafts.problems(draft),
+                           deadline=lambda task: event_drafts.task_deadline(draft, task),
+                           users={user.id: user for user in User.query.filter(User.id.in_(
+                               [task["assignee_id"] for task in draft.data.get("tasks", [])
+                                if task.get("assignee_id")] or [-1]))})
+
+
+@ai_bp.route("/ai/drafts/<int:draft_id>/<action>", methods=["POST"])
+@login_required
+@permission_required(Permission.MANAGE_EVENTS)
+def draft_action(draft_id, action):
+    """Gợi ý người phụ trách, duyệt (tạo sự kiện + task) hoặc bỏ bản nháp."""
     require_csrf()
-    proposal = db.get_or_404(AIProposal, proposal_id)
+    if action not in {"suggest", "approve", "discard"}:
+        abort(404)
+    draft = _draft_or_404(draft_id)
     try:
-        review_proposal(current_user, proposal, decision)
-        flash("Đã duyệt và áp dụng đề xuất." if decision == "approved" else "Đã từ chối đề xuất.", "success")
+        if action == "suggest":
+            count = event_drafts.suggest_assignees(draft)
+            draft.updated_at = utcnow()
+            audit(current_user, "event_draft_update", draft, {"changes": [f"gợi ý {count} task"]})
+            db.session.commit()
+            flash(f"AI đã gợi ý người cho {count} task." if count else
+                  "Chưa gợi ý được ai: task chưa có ban hoặc ban đã kín việc.", "success" if count else "error")
+        elif action == "approve":
+            event = event_drafts.approve(current_user, draft)
+            flash(f"Đã tạo sự kiện {event.ten_su_kien} và {len(draft.data['tasks'])} task.", "success")
+            return redirect(url_for("event.event_detail", event_id=event.id))
+        else:
+            event_drafts.discard(current_user, draft)
+            flash("Đã bỏ bản nháp.", "success")
+            return redirect(url_for("ai.ai_chat"))
     except DomainError as exc:
         db.session.rollback()
         flash(str(exc), "error")
-    return redirect(url_for("ai.ai_chat"))
+    return redirect(url_for("ai.draft_page", draft_id=draft.id))

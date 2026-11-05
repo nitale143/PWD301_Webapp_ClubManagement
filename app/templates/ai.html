@@ -128,7 +128,7 @@
                     <ol class="chat-stream-steps" data-chat-stream-steps></ol>
                     <div class="chat-stream-meta" data-chat-stream-meta hidden></div>
                     <p class="chat-stream-note" data-chat-stream-note hidden></p>
-                    <button type="button" class="chat-stream-refresh" data-chat-stream-refresh hidden>Tải lại lịch sử và đề xuất</button>
+                    <button type="button" class="chat-stream-refresh" data-chat-stream-refresh hidden>Tải lại lịch sử và bản nháp</button>
                 </div>
             </details>
             {% endif %}
@@ -156,6 +156,7 @@
         const messageInput = form.querySelector('input[name="message"]');
         const MAX_HISTORY_MESSAGES = 40;
         const MAX_ANSWER_LENGTH = 50000;
+        const DRAFT_URL = {{ url_for('ai.draft_page', draft_id=0)|tojson }};
         let activeController = null;
         let leavingPage = false;
         let runStartedAt = null;
@@ -333,6 +334,13 @@
             if (mode) details.push(modes[mode] || 'Chế độ agent');
             if (checked) details.push(verification[checked] || 'Trạng thái xác minh');
             if (result.composed === true) details.push('Model viết câu trả lời');
+            if (Number.isInteger(result.draft_id) && result.draft_id > 0) {
+                const link = document.createElement('a');
+                link.className = 'chat-stream-badge';
+                link.href = DRAFT_URL.replace(/0$/, String(result.draft_id));
+                link.textContent = 'Mở bản nháp #' + result.draft_id;
+                metaBox.appendChild(link);
+            }
             const fallbackReasons = {
                 provider_unavailable: 'chưa cấu hình AI (kiểm tra AI_PROVIDER và API key trong .env)',
                 agent_disabled: 'agent đang tắt (AI_AGENT_ENABLED=false)',
@@ -614,57 +622,38 @@
 {% endif %}
 {% if can_manage_events %}
 <details class="new-task-box">
-    <summary>Đề xuất sự kiện hoặc chia task (chỉ tạo bản xem trước)</summary>
-    <form method="post" action="{{ url_for('ai.proposal_new') }}">
+    <summary>Nhờ AI lập bản nháp sự kiện</summary>
+    <form method="post" action="{{ url_for('ai.draft_new') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <p class="small muted">Chưa ghi sự kiện/task cho đến khi người quản lý sự kiện bấm Duyệt ở danh sách bên dưới.</p>
-        <label>Loại đề xuất</label>
-        <select name="kind" required>
-            <option value="event">Sự kiện mới</option>
-            <option value="task">Chia task cho sự kiện hiện có</option>
+        <p class="small muted">Mô tả bằng lời thường, thiếu thông tin cũng được: AI nháp sẵn sự kiện và danh sách task,
+            phần còn thiếu bạn bổ sung sau (trong chat hoặc ở trang bản nháp). Chưa ghi sự kiện/task nào cho tới khi bấm Duyệt.
+            Có thể nhắn thẳng trong chat, ví dụ: “Tháng sau tổ chức workshop An toàn thông tin cho ban Kỹ thuật, khoảng 50 người”.</p>
+        <label>Mô tả</label>
+        <textarea name="description" rows="3" maxlength="2000" required></textarea>
+        <label>Chia task cho sự kiện đã có (để trống: sự kiện mới)</label>
+        <select name="event_id">
+            <option value="">Sự kiện mới</option>
+            {% for event in events %}<option value="{{ event.id }}">{{ event.ten_su_kien }} ({{ event.ma_su_kien }})</option>{% endfor %}
         </select>
-        <label>Mô tả yêu cầu</label>
-        <textarea name="brief" rows="3" maxlength="2000" required></textarea>
-        <label>Mẫu áp dụng</label>
+        <label>Mẫu chia task</label>
         <select name="template_id">
             <option value="">Tự động: tìm trong kho → sự kiện tương tự → mẫu chung</option>
-            {% for template in proposal_templates %}<option value="{{ template.id }}">{{ 'Sự kiện' if template.kind == 'event' else 'Chia task' }} · {{ template.name }}{{ ' (mẫu chung)' if template.is_default else '' }}</option>{% endfor %}
+            {% for template in proposal_templates if template.kind == 'task' %}<option value="{{ template.id }}">{{ template.name }}{{ ' (mẫu chung)' if template.is_default else '' }}</option>{% endfor %}
         </select>
-        <label>Ban áp dụng (bắt buộc khi chia task / Trưởng ban đề xuất)</label>
-        <select name="ban_id">
-            <option value="">Tất cả thành viên</option>
-            {% for ban in bans %}<option value="{{ ban.id }}">{{ ban.ten_ban }}</option>{% endfor %}
-        </select>
-        <label>Sự kiện hiện có (chỉ dùng khi chia task)</label>
-        <select name="event_id">
-            <option value="">Chọn sự kiện</option>
-            {% for event in events %}<option value="{{ event.id }}">{{ event.ten_su_kien }}</option>{% endfor %}
-        </select>
-        <label>Bắt đầu sự kiện mới</label><input type="datetime-local" name="start_at">
-        <label>Kết thúc sự kiện mới (để trống: lấy thời lượng của mẫu)</label><input type="datetime-local" name="end_at">
-        <label>Hạn task (chỉ dùng khi chia task)</label><input type="datetime-local" name="deadline">
-        <label>Kỹ năng mong muốn khi chia task (ngăn bằng dấu phẩy)</label><input type="text" name="required_skills" maxlength="320">
-        <button type="submit">Tạo bản xem trước</button>
+        <button type="submit">Lập bản nháp</button>
     </form>
 </details>
 
-<h2>Đề xuất đang chờ duyệt</h2>
-{% for item in proposals %}
+<h2>Bản nháp sự kiện đang dở</h2>
+{% for draft in drafts %}
+{% set gaps = draft_missing(draft) %}
 <div class="new-task-box">
-    <p><strong>#{{ item.id }} — {{ 'Sự kiện' if item.kind == 'event' else 'Chia task' }}</strong>
-        <span class="small muted">({{ item.provider }})</span></p>
-    <pre style="white-space: pre-wrap">{{ proposal_preview(item) }}</pre>
-    <form method="post" action="{{ url_for('ai.proposal_review', proposal_id=item.id, decision='approved') }}" class="inline-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit">Duyệt và áp dụng</button>
-    </form>
-    <form method="post" action="{{ url_for('ai.proposal_review', proposal_id=item.id, decision='rejected') }}" class="inline-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit">Từ chối</button>
-    </form>
+    <pre style="white-space: pre-wrap">{{ draft_summary(draft) }}</pre>
+    <p class="small {{ 'muted' if not gaps else '' }}">{% if gaps %}Còn thiếu: {{ gaps|map(attribute=1)|join(', ') }}.{% else %}Đủ thông tin, có thể duyệt.{% endif %}</p>
+    <a class="btn btn-secondary btn-sm" href="{{ url_for('ai.draft_page', draft_id=draft.id) }}">Mở bản nháp</a>
 </div>
 {% else %}
-<p class="muted">Không có đề xuất nào đang chờ.</p>
+<p class="muted">Chưa có bản nháp nào đang dở.</p>
 {% endfor %}
 {% endif %}
 

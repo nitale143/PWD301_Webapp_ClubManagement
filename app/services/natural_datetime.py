@@ -1,7 +1,9 @@
-"""Conservative date/time extraction for natural proposal requests.
+"""Đọc ngày và giờ trong câu tiếng Việt cho bản nháp sự kiện (`extract_schedule`).
 
-Dates without a year use the current club-local year. They are never silently
-rolled into the next year; a date that has already passed remains that date.
+Hỗ trợ: 2026-12-12, 12/12, 12/12/2026, hôm nay, ngày mai; giờ 9:00, 9h, 9h30, 9 giờ, kèm buổi
+(sáng/trưa/chiều/tối/đêm, vd "7 giờ tối" = 19:00). Không dùng am/pm. Ngày không có năm dùng năm
+hiện tại theo giờ CLB, không tự đẩy sang năm sau. Giờ hoặc buổi mâu thuẫn → DomainError để hỏi lại
+thay vì đoán.
 """
 
 import re
@@ -53,13 +55,6 @@ _PAIR_GAP = re.compile(
     r"từ|tu|from|to|at)\s*[\s,]*)*",
     re.I,
 )
-_RANGE_GAP = re.compile(
-    r"\s*,?\s*(?:đến|den|to)\s*|\s*,?\s*(?:và|va)\s+"
-    r"(?:kết\s+thúc|ket\s+thuc)(?:\s+(?:lúc|luc))?\s*",
-    re.I,
-)
-
-
 def _date_value(year, month, day, now):
     # Keeping an omitted year in this calendar year avoids guessing user intent.
     """Tạo ngày từ (năm, tháng, ngày); thiếu năm thì dùng năm hiện tại; ngày không tồn tại → lỗi."""
@@ -220,85 +215,15 @@ def _extract_times(message, dates):
     return times
 
 
-def _connected(message, first, second):
-    """True nếu ngày và giờ nằm liền nhau trong câu (thuộc cùng một mốc)."""
-    if first["end"] <= second["start"]:
-        gap = message[first["end"]:second["start"]]
-    elif second["end"] <= first["start"]:
-        gap = message[second["end"]:first["start"]]
-    else:
-        return False
-    if len(gap) > 40 or re.search(r"[;.!?\n]", gap):
-        return False
-    return _PAIR_GAP.fullmatch(gap) is not None
+def extract_schedule(message):
+    """Ngày và giờ xuất hiện trong câu, theo thứ tự.
 
-
-def _explicit_range(message, first, second):
-    """True nếu hai mốc được nối bằng từ chỉ khoảng (đến, -, tới…)."""
-    if first["start"] > second["start"]:
-        first, second = second, first
-    gap = message[first["end"]:second["start"]]
-    return _RANGE_GAP.fullmatch(gap) is not None
-
-
-def parse_natural_datetimes(message):
-    """Return complete, safely paired datetimes and their removable phrases.
-
-    Supported forms include ISO datetimes, Vietnamese day/month dates with an
-    optional four-digit year, today/tomorrow, and explicit clock times in either
-    date-first or time-first order. A second time shares a date only in a clear
-    ``from ... to ...`` schedule.
+    Trả về {"dates": [date…], "times": [time…], "spans": [(start, end)…]}; `spans` là vị trí các
+    cụm ngày/giờ để phần còn lại của câu (tên, địa điểm…) không lẫn ngày giờ.
     """
     now = club_now()
     dates = _extract_dates(message, now)
     times = _extract_times(message, dates)
-    if not dates:
-        return []
-    if not times:
-        raise DomainError("Ngày đã nêu chưa có giờ; hãy bổ sung giờ cụ thể.")
-
-    assignments = {}
-    time_assignments = {}
-    for time_index, time_item in enumerate(times):
-        candidates = [date_index for date_index, date_item in enumerate(dates)
-                     if _connected(message, date_item, time_item)]
-        if len(candidates) > 1:
-            raise DomainError("Không rõ giờ nào thuộc ngày nào; hãy ghi rõ từng ngày và giờ.")
-        if candidates:
-            date_index = candidates[0]
-            assignments.setdefault(date_index, []).append(time_index)
-            time_assignments[time_index] = date_index
-
-    # Only a clear range allows its second time to inherit the first date.
-    if len(dates) == 1 and len(times) == 2 and len(time_assignments) == 1:
-        assigned_index = next(iter(time_assignments))
-        other_index = 1 - assigned_index
-        if _explicit_range(message, times[assigned_index], times[other_index]):
-            assignments.setdefault(0, []).append(other_index)
-            time_assignments[other_index] = 0
-
-    if len(time_assignments) != len(times) or len(assignments) != len(dates):
-        raise DomainError("Không thể ghép an toàn ngày và giờ; hãy ghi từng cặp ngày, giờ cạnh nhau.")
-    for date_index, time_indexes in assignments.items():
-        if len(time_indexes) > 1:
-            if (len(dates) != 1 or len(time_indexes) != 2 or
-                    not _explicit_range(message, times[time_indexes[0]], times[time_indexes[1]])):
-                raise DomainError("Có nhiều giờ cho cùng một ngày; hãy nêu rõ khoảng thời gian.")
-
-    parsed = []
-    for date_index, time_indexes in assignments.items():
-        date_item = dates[date_index]
-        shared_range = len(time_indexes) == 2
-        if shared_range:
-            range_start = min(date_item["start"], *(times[index]["start"] for index in time_indexes))
-            range_end = max(date_item["end"], *(times[index]["end"] for index in time_indexes))
-            shared_raw = message[range_start:range_end].strip()
-        for time_index in sorted(time_indexes):
-            time_item = times[time_index]
-            start = range_start if shared_range else min(date_item["start"], time_item["start"])
-            raw = shared_raw if shared_range else message[
-                start:max(date_item["end"], time_item["end"])
-            ].strip()
-            parsed.append((datetime.combine(date_item["date"], time_item["time"]), raw,
-                           start))
-    return [(value, raw) for value, raw, _start in sorted(parsed, key=lambda item: item[2])]
+    return {"dates": [item["date"] for item in dates],
+            "times": [item["time"] for item in times],
+            "spans": sorted([(item["start"], item["end"]) for item in dates + times])}

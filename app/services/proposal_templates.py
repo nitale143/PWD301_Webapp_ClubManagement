@@ -1,6 +1,6 @@
-"""Kho mẫu sự kiện / mẫu chia task cho AI đề xuất.
+"""Kho mẫu sự kiện / mẫu chia task cho bản nháp sự kiện của AI.
 
-Thứ tự AI chọn mẫu khi lập đề xuất (`find_proposal_template`):
+Thứ tự AI chọn mẫu khi lập bản nháp (`find_proposal_template`):
 
 1. Mẫu người dùng chọn trên form (nếu có).
 2. Mẫu trong kho khớp nhất với mô tả: tên mẫu, từ khóa, loại sự kiện.
@@ -9,8 +9,8 @@ Thứ tự AI chọn mẫu khi lập đề xuất (`find_proposal_template`):
 4. Mẫu chung (`is_default`) trong kho.
 5. Mẫu chung viết sẵn trong code (`BUILTIN`), khi kho còn trống.
 
-Sau đó model AI (nếu có) điều chỉnh mẫu cho phù hợp với mô tả; không có model thì
-dùng nguyên mẫu kết hợp mô tả (xem services/proposals.py).
+Bản nháp sự kiện (services/event_drafts.py) lấy danh sách task từ khung này, rồi điền thêm
+những gì người dùng nêu trong câu mô tả.
 """
 
 from app import db
@@ -229,7 +229,7 @@ def _similar_event(kind, brief, event=None):
 
 
 def find_proposal_template(kind, brief, event=None, template_id=None):
-    """Chọn khung cho đề xuất theo thứ tự: mẫu được chọn → mẫu trong kho → sự kiện tương tự →
+    """Chọn khung cho bản nháp theo thứ tự: mẫu được chọn → mẫu trong kho → sự kiện tương tự →
     mẫu chung trong kho → mẫu chung viết sẵn.
     """
     if template_id:

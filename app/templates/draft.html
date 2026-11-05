@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% block title %}Bản nháp #{{ draft.id }}{% endblock %}
+{% block content %}
+<div class="page-stack ops-preview">
+    <section class="card">
+        <div class="card-header">
+            <div>
+                <span class="eyebrow">BẢN NHÁP · CHƯA GHI VÀO LỊCH CLB</span>
+                <h2>{% if event %}Thêm task cho {{ event.ten_su_kien }}{% else %}{{ data.name or 'Sự kiện chưa đặt tên' }}{% endif %}</h2>
+                <p class="small muted">Lập từ: “{{ draft.request_text }}” · khung task: {{ data.template }}</p>
+            </div>
+            {{ icon('calendar') }}
+        </div>
+        <div class="card-body">
+            {% if missing or problems %}
+            <div class="flash flash-error">
+                {% if missing %}<p>Còn thiếu: {{ missing|map(attribute=1)|join(', ') }}.</p>{% endif %}
+                {% for item in problems %}<p>{{ item }}</p>{% endfor %}
+            </div>
+            {% else %}
+            <div class="flash flash-success">Đủ thông tin. Bấm Duyệt để tạo sự kiện và giao task.</div>
+            {% endif %}
+
+            <form method="post" class="modal-form" id="draft-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% if not event %}
+                <label class="field"><span class="field-label">Tên sự kiện</span>
+                    <input class="input" type="text" name="name" value="{{ data.name or '' }}" maxlength="150"></label>
+                <div class="grid-12 form-grid">
+                    <label class="field span-4"><span class="field-label">Ngày tổ chức</span>
+                        <input class="input" type="date" name="date" value="{{ data.date or '' }}"></label>
+                    <label class="field span-4"><span class="field-label">Bắt đầu</span>
+                        <input class="input" type="time" name="start" value="{{ data.start or '' }}"></label>
+                    <label class="field span-4"><span class="field-label">Kết thúc</span>
+                        <input class="input" type="time" name="end" value="{{ data.end or '' }}"></label>
+                </div>
+                <p class="field-help">Để trống giờ: sự kiện chiếm cả ngày (00:00–23:59).</p>
+                <div class="grid-12 form-grid">
+                    <label class="field span-6"><span class="field-label">Địa điểm{% if 'location' in data.guessed %} (lấy từ mẫu, kiểm tra lại){% endif %}</span>
+                        <input class="input" type="text" name="location" value="{{ data.location or '' }}" maxlength="300"></label>
+                    <label class="field span-6"><span class="field-label">Dành cho</span>
+                        <select class="select" name="ban_id">
+                            <option value="">Tất cả thành viên</option>
+                            {% for ban in bans %}<option value="{{ ban.id }}" {{ 'selected' if data.ban_id == ban.id }}>Ban {{ ban.ten_ban }}</option>{% endfor %}
+                        </select></label>
+                </div>
+                <label class="field"><span class="field-label">Nội dung</span>
+                    <textarea class="textarea" name="content" rows="4" maxlength="3000">{{ data.content or '' }}</textarea></label>
+                {% endif %}
+
+                <h3>Task ({{ data.tasks|length }})</h3>
+                <div class="table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>#</th><th>Task</th><th>Ban</th><th>Người phụ trách</th><th>Trước sự kiện (ngày)</th><th>Hạn</th><th>Bỏ</th></tr></thead>
+                    <tbody>
+                    {% for task in data.tasks %}
+                    {% set prefix = 'task_' ~ task.key ~ '_' %}
+                    {% set due = deadline(task) %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td><input class="input" style="min-width:12rem" type="text" name="{{ prefix }}name" value="{{ task.name }}" maxlength="150"></td>
+                        <td><select class="select" name="{{ prefix }}ban_id">
+                            <option value="">Chọn ban</option>
+                            {% for ban in bans %}<option value="{{ ban.id }}" {{ 'selected' if task.ban_id == ban.id }}>{{ ban.ten_ban }}</option>{% endfor %}
+                        </select></td>
+                        <td><select class="select" style="min-width:12rem" name="{{ prefix }}assignee_id">
+                            <option value="">Chưa chọn</option>
+                            {% for ban in bans if not task.ban_id or ban.id == task.ban_id %}
+                            <optgroup label="{{ ban.ten_ban }}">
+                                {% for member in members[ban.id] %}<option value="{{ member.id }}" {{ 'selected' if task.assignee_id == member.id }}>{{ member.ho_ten }} ({{ member.mssv }})</option>{% endfor %}
+                            </optgroup>
+                            {% endfor %}
+                        </select>
+                        {% if task.assignee_by == 'ai' %}<span class="badge neutral">AI gợi ý</span>{% endif %}</td>
+                        <td><input class="input" type="number" style="max-width:6rem" name="{{ prefix }}days_before" value="{{ task.days_before }}" min="0" max="365"></td>
+                        <td class="small">{{ due.strftime('%H:%M %d/%m') if due else '—' }}</td>
+                        <td><input type="checkbox" name="{{ prefix }}remove" value="1" aria-label="Bỏ task {{ loop.index }}"></td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+                <label class="field"><span class="field-label">Thêm task</span>
+                    <input class="input" type="text" name="new_task" maxlength="150" placeholder="Tên task mới"></label>
+                <p class="field-help">0 ngày = làm tại sự kiện (hạn là giờ kết thúc). Đổi ban thì chọn lại người phụ trách.</p>
+                <div class="toolbar"><div class="toolbar-right"><button type="submit" class="btn btn-secondary">Lưu bản nháp</button></div></div>
+            </form>
+
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <form method="post" action="{{ url_for('ai.draft_action', draft_id=draft.id, action='discard') }}" class="inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-ghost">Bỏ bản nháp</button>
+                    </form>
+                    <a class="btn btn-ghost" href="{{ url_for('ai.ai_chat') }}">Về trợ lý AI</a>
+                </div>
+                <div class="toolbar-right">
+                    <form method="post" action="{{ url_for('ai.draft_action', draft_id=draft.id, action='suggest') }}" class="inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-secondary">AI gợi ý người phụ trách</button>
+                    </form>
+                    <form method="post" action="{{ url_for('ai.draft_action', draft_id=draft.id, action='approve') }}" class="inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-primary" {{ 'disabled' if missing or problems }}>Duyệt và tạo</button>
+                    </form>
+                </div>
+            </div>
+            <p class="small muted">Lưu bản nháp trước khi bấm gợi ý hoặc duyệt nếu bạn vừa sửa ở trên.</p>
+        </div>
+    </section>
+</div>
+{% endblock %}

@@ -24,7 +24,7 @@
     <label class="field"><span class="field-label">Địa điểm gợi ý</span><input class="input" name="location" maxlength="300" value="{{ content.get('location', '') }}"></label>
     <label class="field"><span class="field-label">Nội dung / chương trình mẫu</span><textarea class="textarea" name="content" rows="6" maxlength="3000">{{ content.get('content', '') }}</textarea></label>
     {% else %}
-    <label class="field"><span class="field-label">Danh sách task (mỗi dòng: Tên task | mô tả)</span><textarea class="textarea" name="tasks" rows="6" maxlength="5000" required placeholder="Chuẩn bị slide | Slide và tài liệu&#10;Truyền thông | Poster, bài đăng">{{ task_lines(content) if template else '' }}</textarea><span class="field-help">Tối đa 10 task. Người phụ trách và hạn task được chọn khi lập đề xuất.</span></label>
+    <label class="field"><span class="field-label">Danh sách task (mỗi dòng: Tên task | mô tả)</span><textarea class="textarea" name="tasks" rows="6" maxlength="5000" required placeholder="Chuẩn bị slide | Slide và tài liệu&#10;Truyền thông | Poster, bài đăng">{{ task_lines(content) if template else '' }}</textarea><span class="field-help">Tối đa 10 task. Người phụ trách và hạn task được chọn ở bản nháp sự kiện.</span></label>
     {% endif %}
     <input type="hidden" name="is_default" value="0">
     <label class="checkbox-row"><input class="checkbox" type="checkbox" name="is_default" value="1"{% if template and template.is_default %} checked{% endif %}> <span>Đặt làm mẫu chung (dùng khi không tìm thấy mẫu phù hợp hơn)</span></label>
@@ -110,7 +110,7 @@
     </section>
     {% else %}
     <section class="card">
-        <div class="card-header"><div><h2>{{ kinds[tab] }}</h2><p class="small muted">{{ 'Khung nội dung, địa điểm, thời lượng cho đề xuất sự kiện mới.' if tab == 'event' else 'Danh sách task mẫu khi chia task cho một sự kiện.' }}</p></div></div>
+        <div class="card-header"><div><h2>{{ kinds[tab] }}</h2><p class="small muted">{{ 'Khung nội dung, địa điểm, thời lượng cho bản nháp sự kiện mới.' if tab == 'event' else 'Danh sách task mẫu khi chia task cho một sự kiện.' }}</p></div></div>
         <div class="card-body template-list">
             {% for template in proposals[tab] %}
             <details class="template-item">

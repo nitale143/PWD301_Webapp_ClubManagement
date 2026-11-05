@@ -1,3 +1,23 @@
+# Bản nháp sự kiện: AI lập ngay, bổ sung dần, trả lời như người (05/11/2026)
+
+## Tính năng
+- Người quản lý sự kiện mô tả sự kiện bằng lời thường ("Tháng sau tổ chức workshop ATTT cho ban Kỹ thuật, khoảng 50 người"). AI lập **ngay** bản nháp gồm sự kiện + danh sách task (từ Kho mẫu → sự kiện tương tự → mẫu chung), kể cả khi còn thiếu ngày, địa điểm hay người phụ trách, rồi hỏi tiếp phần thiếu (tối đa 2 ý mỗi lần).
+- Bổ sung qua chat ("ngày 12/12 ở Lab 304", "task 2 giao cho SE180014", "gợi ý người giúp mình", "thêm task …", "bỏ task 3", "hủy bản nháp") hoặc form ở trang bản nháp `/ai/drafts/<id>`.
+- AI gợi ý người phụ trách: đúng ban, còn sức nhận việc, hợp kỹ năng, ít việc nhất; được đánh dấu "AI gợi ý".
+- Sự kiện tính theo ngày (không nêu giờ: 00:00–23:59). Hạn task tính từ ngày sự kiện (mặc định trước 2 ngày, 23:59; việc tại sự kiện: giờ kết thúc).
+- Duyệt tạo sự kiện + toàn bộ task trong một giao dịch, kiểm lại người phụ trách lúc duyệt; hai người bấm cùng lúc chỉ một lượt thành công.
+- Câu trả lời xưng mình/bạn; khi có model, model chỉ viết lại lời thoại và vẫn qua chốt đối chiếu số + mã.
+- API: `GET/POST /api/v1/assistant/drafts`, `GET /assistant/drafts/<id>`, `POST …/approve`, `POST …/discard`.
+
+## Đã xóa (thay bằng bản nháp)
+- Đề xuất AI cũ: `services/proposals.py`, `services/natural_proposals.py`, model `AIProposal`, `AssistantPending`, `ConversationPending`, route `/ai/proposals/*`, API `/assistant/proposals*`, cú pháp lệnh `Đề xuất sự kiện: … | … | …`. Đề xuất cũ đòi đủ giờ bắt đầu/kết thúc/hạn mới lập được và chỉ giữ câu hỏi dở 30 phút.
+- `natural_datetime` chỉ còn `extract_schedule` (bỏ phần ghép ngày giờ riêng cho đề xuất).
+
+## Database
+- Migration `0007`: tạo `event_draft`; xóa `ai_proposal`, `assistant_pending`, `conversation_pending`. Đề xuất chưa duyệt không được chuyển sang (chỉ là bản xem trước).
+
+- Test mới: `tests/test_event_drafts.py` (12 test); bỏ các test của đề xuất cũ. Tổng 212 test; `scripts/ai_eval.py` 30/30.
+
 # Quỹ: khoản thu là nguồn duy nhất, quỹ kỳ thành một khoản thu (05/11/2026)
 
 ## Lỗi đã sửa

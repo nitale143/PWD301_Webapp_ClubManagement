@@ -208,31 +208,6 @@ class TemplateStoreTests(_AppCase):
         self.assertIn("mời họp ban tối thứ 5", drafts[2].body)
         self.assertEqual({draft.status for draft in drafts}, {"pending"})
 
-    def test_task_proposal_uses_store_template_and_event_uses_template_duration(self):
-        from app.services.proposals import create_proposal
-        now = club_now().replace(second=0, microsecond=0)
-        event = Event(ten_su_kien="Workshop Web", ma_su_kien="W1", thoi_gian_bat_dau=now + timedelta(days=5),
-                      thoi_gian_ket_thuc=now + timedelta(days=5, hours=3), trang_thai="sap_dien_ra", tao_boi_id=2)
-        db.session.add(event)
-        db.session.flush()
-        db.session.add(EventDetail(event_id=event.id, loai="workshop", tat_ca_thanh_vien=True))
-        db.session.commit()
-        actor = db.session.get(User, 2)
-        deadline = (now + timedelta(days=4)).isoformat()
-        templated = create_proposal(actor, {"kind": "task", "brief": "chuẩn bị cho workshop", "ban_id": "1",
-                                            "event_id": str(event.id), "deadline": deadline}, RulesProvider())
-        self.assertEqual(templated.payload["template"], "Task cho workshop")
-        self.assertEqual(len(templated.payload["tasks"]), 4)
-        single = create_proposal(actor, {"kind": "task", "brief": "Thiết kế poster", "ban_id": "1",
-                                         "event_id": str(event.id), "deadline": deadline}, RulesProvider())
-        self.assertEqual([row["name"] for row in single.payload["tasks"]], ["Thiết kế poster"])
-        start = now + timedelta(days=10)
-        ctf = create_proposal(actor, {"kind": "event", "brief": "Giải CTF nội bộ cho thành viên mới",
-                                      "start_at": start.isoformat()}, RulesProvider())
-        self.assertEqual(ctf.payload["template"], "Cuộc thi CTF")
-        self.assertEqual(ctf.payload["type"], "ctf")
-        self.assertEqual(ctf.payload["end_at"], (start + timedelta(hours=8)).isoformat())
-
     def test_similar_event_is_used_when_store_has_no_match(self):
         from app.services.proposal_templates import find_proposal_template
         now = club_now()

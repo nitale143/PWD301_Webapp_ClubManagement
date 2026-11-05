@@ -10,15 +10,15 @@ from openpyxl import Workbook
 from flask import current_app
 
 from app import db
-from app.models import (AIProposal, AIReportSnapshot, Attendance, EmailProposal,
+from app.models import (AIReportSnapshot, Attendance, EmailProposal,
                         Event, EventRegistration, FundCollection,
                         FundPayment, Task)
-from .access import board_members as visible_members, is_board, require
+from .access import board_members as visible_members, can_manage_events, is_board, require
 from .assistant import _normalize
 from .common import DomainError, audit, club_now
 from .email_proposals import _validate_address, can_review_email
 from .export_security import safe_excel_row
-from .proposals import can_review
+from .event_drafts import visible_drafts
 
 
 def _event_scope(actor, query):
@@ -50,8 +50,7 @@ def daily_digest(actor, today=None):
     funds = FundCollection.query.filter(
         FundCollection.trang_thai == "open", FundCollection.han_dong < today
     ).order_by(FundCollection.han_dong, FundCollection.id).all()
-    proposals = [row for row in AIProposal.query.filter_by(status="pending").order_by(AIProposal.id)
-                 if can_review(actor, row)]
+    drafts = visible_drafts(actor).count() if can_manage_events(actor) else 0
     emails = [row for row in EmailProposal.query.filter(
         EmailProposal.status.in_(["pending", "failed", "sending"])).order_by(EmailProposal.id)
               if can_review_email(actor, row)]
@@ -59,12 +58,12 @@ def daily_digest(actor, today=None):
              f"- Task quá hạn: {len(overdue)}; sắp hạn trong 7 ngày: {len(due_soon)}.",
              f"- Sự kiện trong 7 ngày tới: {len(events)}.",
              f"- Khoản thu đang mở đã quá hạn: {len(funds)}.",
-             f"- Đề xuất chờ duyệt: {len(proposals)}; nháp email cần xử lý: {len(emails)}."]
+             f"- Bản nháp sự kiện đang dở: {drafts}; nháp email cần xử lý: {len(emails)}."]
     lines.extend(f"  Task #{task.id}: {task.ten_task} — hạn {task.deadline:%d/%m %H:%M}"
                  for task in (overdue + due_soon)[:5])
     lines.extend(f"  Sự kiện #{event.id}: {event.ten_su_kien} — {event.thoi_gian_bat_dau:%d/%m %H:%M}"
                  for event in events[:3])
-    lines.append("Nguồn: task, event, fund_collection, ai_proposal, email_proposal trong database CLB.")
+    lines.append("Nguồn: task, event, fund_collection, event_draft, email_proposal trong database CLB.")
     return "\n".join(lines)
 
 
