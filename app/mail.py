@@ -11,6 +11,7 @@ import re
 import smtplib
 import ssl
 from email.message import EmailMessage
+from email.utils import parseaddr
 
 from flask import current_app
 
@@ -39,6 +40,14 @@ def _valid_email(value):
     return _safe_header(value, 254) and _EMAIL_RE.fullmatch(value) is not None and ".." not in value
 
 
+def _valid_sender(value):
+    """Người gửi hợp lệ: "fia@gmail.com" hoặc có tên hiển thị "FIA Club <fia@gmail.com>"."""
+    if not _safe_header(value, 320):
+        return False
+    name, address = parseaddr(value)
+    return bool(address) and _valid_email(address) and "<" not in name and ">" not in name
+
+
 def send_email(to_email: str, subject: str, body: str) -> bool:
     """Send one plain-text message, returning false if it cannot be sent safely."""
     cfg = current_app.config
@@ -56,7 +65,7 @@ def send_email(to_email: str, subject: str, body: str) -> bool:
 
     sender = cfg.get("MAIL_DEFAULT_SENDER", "")
     server_name = cfg.get("MAIL_SERVER", "")
-    if not _valid_email(sender) or not _safe_header(server_name, 253) or any(c.isspace() for c in server_name):
+    if not _valid_sender(sender) or not _safe_header(server_name, 253) or any(c.isspace() for c in server_name):
         current_app.logger.warning("Email delivery configuration is invalid")
         return False
 

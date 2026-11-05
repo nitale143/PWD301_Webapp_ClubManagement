@@ -299,6 +299,20 @@ class AuthHardeningTests(unittest.TestCase):
                 ))
                 smtp.assert_not_called()
 
+    def test_sender_may_carry_a_display_name_but_not_injected_headers(self):
+        self.app.config.update({"MAIL_ENABLED": True, "MAIL_USE_TLS": True, "MAIL_USE_SSL": False,
+                                "MAIL_SERVER": "smtp.example.test", "MAIL_USERNAME": "fia@example.test",
+                                "MAIL_PASSWORD": "app-password"})
+        for sender, sent in (("fia@example.test", True), ("FIA Club <fia@example.test>", True),
+                             ("FIA Club", False), ("FIA <fia@example.test>\r\nBcc: x@example.test", False)):
+            with self.subTest(sender=sender), patch("app.mail.smtplib.SMTP") as smtp:
+                self.app.config["MAIL_DEFAULT_SENDER"] = sender
+                self.assertEqual(send_email("member@example.test", "Xin chào", "Nội dung"), sent)
+                self.assertEqual(smtp.called, sent)
+                if sent:
+                    message = smtp.return_value.__enter__.return_value.send_message.call_args.args[0]
+                    self.assertEqual(message["From"], sender)
+
 
 if __name__ == "__main__":
     unittest.main()

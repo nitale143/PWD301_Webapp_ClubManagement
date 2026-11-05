@@ -1,3 +1,7 @@
+# Email: người gửi được có tên hiển thị (06/11/2026)
+
+- `MAIL_DEFAULT_SENDER="FIA Club <fia.clb@gmail.com>"` trước đây bị coi là cấu hình sai ("Email delivery configuration is invalid") nên không gửi được thư nào. Nay nhận cả địa chỉ trần lẫn dạng có tên; vẫn chặn ký tự xuống dòng (chống chèn header).
+
 # Tạm khóa đăng nhập lưu trong database (06/11/2026)
 
 ## Lỗi đã sửa
