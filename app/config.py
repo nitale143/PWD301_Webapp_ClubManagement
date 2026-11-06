@@ -157,6 +157,10 @@ class Config:
     AI_WORKSPACE_ID = os.environ.get("AI_WORKSPACE_ID", "")
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
     GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
+    # DeepSeek / cổng trung gian chuẩn OpenAI (vd. modelapi.vn): đổi BASE_URL để trỏ cổng khác.
+    DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
+    DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
+    DEEPSEEK_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
     AI_TIMEOUT_SECONDS = 20
     AI_MAX_CALLS_PER_MINUTE = int(os.environ.get("AI_MAX_CALLS_PER_MINUTE", 12))
     AI_DAILY_TOKEN_LIMIT = int(os.environ.get("AI_DAILY_TOKEN_LIMIT", 100000))

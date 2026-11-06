@@ -88,9 +88,10 @@ def _model_quota():
 def _record_model_use(provider, model, purpose, data, elapsed_ms):
     """Ghi AIUsageLog: nhà cung cấp, model, số token, thời gian (không lưu prompt/nội dung)."""
     usage = (data.get("usageMetadata") or data.get("usage") or {}) if isinstance(data, dict) else {}
-    input_tokens = usage.get("promptTokenCount", usage.get("input_tokens", 0))
-    output_tokens = usage.get("candidatesTokenCount", usage.get("output_tokens", 0))
-    total_tokens = usage.get("totalTokenCount")
+    # Gemini: promptTokenCount/… · Claude: input_tokens/… · OpenAI-compatible: prompt_tokens/…
+    input_tokens = usage.get("promptTokenCount", usage.get("input_tokens", usage.get("prompt_tokens", 0)))
+    output_tokens = usage.get("candidatesTokenCount", usage.get("output_tokens", usage.get("completion_tokens", 0)))
+    total_tokens = usage.get("totalTokenCount", usage.get("total_tokens"))
     if total_tokens is None:
         total_tokens = int(input_tokens or 0) + int(output_tokens or 0)
     actor_id = current_user.id if has_request_context() and current_user.is_authenticated else None
@@ -505,6 +506,78 @@ class GeminiProvider(AnthropicProvider):
                     "\n\n(Gemini đang bận; tôi chưa tạo được câu trả lời AI cho câu hỏi này.)"}
 
 
+class DeepSeekProvider(AnthropicProvider):
+    """Chat Completions chuẩn OpenAI (DeepSeek gốc, hoặc cổng trung gian như modelapi.vn).
+
+    Dùng chung ngữ cảnh chỉ-đọc, có phạm vi như Claude; model chỉ sinh văn bản, không có công cụ ghi.
+    Đổi DEEPSEEK_BASE_URL để trỏ sang cổng khác (vd. https://modelapi.vn/v1).
+    """
+
+    provider_name = "deepseek"
+
+    def complete(self, system, prompt, max_tokens=800, response_schema=None, purpose="chat"):
+        """Gọi endpoint /chat/completions với giới hạn quota/timeout và ghi nhận usage."""
+        config = current_app.config
+        _model_quota()
+        started = monotonic()
+        base = str(config["DEEPSEEK_BASE_URL"]).rstrip("/")
+        payload = {
+            "model": config["DEEPSEEK_MODEL"],
+            "max_tokens": max_tokens,
+            "messages": [{"role": "system", "content": system},
+                         {"role": "user", "content": prompt}],
+        }
+        if response_schema:
+            # Chế độ JSON object: chỉ bảo đảm JSON hợp lệ, không ép schema; _parse_plan kiểm tra lại.
+            payload["response_format"] = {"type": "json_object"}
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = Request(
+            f"{base}/chat/completions", data=body,
+            headers={"Authorization": f"Bearer {config['DEEPSEEK_API_KEY']}",
+                     "content-type": "application/json"},
+            method="POST",
+        )
+        for attempt in range(2):
+            try:
+                with urlopen(req, timeout=config.get("AI_TIMEOUT_SECONDS", 20)) as response:
+                    data = json.load(response)
+                break
+            except HTTPError as exc:
+                if exc.code in {401, 403}:
+                    raise DomainError("DEEPSEEK_API_KEY không hợp lệ hoặc không có quyền gọi mô hình.", 503) from None
+                if exc.code in {400, 404}:
+                    raise DomainError("Yêu cầu DeepSeek không hợp lệ. Kiểm tra DEEPSEEK_MODEL và DEEPSEEK_BASE_URL.", 503) from None
+                if exc.code not in {408, 429, 500, 502, 503, 504}:
+                    raise DomainError("Dịch vụ DeepSeek từ chối yêu cầu. Kiểm tra cấu hình tài khoản.", 503) from None
+            except (URLError, TimeoutError, OSError):
+                pass
+            except ValueError:
+                raise TemporaryAIError("DeepSeek trả về dữ liệu không hợp lệ.", 503) from None
+            if attempt == 0:
+                sleep(0.5 + uniform(0, 0.25))
+            else:
+                raise TemporaryAIError("DeepSeek tạm thời không phản hồi.", 503) from None
+        choices = data.get("choices", []) if isinstance(data, dict) else []
+        first = choices[0] if isinstance(choices, list) and choices else {}
+        message = first.get("message", {}) if isinstance(first, dict) else {}
+        result = (message.get("content") or "").strip() if isinstance(message, dict) else ""
+        if not result:
+            raise TemporaryAIError("DeepSeek trả về nội dung rỗng.", 503)
+        _record_model_use(self.provider_name, config["DEEPSEEK_MODEL"], purpose, data,
+                          (monotonic() - started) * 1000)
+        return result[:10000]
+
+    def answer(self, actor, question, history=None):
+        """Như Anthropic; lỗi tạm thời thì quay về RulesProvider."""
+        try:
+            return super().answer(actor, question, history=history)
+        except TemporaryAIError:
+            facts = RulesProvider().answer(actor, question)
+            return {**facts, "provider": "rules_fallback",
+                    "answer": facts["answer"] +
+                    "\n\n(DeepSeek đang bận; tôi chưa tạo được câu trả lời AI cho câu hỏi này.)"}
+
+
 def get_provider():
     """Chọn nhà cung cấp theo AI_PROVIDER và API key đã cấu hình (mặc định RulesProvider)."""
     config = current_app.config
@@ -513,6 +586,8 @@ def get_provider():
         return AnthropicProvider()
     if provider == "gemini" and config.get("GEMINI_API_KEY"):
         return GeminiProvider()
-    if provider in {"rules", "anthropic", "gemini"}:
+    if provider == "deepseek" and config.get("DEEPSEEK_API_KEY"):
+        return DeepSeekProvider()
+    if provider in {"rules", "anthropic", "gemini", "deepseek"}:
         return RulesProvider()
-    raise DomainError("AI_PROVIDER không được hỗ trợ; dùng 'rules', 'gemini' hoặc 'anthropic'.", 503)
+    raise DomainError("AI_PROVIDER không được hỗ trợ; dùng 'rules', 'gemini', 'anthropic' hoặc 'deepseek'.", 503)
